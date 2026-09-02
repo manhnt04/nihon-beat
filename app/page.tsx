@@ -65,6 +65,7 @@ export default function Home() {
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
+  const typingInputRef = useRef<HTMLInputElement | null>(null);
   const options = useMemo(() => {
     const column = round % 3 === 0 ? 2 : 3;
     return [
@@ -206,6 +207,7 @@ export default function Home() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (screen !== 'game') return;
+      if (mode !== 'audition') return;
       if (e.code === 'Space') {
         e.preventDefault();
         hitBeat();
@@ -226,7 +228,7 @@ export default function Home() {
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [screen, phase, options, chooseAnswer, pressArrow, hitBeat]);
+  }, [screen, mode, phase, options, chooseAnswer, pressArrow, hitBeat]);
   useEffect(() => {
     if (screen !== 'game') return;
     const started = Date.now();
@@ -274,6 +276,13 @@ export default function Home() {
     );
     return () => clearInterval(t);
   }, [screen, mode, typingLocked, nextTypingWord]);
+  useEffect(() => {
+    if (screen !== 'game' || mode !== 'typing' || typingLocked) return;
+    const frame = requestAnimationFrame(() => {
+      typingInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [screen, mode, word, typingLocked]);
   const refreshAudioTracks = useCallback(async () => {
     try {
       setAudioTracks(await getAudioTracks());
@@ -420,6 +429,7 @@ export default function Home() {
             </div>
             <form onSubmit={submitTyping}>
               <input
+                ref={typingInputRef}
                 autoFocus
                 value={typingInput}
                 onChange={(event) => setTypingInput(event.target.value)}
