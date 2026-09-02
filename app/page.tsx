@@ -1,16 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import {
   BookOpen,
   Flame,
   Music2,
   Play,
+  Settings,
   Sparkles,
+  Trash2,
   Trophy,
+  Upload,
   Volume2,
 } from 'lucide-react';
+import {
+  deleteAudioTrack,
+  getAudioTracks,
+  saveAudioFiles,
+  type AudioTrack,
+} from '@/lib/audio-library';
 
 type Screen = 'home' | 'songs' | 'game' | 'result' | 'dictionary';
 const vocab = [
@@ -50,6 +59,12 @@ export default function Home() {
   const [typingTime, setTypingTime] = useState(8);
   const [typingFeedback, setTypingFeedback] = useState('NHẬP ĐÁP ÁN');
   const [typingLocked, setTypingLocked] = useState(false);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [volume, setVolume] = useState(0.65);
+  const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
+  const audioPlayer = useRef<HTMLAudioElement | null>(null);
+  const audioUrl = useRef<string | null>(null);
   const options = useMemo(() => {
     const column = round % 3 === 0 ? 2 : 3;
     return [
@@ -89,6 +104,20 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setScreen('game');
+    if (audioTracks.length) {
+      const track = audioTracks[Math.floor(Math.random() * audioTracks.length)];
+      audioPlayer.current?.pause();
+      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+      audioUrl.current = URL.createObjectURL(track.blob);
+      const player = new Audio(audioUrl.current);
+      player.loop = true;
+      player.volume = volume;
+      audioPlayer.current = player;
+      setCurrentTrackName(track.name);
+      void player.play().catch(() => undefined);
+    } else {
+      setCurrentTrackName('Chưa tải nhạc');
+    }
   };
   const normalizeAnswer = (value: string) =>
     value
@@ -245,6 +274,51 @@ export default function Home() {
     );
     return () => clearInterval(t);
   }, [screen, mode, typingLocked, nextTypingWord]);
+  const refreshAudioTracks = useCallback(async () => {
+    try {
+      setAudioTracks(await getAudioTracks());
+    } catch {
+      setAudioTracks([]);
+    }
+  }, []);
+  useEffect(() => {
+    void refreshAudioTracks();
+    const savedVolume = Number(localStorage.getItem('nihon-beat-volume'));
+    if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1)
+      setVolume(savedVolume);
+    return () => {
+      audioPlayer.current?.pause();
+      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+    };
+  }, [refreshAudioTracks]);
+  useEffect(() => {
+    if (audioPlayer.current) audioPlayer.current.volume = volume;
+    localStorage.setItem('nihon-beat-volume', String(volume));
+  }, [volume]);
+  useEffect(() => {
+    if (screen !== 'game') audioPlayer.current?.pause();
+  }, [screen]);
+  const uploadAudio = async (files: FileList | null) => {
+    if (!files?.length) return;
+    await saveAudioFiles(
+      Array.from(files).filter((file) => file.type.startsWith('audio/')),
+    );
+    await refreshAudioTracks();
+  };
+  const removeAudio = async (id: string) => {
+    await deleteAudioTrack(id);
+    await refreshAudioTracks();
+  };
+  const previewAudio = (track: AudioTrack) => {
+    audioPlayer.current?.pause();
+    if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+    audioUrl.current = URL.createObjectURL(track.blob);
+    const player = new Audio(audioUrl.current);
+    player.volume = volume;
+    audioPlayer.current = player;
+    setCurrentTrackName(track.name);
+    void player.play().catch(() => undefined);
+  };
   useEffect(() => {
     const controller = new AbortController();
     const context = (
@@ -306,7 +380,7 @@ export default function Home() {
           </div>
           <div className="now">
             <b>TYPING BATTLE · {songs[selected][0]}</b>
-            <small>Trả lời nhanh · Chuỗi Perfect · 02:30</small>
+            <small>♪ {currentTrackName} · 02:30</small>
           </div>
           <div>
             <small>PERFECT CHAIN</small>
@@ -405,7 +479,7 @@ export default function Home() {
           <div className="now">
             <b>{songs[selected][0]}</b>
             <small>
-              {songs[selected][1]} · {songs[selected][2]} BPM · 02:30
+              ♪ {currentTrackName} · {songs[selected][2]} BPM · 02:30
             </small>
           </div>
           <div>
@@ -572,13 +646,111 @@ export default function Home() {
             Từ điển
           </button>
         </nav>
-        <div className="user">
-          <span>12</span>
+        <button
+          className="user audio-library-button"
+          onClick={() => setAudioOpen(true)}
+        >
+          <span>
+            <Music2 />
+          </span>
           <b>
-            Hana<small>Level 8</small>
+            Thư viện nhạc
+            <small>
+              {audioTracks.length} bài · <Settings /> Cài đặt
+            </small>
           </b>
-        </div>
+        </button>
       </header>
+      {audioOpen && (
+        <div
+          className="audio-modal-backdrop"
+          onMouseDown={() => setAudioOpen(false)}
+        >
+          <section
+            className="audio-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="audio-modal-head">
+              <div>
+                <span className="eyebrow">GAME AUDIO</span>
+                <h2>Thư viện âm thanh</h2>
+                <p>Mỗi trận sẽ chọn ngẫu nhiên một bài trong danh sách.</p>
+              </div>
+              <button onClick={() => setAudioOpen(false)} aria-label="Đóng">
+                ×
+              </button>
+            </div>
+            <label className="audio-upload">
+              <Upload />
+              <span>
+                <b>Tải file âm thanh</b>
+                <small>MP3, WAV, OGG hoặc M4A · Có thể chọn nhiều file</small>
+              </span>
+              <input
+                type="file"
+                accept="audio/*"
+                multiple
+                onChange={(event) => void uploadAudio(event.target.files)}
+              />
+            </label>
+            <div className="volume-setting">
+              <Volume2 />
+              <span>Âm lượng trong trận</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={volume}
+                onChange={(event) => setVolume(Number(event.target.value))}
+              />
+              <b>{Math.round(volume * 100)}%</b>
+            </div>
+            <div className="audio-list">
+              {audioTracks.length ? (
+                audioTracks.map((track) => (
+                  <article key={track.id}>
+                    <button
+                      className="track-play"
+                      onClick={() => previewAudio(track)}
+                    >
+                      <Play />
+                    </button>
+                    <div>
+                      <b>{track.name}</b>
+                      <small>
+                        {(track.blob.size / 1024 / 1024).toFixed(1)} MB
+                      </small>
+                    </div>
+                    <button
+                      className="track-delete"
+                      onClick={() => void removeAudio(track.id)}
+                      aria-label={`Xóa ${track.name}`}
+                    >
+                      <Trash2 />
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <div className="audio-empty">
+                  <Music2 />
+                  <b>Chưa có bài nhạc nào</b>
+                  <span>
+                    Tải nhạc lên để game phát ngẫu nhiên khi vào trận.
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="audio-note">
+              <span>♪</span>
+              <p>
+                File nhạc được lưu riêng trên trình duyệt của thiết bị này,
+                không tải lên máy chủ.
+              </p>
+            </div>
+          </section>
+        </div>
+      )}
       {screen === 'home' && (
         <div className="home">
           <section className="hero">

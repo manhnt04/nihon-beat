@@ -311,6 +311,238 @@
     transform: scale(1.18);
   }
 }
+.audio-library-button {
+  border: 1px solid #eee5e4;
+  cursor: pointer;
+}
+.audio-library-button > span svg {
+  width: 19px;
+}
+.audio-library-button small {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+}
+.audio-library-button small svg {
+  width: 11px;
+  height: 11px;
+}
+.audio-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #16102499;
+  backdrop-filter: blur(7px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.audio-modal {
+  width: min(620px, 96vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: #fffaf8;
+  border: 1px solid white;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 35px 100px #160c2955;
+}
+.audio-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.audio-modal-head h2 {
+  font-size: 28px;
+  margin: 7px 0 4px;
+}
+.audio-modal-head p {
+  margin: 0;
+  color: #7d7695;
+  font-size: 12px;
+}
+.audio-modal-head > button {
+  border: 0;
+  background: #f1e9ee;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 25px;
+}
+.audio-upload {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 2px dashed #e0ceda;
+  border-radius: 18px;
+  padding: 18px;
+  margin: 24px 0 14px;
+  cursor: pointer;
+  background: #fff;
+}
+.audio-upload:hover {
+  border-color: #ff6b9c;
+  background: #fff7fa;
+}
+.audio-upload > svg {
+  color: #ff4f87;
+}
+.audio-upload b,
+.audio-upload small {
+  display: block;
+}
+.audio-upload small {
+  font-size: 10px;
+  color: #8d839a;
+  margin-top: 4px;
+}
+.audio-upload input {
+  display: none;
+}
+.volume-setting {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: #f4eef2;
+  border-radius: 15px;
+  padding: 13px 15px;
+  font-size: 12px;
+}
+.volume-setting svg {
+  width: 18px;
+  color: #7558ec;
+}
+.volume-setting input {
+  accent-color: #ff4f87;
+}
+.audio-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  max-height: 280px;
+  overflow: auto;
+}
+.audio-list article {
+  display: grid;
+  grid-template-columns: 42px 1fr 38px;
+  align-items: center;
+  gap: 11px;
+  background: white;
+  border: 1px solid #eee5e7;
+  border-radius: 14px;
+  padding: 9px 11px;
+}
+.track-play,
+.track-delete {
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.track-play {
+  width: 38px;
+  height: 38px;
+  background: #fff0f5;
+  color: #ff4f87;
+}
+.track-play svg {
+  width: 16px;
+}
+.track-delete {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: #a59ba9;
+}
+.track-delete:hover {
+  background: #ffe6ea;
+  color: #d4475d;
+}
+.track-delete svg {
+  width: 16px;
+}
+.audio-list article div b,
+.audio-list article div small {
+  display: block;
+  max-width: 410px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.audio-list article div small {
+  font-size: 9px;
+  color: #918797;
+  margin-top: 3px;
+}
+.audio-empty {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 30px;
+  color: #9a8fa4;
+}
+.audio-empty svg {
+  width: 38px;
+  height: 38px;
+  color: #d2c4d0;
+  margin-bottom: 9px;
+}
+.audio-empty b,
+.audio-empty span {
+  display: block;
+}
+.audio-empty span {
+  font-size: 10px;
+  margin-top: 4px;
+}
+.audio-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 15px;
+  color: #857a92;
+  font-size: 10px;
+}
+.audio-note span {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #eee8ff;
+  color: #7558ec;
+}
+.audio-note p {
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .audio-modal {
+    padding: 20px;
+  }
+  .volume-setting {
+    grid-template-columns: auto 1fr auto;
+  }
+  .volume-setting span {
+    display: none;
+  }
+  .audio-library-button b {
+    display: block !important;
+  }
+  .audio-library-button {
+    padding-right: 10px;
+  }
+  .audio-library-button > span {
+    width: 34px;
+    height: 34px;
+  }
+  .audio-library-button b {
+    font-size: 11px;
+  }
+  .audio-library-button small {
+    font-size: 8px;
+  }
+}
 @media (max-width: 900px) {
   .chain-card,
   .typing-score {
