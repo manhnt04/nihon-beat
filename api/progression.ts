@@ -109,16 +109,16 @@ const normalizeSpins = (progression: Progression, date: string) => {
 };
 
 const slotSymbols = [
-  { id: 'coin', label: 'Coin', weight: 38 },
-  { id: 'spin', label: 'Spin', weight: 30 },
-  { id: 'wood', label: 'Gỗ', weight: 10 },
-  { id: 'ink', label: 'Mực', weight: 8 },
-  { id: 'jade', label: 'Mảnh Ngọc', weight: 5 },
-  { id: 'chest', label: 'Rương', weight: 4 },
-  { id: 'shield', label: 'Khiên Thành', weight: 2 },
-  { id: 'ticket', label: 'Vé Công Thành', weight: 1.5 },
-  { id: 'rare', label: 'Mảnh Thiên Mệnh', weight: 1.4 },
-  { id: 'jackpot', label: 'Jackpot', weight: .1 },
+  { id: 'coin', label: 'Coin', weight: 45 },
+  { id: 'spin', label: 'Spin', weight: 35 },
+  { id: 'wood', label: 'Gỗ', weight: 6 },
+  { id: 'ink', label: 'Mực', weight: 5 },
+  { id: 'jade', label: 'Mảnh Ngọc', weight: 3 },
+  { id: 'chest', label: 'Rương', weight: 3 },
+  { id: 'shield', label: 'Khiên Thành', weight: 1.5 },
+  { id: 'ticket', label: 'Vé Công Thành', weight: 1 },
+  { id: 'rare', label: 'Mảnh Thiên Mệnh', weight: .45 },
+  { id: 'jackpot', label: 'Jackpot', weight: .05 },
 ] as const;
 
 const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4_294_967_296;
@@ -354,7 +354,7 @@ export default async function handler(request: any, response: any) {
     }
     if (triple) {
       const id = reels[0].id;
-      if (id === 'spin') rewards.spins = 36;
+      if (id === 'spin') rewards.spins = 24;
       else if (id === 'wood') rewards.wood = 120;
       else if (id === 'ink') rewards.ink = 80;
       else if (id === 'jade') rewards.jade = 12;
