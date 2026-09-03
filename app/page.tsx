@@ -1622,19 +1622,19 @@ export default function Home() {
               </button>
             </section>
             <section className="today">
-              <h3>Tiến độ hôm nay</h3>
-              <div>
-                <span>
-                  {progression?.completedTasks ?? 0}<small>/ 4 nhiệm vụ</small>
-                </span>
-              </div>
-              {progression ? <div className="daily-tasks">
-                <span className={progression.daily.correct >= 20 ? 'done' : ''}>Ôn đúng 20 câu <b>{Math.min(progression.daily.correct, 20)}/20</b></span>
-                <span className={progression.daily.dailyCompleted ? 'done' : ''}>Daily Challenge <b>{progression.daily.dailyCompleted ? '✓' : '0/1'}</b></span>
-                <span className={progression.daily.offlineMatches >= 1 ? 'done' : ''}>Chơi offline <b>{Math.min(progression.daily.offlineMatches, 1)}/1</b></span>
-                <span className={progression.daily.pvpMatches >= 2 ? 'done' : ''}>Chơi PvP <b>{Math.min(progression.daily.pvpMatches, 2)}/2</b></span>
-              </div> : <p>Đăng nhập để bắt đầu nhiệm vụ và nhận Nhật Ấn.</p>}
-              {progression && <p className="daily-cap">玉片 offline: {progression.daily.offlineJade}/20 · PvP: {progression.daily.rewardedPvpMatches}/10 trận</p>}
+              <article className="today-summary">
+                <span><small>今日进度</small><b>Tiến độ hôm nay</b></span>
+                <strong>{progression?.completedTasks ?? 0}<small>/4</small></strong>
+                <i><b style={{ width: `${((progression?.completedTasks ?? 0) / 4) * 100}%` }} /></i>
+                <p>{(progression?.completedTasks ?? 0) >= 3 ? 'Đã đủ điều kiện nhận Nhật Ấn' : `Hoàn thành ${3 - (progression?.completedTasks ?? 0)} nhiệm vụ nữa để nhận Nhật Ấn`}</p>
+              </article>
+              {progression ? <ul className="daily-tasks">
+                <li className={progression.daily.correct >= 20 ? 'done' : ''}><i /> <span>Ôn đúng 20 câu</span><b>{Math.min(progression.daily.correct, 20)}/20</b></li>
+                <li className={progression.daily.dailyCompleted ? 'done' : ''}><i /> <span>Daily Challenge</span><b>{progression.daily.dailyCompleted ? 'Đã xong' : '0/1'}</b></li>
+                <li className={progression.daily.offlineMatches >= 1 ? 'done' : ''}><i /> <span>Chơi offline</span><b>{Math.min(progression.daily.offlineMatches, 1)}/1</b></li>
+                <li className={progression.daily.pvpMatches >= 2 ? 'done' : ''}><i /> <span>Chơi PvP</span><b>{Math.min(progression.daily.pvpMatches, 2)}/2</b></li>
+              </ul> : <p className="today-login">Đăng nhập để bắt đầu nhiệm vụ và nhận Nhật Ấn.</p>}
+              {progression && <div className="daily-limits"><span>OFFLINE 玉片 <b>{progression.daily.offlineJade}/20</b></span><span>PVP THƯỞNG <b>{progression.daily.rewardedPvpMatches}/10</b></span></div>}
               {progression?.daily.stampEarned && <strong className="stamp-earned">印 Nhật Ấn hôm nay đã nhận</strong>}
             </section>
           </aside>
