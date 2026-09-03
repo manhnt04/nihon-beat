@@ -599,9 +599,6 @@ export default function Home() {
       <button className={screen === 'home' ? 'on' : ''} onClick={() => navigate('home')}>
         <Sparkles /><span>Trang chủ</span>
       </button>
-      <button className={screen === 'songs' ? 'on' : ''} onClick={() => navigate('songs')}>
-        <Music2 /><span>Bài học</span>
-      </button>
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
       </button>
@@ -1673,12 +1670,6 @@ export default function Home() {
             onClick={() => navigate('home')}
           >
             Trang chủ
-          </button>
-          <button
-            className={screen === 'songs' ? 'on' : ''}
-            onClick={() => navigate('songs')}
-          >
-            Bài học
           </button>
           <button
             className={screen === 'dictionary' ? 'on' : ''}
