@@ -13,7 +13,6 @@ import {
   LogOut,
   Music2,
   Play,
-  Settings,
   Sparkles,
   Trash2,
   Trophy,
@@ -1033,6 +1032,7 @@ export default function Home() {
               <span>ĐÃ ĐĂNG NHẬP</span>
               <h1>{authUser.name}</h1>
               <p>{authUser.email}</p>
+              <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
               <button onClick={logout}><LogOut /> Đăng xuất</button>
               <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
             </div>
@@ -1160,19 +1160,18 @@ export default function Home() {
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; navigate('pvp'); }}>PvP Online</button>
-          <button onClick={() => navigate('auth')}>{authUser ? authUser.name : 'Đăng nhập'}</button>
         </nav>
         <button
-          className="user audio-library-button"
-          onClick={() => setAudioOpen(true)}
+          className="user account-button"
+          onClick={() => navigate('auth')}
         >
           <span>
-            <Music2 />
+            {authUser ? authUser.name.slice(0, 1).toUpperCase() : <LogIn />}
           </span>
           <b>
-            Thư viện nhạc
+            {authUser ? authUser.name : 'Đăng nhập'}
             <small>
-              {audioTracks.length} bài · <Settings /> Cài đặt
+              {authUser ? 'Tài khoản & cài đặt' : 'Đăng ký tài khoản'}
             </small>
           </b>
         </button>
