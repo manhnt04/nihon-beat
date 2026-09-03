@@ -572,6 +572,13 @@
     left: 18px;
   }
 }
+
+/* Chinese rhythm-stage skin */
+.game{background:radial-gradient(circle at 50% 25%,#5e1d25,#160d12 68%)}
+.hud{background:#1b0d10ed;border-bottom:1px solid #d6a53a55}.bar{background:#351820}.bar i{background:linear-gradient(90deg,#b5272d,#d6a53a,#176b5b)}
+.typing-bg span{color:#d6a53a18}.typing-card,.quiz-card{background:linear-gradient(145deg,#35151aed,#180f12ed);border-color:#d6a53a55;border-radius:8px;box-shadow:0 22px 60px #000a,inset 0 0 0 5px #b5272d12}.typing-card h1,.quiz-card h1{font-family:"Songti SC","SimSun",serif;color:#fff1c9;text-shadow:0 0 25px #d6a53a66}.typing-label,.quiz-card>span{color:#e3bd65}.typing-card form input{border-radius:4px;border-color:#d6a53a66;background:#120a0d;color:#fff6dc}.typing-card form button{border-radius:4px;background:#b5272d}.pronounce{border-color:#d6a53a66;color:#f0d28a}.time-ring{background:conic-gradient(#d6a53a var(--time),#45232a 0)}
+.dance-bg:before{background:repeating-linear-gradient(90deg,transparent 0 9.8%,#d6a53a10 10%),linear-gradient(transparent,#54151b70)}.spotlight{background:linear-gradient(#d6a53a55,transparent)}.round-info,.command-panel,.audition-side{background:#170c10e8;border-color:#d6a53a44;border-radius:7px}.answer-options button{border-radius:4px}.answer-options button:hover{background:#b5272d44;border-color:#e7be63}.answer-options kbd{border-radius:3px;background:#b5272d}.answer-reveal b{color:#e7bd63}
+.dancer-body{border-radius:35px 35px 8px 8px;background:linear-gradient(145deg,#b5272d,#74171b);border:2px solid #d6a53a}.dancer-head{border-top-color:#211217}.sequence span{border-radius:4px;background:#251317}.beat-track{background:linear-gradient(90deg,#251317,#b5272d66 40%,#f7df9c 49% 51%,#176b5b66 60%,#251317);border-radius:4px}.beat-track i{background:#d6a53a;box-shadow:0 0 15px #d6a53a}.touch-controls button{border-radius:4px;background:#251317}.touch-controls .space-button{background:#b5272d;border-color:#d6a53a}.chain-card,.typing-score{border-color:#d6a53a44;background:#1a0e12d9;border-radius:7px}.chain-card span,.typing-score span{color:#e5bd65}
 .dance-bg {
   position: absolute;
   inset: 84px 0 0;

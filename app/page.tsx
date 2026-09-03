@@ -797,12 +797,14 @@ export default function Home() {
                 </span>
               </div>
             </div>
-            <div className="mascot">
-              <div className="head">◡ ‿ ◡</div>
-              <div className="body">汉</div>
-              <span>♪</span>
-              <b>
-                加油！<small>Jiā yóu!</small>
+            <div className="china-visual">
+              <img
+                src="/og.png"
+                alt="Sân khấu âm nhạc Hanzi Beat với Hán tự phát sáng"
+              />
+              <span className="seal">汉<br />韵</span>
+              <b className="visual-caption">
+                华语节奏<small>Nhịp điệu Hoa ngữ</small>
               </b>
             </div>
           </section>
