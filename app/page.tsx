@@ -105,6 +105,7 @@ type Progression = {
   castle: {
     wood: number;
     ink: number;
+    jadeBonusCarry: number;
     buildings: { main: number; library: number; listening: number };
   };
   completedTasks: number;
@@ -220,6 +221,8 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 };
 
 type CastleBuildingKind = 'main' | 'library' | 'listening';
+const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
+const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
 const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
 const CastleMapBuilding = ({ kind, level, label, onSelect }: { kind: CastleBuildingKind; level: number; label: string; onSelect: (kind: CastleBuildingKind) => void }) => {
   const stage = castleVisualStage(level);
@@ -276,7 +279,7 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [authError, setAuthError] = useState('');
   const [progression, setProgression] = useState<Progression | null>(null);
-  const [lastReward, setLastReward] = useState<{ xp: number; jade: number; wood?: number; ink?: number } | null>(null);
+  const [lastReward, setLastReward] = useState<{ xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; wood?: number; ink?: number } | null>(null);
   const [rewardActionStatus, setRewardActionStatus] = useState<'idle' | 'loading'>('idle');
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
@@ -767,7 +770,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'finish-match', sessionId, correct, score, encountered: vocab.map((entry) => entry[0]) }),
     })).then(async (response) => response.ok
-      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number; wood: number; ink: number } }
+      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; wood: number; ink: number } }
       : null)
       .then((data) => {
         if (data?.progression) setProgression(data.progression);
@@ -1416,6 +1419,7 @@ export default function Home() {
               <span>奖励 · PHẦN THƯỞNG</span>
               <b>+{lastReward.xp} XP</b>
               {lastReward.jade > 0 && <b className="jade-reward"><img src="/items/jade-fragment.png" alt="" />+{lastReward.jade} 玉片</b>}
+              {(lastReward.castleBonusRate ?? 0) > 0 && <small className="castle-reward-breakdown">Nhà Chính Lv.{progression?.castle.buildings.main ?? 1}: +{lastReward.castleBonusRate}%{(lastReward.castleBonusJade ?? 0) > 0 ? ` · +${lastReward.castleBonusJade} 玉片 trận này` : ' · đang tích lũy bonus'}</small>}
               <b className="castle-material-reward">+{lastReward.wood ?? 0} 木材 · +{lastReward.ink ?? 0} 墨</b>
             </div>
           )}
@@ -1425,7 +1429,8 @@ export default function Home() {
             const finished = pvpRoom.status === 'finished' && me?.score !== null && rival?.score !== null;
             const outcome = finished ? (me!.score! > rival!.score! ? 'CHIẾN THẮNG!' : me!.score! < rival!.score! ? 'THUA CUỘC' : 'HÒA!') : 'Đang chờ đối thủ hoàn thành...';
             const delta = pvpRoom.rankChanges?.[authUser?.id ?? ''] ?? 0;
-            return <div className="pvp-result"><span>PVP RANK · PHÒNG {pvpRoom.code}</span><h2>{outcome}</h2><div><b>{me?.name}<small>{me?.score?.toLocaleString() ?? score.toLocaleString()}</small></b><i>VS</i><b>{rival?.name ?? 'Đối thủ'}<small>{rival?.score?.toLocaleString() ?? 'Đang chơi'}</small></b></div>{finished && <div className={`rank-verdict ${pvpRoom.integrity?.valid ? 'valid' : 'invalid'}`}><b>{pvpRoom.integrity?.rankedEligible ? `${delta >= 0 ? '+' : ''}${delta} MMR` : 'Không tính Rank'}</b><span>{pvpRoom.integrity?.rewardEligible ? '+3 玉片 · +8 XP' : pvpRoom.integrity?.reason ?? 'Đã đạt giới hạn thưởng cùng đối thủ'}</span></div>}</div>;
+            const castleRate = mainCastleJadeBonusRates[progression?.castle.buildings.main ?? 1] ?? 10;
+            return <div className="pvp-result"><span>PVP RANK · PHÒNG {pvpRoom.code}</span><h2>{outcome}</h2><div><b>{me?.name}<small>{me?.score?.toLocaleString() ?? score.toLocaleString()}</small></b><i>VS</i><b>{rival?.name ?? 'Đối thủ'}<small>{rival?.score?.toLocaleString() ?? 'Đang chơi'}</small></b></div>{finished && <div className={`rank-verdict ${pvpRoom.integrity?.valid ? 'valid' : 'invalid'}`}><b>{pvpRoom.integrity?.rankedEligible ? `${delta >= 0 ? '+' : ''}${delta} MMR` : 'Không tính Rank'}</b><span>{pvpRoom.integrity?.rewardEligible ? `+3 玉片 · +8 XP${castleRate > 0 ? ` · Nhà Chính +${castleRate}%` : ''}` : pvpRoom.integrity?.reason ?? 'Đã đạt giới hạn thưởng cùng đối thủ'}</span></div>}</div>;
           })()}
           {!pvpRoom && <div className="score-submit">
             <input
@@ -1507,13 +1512,14 @@ export default function Home() {
       </main>
     );
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
     const environmentNames = ['桃源春岛 · Đào Nguyên', '月莲水境 · Nguyệt Liên', '丹霞秋谷 · Đan Hà', '冰川天境 · Băng Thiên', '紫晶神域 · Tử Tinh'];
     const prosperity = castleLevel * 250 + (progression?.discoveries.length ?? 0) * 5 + (progression?.streak ?? 0) * 20;
     const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
+    const mainBonusRate = mainCastleJadeBonusRates[castle.buildings.main] ?? 10;
     const buildings = [
       { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', baseWood: 80, baseInk: 25 },
       { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', baseWood: 55, baseInk: 40 },
@@ -1530,13 +1536,51 @@ export default function Home() {
             <div className={`castle-scene environment-stage-${environmentStage}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/><div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
-            <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article></div>
+            <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
             <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${woodCost} 木 / ${inkCost} 墨`}</button></article>; })}</div>
           </>}
         </section>
-        {selectedBuilding && (() => { const level = castle.buildings[selectedBuilding.id]; const visualStage = castleVisualStage(level); const assetStage = selectedBuilding.id === 'main' ? visualStage : 1; const woodCost = selectedBuilding.baseWood * level; const inkCost = selectedBuilding.baseInk * level; const hasWood = castle.wood >= woodCost; const hasInk = castle.ink >= inkCost; const maxed = level >= 10; const nextVisualLevel = visualStage < 5 ? visualStage * 2 + 1 : null; return <div className="castle-upgrade-backdrop" onClick={() => setSelectedCastleBuilding(null)}><section className="castle-upgrade-modal" role="dialog" aria-modal="true" aria-label={`Nâng cấp ${selectedBuilding.name}`} onClick={(event) => event.stopPropagation()}><button className="castle-upgrade-close" onClick={() => setSelectedCastleBuilding(null)} aria-label="Đóng">×</button><header><span>Lv.{level}</span><div><small>{selectedBuilding.hanzi}</small><h2>{selectedBuilding.name}</h2></div></header><div className="castle-upgrade-preview"><img src={`/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`} alt={selectedBuilding.name}/><span>HÌNH THÁI {visualStage}/5</span></div><div className="castle-upgrade-effect"><b>Hiệu quả nâng cấp</b><p>+250 繁荣度 · Tăng cấp phát triển Hán Tự Thành.</p>{nextVisualLevel && <small>Hình thái mới mở khi công trình đạt Lv.{nextVisualLevel}.</small>}</div><div className="castle-upgrade-requirements"><b>Điều kiện</b><p className={!maxed ? 'ready' : 'missing'}><span>🏯 Cấp công trình</span><strong>{level}/10 {!maxed ? '✓' : 'MAX'}</strong></p><p className={hasWood ? 'ready' : 'missing'}><span>🪵 木材 · Gỗ</span><strong>{castle.wood.toLocaleString('vi-VN')}/{woodCost.toLocaleString('vi-VN')} {hasWood ? '✓' : '!'}</strong></p><p className={hasInk ? 'ready' : 'missing'}><span>🖌 墨 · Mực</span><strong>{castle.ink.toLocaleString('vi-VN')}/{inkCost.toLocaleString('vi-VN')} {hasInk ? '✓' : '!'}</strong></p></div>{rewardActionError && <p className="castle-upgrade-error">{rewardActionError}</p>}<button className="castle-upgrade-submit" disabled={rewardActionStatus === 'loading' || maxed || !hasWood || !hasInk} onClick={() => runProgressionAction('upgrade-castle', selectedBuilding.id)}>{rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : hasWood && hasInk ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ nguyên liệu'}</button><footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer></section></div>; })()}
+        {selectedBuilding && (() => {
+          const level = castle.buildings[selectedBuilding.id];
+          const visualStage = castleVisualStage(level);
+          const assetStage = selectedBuilding.id === 'main' ? visualStage : 1;
+          const woodCost = selectedBuilding.baseWood * level;
+          const inkCost = selectedBuilding.baseInk * level;
+          const hasWood = castle.wood >= woodCost;
+          const hasInk = castle.ink >= inkCost;
+          const maxed = level >= 10;
+          const isMain = selectedBuilding.id === 'main';
+          const supportLevel = Math.min(castle.buildings.library, castle.buildings.listening);
+          const supportReady = !isMain || supportLevel >= level;
+          const requiredPlayerLevel = isMain ? mainCastleLevelRequirements[level + 1] ?? 100 : 0;
+          const playerLevelReady = !isMain || (progression?.level ?? 1) >= requiredPlayerLevel;
+          const mainCapReady = isMain || level < castle.buildings.main;
+          const canUpgrade = !maxed && hasWood && hasInk && supportReady && playerLevelReady && mainCapReady;
+          const nextVisualLevel = visualStage < 5 ? visualStage * 2 + 1 : null;
+          const currentBonus = mainCastleJadeBonusRates[level] ?? 10;
+          const nextBonus = mainCastleJadeBonusRates[Math.min(10, level + 1)] ?? 10;
+          const completedConditions = [!maxed, hasWood, hasInk, supportReady, playerLevelReady, mainCapReady].filter(Boolean).length;
+          return <div className="castle-upgrade-backdrop" onClick={() => setSelectedCastleBuilding(null)}><section className="castle-upgrade-modal" role="dialog" aria-modal="true" aria-label={`Nâng cấp ${selectedBuilding.name}`} onClick={(event) => event.stopPropagation()}>
+            <button className="castle-upgrade-close" onClick={() => setSelectedCastleBuilding(null)} aria-label="Đóng">×</button>
+            <header><span>Lv.{level}</span><div><small>{selectedBuilding.hanzi}</small><h2>{selectedBuilding.name}</h2></div></header>
+            <div className="castle-upgrade-preview"><img src={`/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`} alt={selectedBuilding.name}/><span>HÌNH THÁI {visualStage}/5</span></div>
+            <div className="castle-upgrade-effect"><b>Hiệu quả nâng cấp</b>{isMain ? <><p className="castle-bonus-change"><span>玉片 sau trận</span><strong>+{currentBonus}% → +{nextBonus}%</strong></p><small>Bonus áp dụng cho Offline, Daily và PvP; tối đa 10%. Phần lẻ được tích lũy cho trận sau.</small></> : <><p>+250 繁荣度 · Mở đường nâng cấp Nhà Chính.</p>{nextVisualLevel && <small>Hình thái mới mở khi công trình đạt Lv.{nextVisualLevel}.</small>}</>}</div>
+            <div className="castle-upgrade-requirements"><b>Điều kiện · {completedConditions}/6</b>
+              <p className={!maxed ? 'ready' : 'missing'}><span>🏯 Cấp công trình</span><strong>{level}/10 {!maxed ? '✓' : 'MAX'}</strong></p>
+              {isMain && <p className={supportReady ? 'ready' : 'missing'}><span>🏘 Công trình phụ cùng Lv.{level}</span><strong>Lv.{supportLevel}/{level} {supportReady ? '✓' : '!'}</strong></p>}
+              {isMain && <p className={playerLevelReady ? 'ready' : 'missing'}><span>👤 Cấp tài khoản</span><strong>Lv.{progression?.level ?? 1}/{requiredPlayerLevel} {playerLevelReady ? '✓' : '!'}</strong></p>}
+              {!isMain && <p className={mainCapReady ? 'ready' : 'missing'}><span>🏯 Giới hạn từ Nhà Chính</span><strong>Lv.{castle.buildings.main} {mainCapReady ? '✓' : '!'}</strong></p>}
+              <p className={hasWood ? 'ready' : 'missing'}><span>🪵 木材 · Gỗ</span><strong>{castle.wood.toLocaleString('vi-VN')}/{woodCost.toLocaleString('vi-VN')} {hasWood ? '✓' : '!'}</strong></p>
+              <p className={hasInk ? 'ready' : 'missing'}><span>🖌 墨 · Mực</span><strong>{castle.ink.toLocaleString('vi-VN')}/{inkCost.toLocaleString('vi-VN')} {hasInk ? '✓' : '!'}</strong></p>
+            </div>
+            <div className="castle-condition-progress"><i><em style={{ width: `${completedConditions / 6 * 100}%` }} /></i><span>{completedConditions}/6 hoàn tất</span></div>
+            {rewardActionError && <p className="castle-upgrade-error">{rewardActionError}</p>}
+            <button className="castle-upgrade-submit" disabled={rewardActionStatus === 'loading' || !canUpgrade} onClick={() => runProgressionAction('upgrade-castle', selectedBuilding.id)}>{rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ điều kiện'}</button>
+            <footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer>
+          </section></div>;
+        })()}
       </main>
     );
   }

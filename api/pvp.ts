@@ -111,7 +111,14 @@ export default async function handler(request: any, response: any) {
           const progressionKey = `hanzibeat:progression:${uid}`; const progression = await redis.get<any>(progressionKey);
           if (progression?.daily?.date === bangkokDate() && Number(progression.daily.rewardedPvpMatches ?? 0) < 10) {
             progression.daily.rewardedPvpMatches = Number(progression.daily.rewardedPvpMatches ?? 0) + 1;
-            progression.jade = Number(progression.jade ?? 0) + 3; progression.xp = Number(progression.xp ?? 0) + 8; progression.level = levelFromXp(progression.xp);
+            const mainLevel = Math.max(1, Math.min(10, Number(progression.castle?.buildings?.main ?? 1)));
+            const bonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
+            const bonusRate = bonusRates[mainLevel] ?? 0;
+            const accumulatedBonus = Number(progression.castle?.jadeBonusCarry ?? 0) + 3 * bonusRate / 100;
+            const castleBonus = Math.floor(accumulatedBonus + 1e-9);
+            progression.castle = progression.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
+            progression.castle.jadeBonusCarry = Number((accumulatedBonus - castleBonus).toFixed(4));
+            progression.jade = Number(progression.jade ?? 0) + 3 + castleBonus; progression.xp = Number(progression.xp ?? 0) + 8; progression.level = levelFromXp(progression.xp);
             await redis.set(progressionKey, progression);
           }
         }

@@ -34,6 +34,7 @@ type Progression = {
   castle: {
     wood: number;
     ink: number;
+    jadeBonusCarry: number;
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
@@ -44,6 +45,17 @@ const castleBuildings = {
   library: { max: 10, baseWood: 55, baseInk: 40 },
   listening: { max: 10, baseWood: 65, baseInk: 35 },
 } as const;
+
+const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
+const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
+const castleJadeBonusRate = (mainLevel: number) => mainCastleJadeBonusRates[Math.max(1, Math.min(10, mainLevel))] ?? 0;
+const applyCastleJadeBonus = (progression: Progression, baseJade: number) => {
+  const rate = castleJadeBonusRate(Number(progression.castle.buildings.main ?? 1));
+  const accumulated = Number(progression.castle.jadeBonusCarry ?? 0) + baseJade * rate / 100;
+  const bonus = Math.floor(accumulated + 1e-9);
+  progression.castle.jadeBonusCarry = Number((accumulated - bonus).toFixed(4));
+  return { bonus, rate };
+};
 
 const shopCatalog = {
   'streak-guard': { price: 30, type: 'consumable' },
@@ -110,7 +122,7 @@ const loadProgression = async (uid: string, name: string) => {
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
-    castle: { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } },
+    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -122,9 +134,10 @@ const loadProgression = async (uid: string, name: string) => {
   progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
+  progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
@@ -249,6 +262,22 @@ export default async function handler(request: any, response: any) {
     if (!building) return response.status(400).json({ error: 'Công trình không tồn tại.' });
     const currentLevel = Math.max(1, Number(progression.castle.buildings[buildingId] ?? 1));
     if (currentLevel >= building.max) return response.status(409).json({ error: 'Công trình đã đạt cấp tối đa.' });
+    const mainLevel = Math.max(1, Number(progression.castle.buildings.main ?? 1));
+    if (buildingId === 'main') {
+      const lowestSupportLevel = Math.min(
+        Number(progression.castle.buildings.library ?? 1),
+        Number(progression.castle.buildings.listening ?? 1),
+      );
+      if (lowestSupportLevel < currentLevel) {
+        return response.status(409).json({ error: `Thư Thục và Thính Âm Các phải cùng đạt Lv.${currentLevel}.` });
+      }
+      const requiredPlayerLevel = mainCastleLevelRequirements[currentLevel + 1] ?? 100;
+      if (progression.level < requiredPlayerLevel) {
+        return response.status(409).json({ error: `Tài khoản phải đạt Lv.${requiredPlayerLevel} để nâng Nhà Chính.` });
+      }
+    } else if (currentLevel >= mainLevel) {
+      return response.status(409).json({ error: `Hãy nâng Nhà Chính lên Lv.${mainLevel + 1} trước.` });
+    }
     const woodCost = building.baseWood * currentLevel;
     const inkCost = building.baseInk * currentLevel;
     if (progression.castle.wood < woodCost || progression.castle.ink < inkCost) {
@@ -305,7 +334,8 @@ export default async function handler(request: any, response: any) {
     const bonusXp = Math.min(requestedBonusXp, Math.max(0, 150 - daily.matchXp));
     daily.matchXp += bonusXp;
     progression.xp += questionXp + bonusXp;
-    progression.jade += jadeEarned;
+    const castleJadeBonus = applyCastleJadeBonus(progression, jadeEarned);
+    progression.jade += jadeEarned + castleJadeBonus.bonus;
     const castleWood = Math.min(30, correct + (session.kind === 'daily' ? 10 : session.kind === 'pvp' ? 5 : 2));
     const castleInk = Math.min(15, Math.floor(correct / 3) + (session.kind === 'daily' ? 5 : session.kind === 'pvp' ? 3 : 1));
     progression.castle.wood += castleWood;
@@ -338,7 +368,15 @@ export default async function handler(request: any, response: any) {
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     return response.status(200).json({
       progression: publicProgression(progression),
-      reward: { xp: questionXp + bonusXp, jade: jadeEarned, wood: castleWood, ink: castleInk },
+      reward: {
+        xp: questionXp + bonusXp,
+        jade: jadeEarned + castleJadeBonus.bonus,
+        baseJade: jadeEarned,
+        castleBonusJade: castleJadeBonus.bonus,
+        castleBonusRate: castleJadeBonus.rate,
+        wood: castleWood,
+        ink: castleInk,
+      },
     });
   }
 

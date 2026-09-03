@@ -100,11 +100,17 @@
 .castle-upgrade-effect > b,.castle-upgrade-requirements > b { display: block; margin-bottom: 7px; color: #853428; font-size: 10px; text-align: center; text-transform: uppercase; letter-spacing: .08em; }
 .castle-upgrade-effect p { margin: 0; font-size: 10px; font-weight: 800; }
 .castle-upgrade-effect small { display: block; margin-top: 5px; color: #806453; font-size: 8px; }
+.castle-bonus-change { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.castle-bonus-change strong { color: #176b5b; font-size: 15px; }
 .castle-upgrade-requirements p { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 8px 4px; border-top: 1px solid #d6b58e; font-size: 10px; }
 .castle-upgrade-requirements p:first-of-type { border-top: 0; }
 .castle-upgrade-requirements p strong { white-space: nowrap; }
 .castle-upgrade-requirements p.ready strong { color: #267353; }
 .castle-upgrade-requirements p.missing strong { color: #ad342d; }
+.castle-condition-progress { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+.castle-condition-progress > i { flex: 1; height: 7px; overflow: hidden; border-radius: 8px; background: #cbb695; box-shadow: inset 0 1px 2px #6f4b3333; }
+.castle-condition-progress em { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #176b5b, #76aa43); transition: width .25s ease; }
+.castle-condition-progress span { color: #705441; font-size: 8px; font-weight: 900; white-space: nowrap; }
 .castle-upgrade-error { position: relative; z-index: 1; margin: 9px 0 0; padding: 8px; border-radius: 5px; background: #f3c4b8; color: #94251f; font-size: 9px; font-weight: 800; }
 .castle-upgrade-submit { position: relative; z-index: 1; width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #976021; border-radius: 7px; background: linear-gradient(#72a83f, #4d8b2d); color: #fffbe1; box-shadow: inset 0 1px #c8e894, 0 4px 0 #356521; font-weight: 900; }
 .castle-upgrade-submit:disabled { border-color: #9f8d75; background: #aaa08e; box-shadow: inset 0 1px #d9d1c4, 0 3px 0 #786d5d; color: #eee8dc; cursor: not-allowed; }
@@ -112,3 +118,8 @@
 @keyframes castle-modal-fade { from { opacity: 0; } }
 @keyframes castle-modal-rise { from { opacity: 0; transform: translateY(24px) scale(.92); } to { opacity: 1; transform: none; } }
 @media (max-width: 520px) { .castle-upgrade-backdrop { align-items: end; padding: 8px; } .castle-upgrade-modal { width: 100%; max-height: 94vh; padding: 15px; border-radius: 12px 12px 7px 7px; } .castle-upgrade-preview { height: 145px; } .castle-upgrade-preview img { width: 145px; height: 145px; } }
+
+.castle-resources > .castle-economy { grid-column: 1 / -1; border-color: #bda04e; background: linear-gradient(110deg, #fff9e8, #f1e2b7); }
+.castle-resources > .castle-economy > span { background: #176b5b; }
+.castle-resources > .castle-economy b { color: #176b5b; }
+.castle-reward-breakdown { display: block; margin-top: 5px; color: #2a806b; font-size: 9px; font-weight: 800; }
