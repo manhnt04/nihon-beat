@@ -37,6 +37,18 @@ const baseVocabulary: VocabularyEntry[] = [
   ['早上好', 'zǎo shang hǎo', 'zao shang hao', 'chào buổi sáng', 'HSK 1'],
 ];
 const allVocabulary = [...baseVocabulary, ...hsk2Vocabulary];
+const WORDS_PER_MATCH = 20;
+const shuffleVocabulary = (entries: VocabularyEntry[]) => {
+  const shuffled = [...entries];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled;
+};
 const songs = [
   ['早安节拍', 'Morning Pulse', '128', 'HSK 1', 'Dễ', '#ff5f91'],
   ['星河漫游', 'Starlight Ride', '154', 'HSK 2', 'Vừa', '#7857ff'],
@@ -105,6 +117,9 @@ export default function Home() {
   const [audioOpen, setAudioOpen] = useState(false);
   const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
+    () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
+  );
   const [volume, setVolume] = useState(0.65);
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
   const [audioStatus, setAudioStatus] = useState<
@@ -113,7 +128,7 @@ export default function Home() {
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const typingInputRef = useRef<HTMLInputElement | null>(null);
-  const vocab = selected === 1 ? hsk2Vocabulary : baseVocabulary;
+  const vocab = matchVocabulary;
   const filteredVocabulary = useMemo(() => {
     const query = normalizeAnswer(dictionaryQuery);
     if (!query) return allVocabulary;
@@ -130,8 +145,14 @@ export default function Home() {
     ].sort(() => 0.5 - Math.random());
   }, [word, round, selected]);
   const makeRound = useCallback(() => {
+    if (round >= vocab.length) {
+      setProgress(100);
+      setScreen('result');
+      return;
+    }
     setWord((w) => (w + 1) % vocab.length);
     setRound((r) => r + 1);
+    setProgress((round / vocab.length) * 100);
     setPhase('answer');
     setEntered([]);
     setRoundTime(6);
@@ -142,7 +163,7 @@ export default function Home() {
         (_, i) => (round * 3 + i * 2) % 4,
       ),
     );
-  }, [round, selected]);
+  }, [round, vocab.length]);
   const playDefaultTrack = (trackIndex?: number) => {
     const index =
       trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
@@ -183,7 +204,12 @@ export default function Home() {
   };
   const start = (songIndex = selected) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
+    const requestedPool = nextSong === 1 ? hsk2Vocabulary : baseVocabulary;
+    const pool =
+      requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
+    const nextVocabulary = shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
     setSelected(nextSong);
+    setMatchVocabulary(nextVocabulary);
     setScore(0);
     setCombo(0);
     setProgress(0);
@@ -203,13 +229,19 @@ export default function Home() {
     playDefaultTrack();
   };
   const nextTypingWord = useCallback(() => {
+    if (round >= vocab.length) {
+      setProgress(100);
+      setScreen('result');
+      return;
+    }
     setWord((w) => (w + 1) % vocab.length);
     setRound((r) => r + 1);
+    setProgress((round / vocab.length) * 100);
     setTypingInput('');
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
-  }, [selected]);
+  }, [round, vocab.length]);
   const submitTyping = (event: FormEvent) => {
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
@@ -311,12 +343,9 @@ export default function Home() {
   useEffect(() => {
     if (screen !== 'game') return;
     const started = Date.now();
-    const duration = 150000;
     const t = setInterval(() => {
       const elapsed = Date.now() - started;
-      setProgress(Math.min(100, (elapsed / duration) * 100));
       setBeat((elapsed / 12) % 100);
-      if (elapsed >= duration) setScreen('result');
     }, 50);
     return () => clearInterval(t);
   }, [screen]);
