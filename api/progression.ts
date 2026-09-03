@@ -31,8 +31,19 @@ type Progression = {
   lastGuardUseDate: string | null;
   discoveries: string[];
   jadeRelics: string[];
+  castle: {
+    wood: number;
+    ink: number;
+    buildings: { main: number; library: number; listening: number };
+  };
   daily: DailyProgress;
 };
+
+const castleBuildings = {
+  main: { max: 10, baseWood: 80, baseInk: 25 },
+  library: { max: 10, baseWood: 55, baseInk: 40 },
+  listening: { max: 10, baseWood: 65, baseInk: 35 },
+} as const;
 
 const shopCatalog = {
   'streak-guard': { price: 30, type: 'consumable' },
@@ -99,6 +110,7 @@ const loadProgression = async (uid: string, name: string) => {
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
+    castle: { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -110,6 +122,10 @@ const loadProgression = async (uid: string, name: string) => {
   progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle.wood = Number(progression.castle.wood ?? 0);
+  progression.castle.ink = Number(progression.castle.ink ?? 0);
+  progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
 
@@ -220,6 +236,24 @@ export default async function handler(request: any, response: any) {
     });
   }
 
+  if (action === 'upgrade-castle') {
+    const buildingId = String(request.body?.itemId ?? '') as keyof typeof castleBuildings;
+    const building = castleBuildings[buildingId];
+    if (!building) return response.status(400).json({ error: 'Công trình không tồn tại.' });
+    const currentLevel = Math.max(1, Number(progression.castle.buildings[buildingId] ?? 1));
+    if (currentLevel >= building.max) return response.status(409).json({ error: 'Công trình đã đạt cấp tối đa.' });
+    const woodCost = building.baseWood * currentLevel;
+    const inkCost = building.baseInk * currentLevel;
+    if (progression.castle.wood < woodCost || progression.castle.ink < inkCost) {
+      return response.status(409).json({ error: `Cần ${woodCost} Gỗ và ${inkCost} Mực để nâng cấp.` });
+    }
+    progression.castle.wood -= woodCost;
+    progression.castle.ink -= inkCost;
+    progression.castle.buildings[buildingId] = currentLevel + 1;
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({ progression: publicProgression(progression), upgraded: buildingId });
+  }
+
   if (action === 'finish-match') {
     const sessionId = String(request.body?.sessionId ?? '');
     const sessionKey = `hanzibeat:reward-session:${sessionId}`;
@@ -265,6 +299,10 @@ export default async function handler(request: any, response: any) {
     daily.matchXp += bonusXp;
     progression.xp += questionXp + bonusXp;
     progression.jade += jadeEarned;
+    const castleWood = Math.min(30, correct + (session.kind === 'daily' ? 10 : session.kind === 'pvp' ? 5 : 2));
+    const castleInk = Math.min(15, Math.floor(correct / 3) + (session.kind === 'daily' ? 5 : session.kind === 'pvp' ? 3 : 1));
+    progression.castle.wood += castleWood;
+    progression.castle.ink += castleInk;
     progression.discoveries = Array.from(new Set([...progression.discoveries, ...encountered])).slice(0, 3000);
     if (progression.discoveries.length >= 25 && !progression.jadeRelics.includes('sprout')) progression.jadeRelics.push('sprout');
     if (progression.discoveries.length >= 100 && !progression.jadeRelics.includes('scholar')) progression.jadeRelics.push('scholar');
@@ -293,7 +331,7 @@ export default async function handler(request: any, response: any) {
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     return response.status(200).json({
       progression: publicProgression(progression),
-      reward: { xp: questionXp + bonusXp, jade: jadeEarned },
+      reward: { xp: questionXp + bonusXp, jade: jadeEarned, wood: castleWood, ink: castleInk },
     });
   }
 

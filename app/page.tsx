@@ -66,11 +66,12 @@ type Screen =
   | 'inventory'
   | 'shop'
   | 'codex'
+  | 'castle'
   | 'auth';
 const screenPaths: Record<Screen, string> = {
   home: '/', songs: '/lessons', game: '/play', result: '/result',
   dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
-  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', auth: '/profile',
+  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/profile/castle', auth: '/profile',
 };
 const screenFromPath = (pathname: string): Screen => {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
@@ -99,6 +100,11 @@ type Progression = {
   lastGuardUseDate: string | null;
   discoveries: string[];
   jadeRelics: string[];
+  castle: {
+    wood: number;
+    ink: number;
+    buildings: { main: number; library: number; listening: number };
+  };
   completedTasks: number;
   levelProgress: { level: number; currentXp: number; nextXp: number };
   daily: {
@@ -260,7 +266,7 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [authError, setAuthError] = useState('');
   const [progression, setProgression] = useState<Progression | null>(null);
-  const [lastReward, setLastReward] = useState<{ xp: number; jade: number } | null>(null);
+  const [lastReward, setLastReward] = useState<{ xp: number; jade: number; wood?: number; ink?: number } | null>(null);
   const [rewardActionStatus, setRewardActionStatus] = useState<'idle' | 'loading'>('idle');
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
@@ -561,7 +567,7 @@ export default function Home() {
       setScoreStatus('error');
     }
   }, [authUser?.id, authUser?.name, playerName, scoreStatus, selected, mode, score, correct]);
-  const runProgressionAction = async (action: 'buy-item' | 'equip-item' | 'open-chest', itemId?: string) => {
+  const runProgressionAction = async (action: 'buy-item' | 'equip-item' | 'open-chest' | 'upgrade-castle', itemId?: string) => {
     const user = firebaseAuth.currentUser;
     if (!user || rewardActionStatus === 'loading') return;
     setRewardActionStatus('loading');
@@ -750,7 +756,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'finish-match', sessionId, correct, score, encountered: vocab.map((entry) => entry[0]) }),
     })).then(async (response) => response.ok
-      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number } }
+      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number; wood: number; ink: number } }
       : null)
       .then((data) => {
         if (data?.progression) setProgression(data.progression);
@@ -1399,6 +1405,7 @@ export default function Home() {
               <span>奖励 · PHẦN THƯỞNG</span>
               <b>+{lastReward.xp} XP</b>
               {lastReward.jade > 0 && <b className="jade-reward"><img src="/items/jade-fragment.png" alt="" />+{lastReward.jade} 玉片</b>}
+              <b className="castle-material-reward">+{lastReward.wood ?? 0} 木材 · +{lastReward.ink ?? 0} 墨</b>
             </div>
           )}
           {pvpRoom && (() => {
@@ -1465,6 +1472,7 @@ export default function Home() {
               <div className="profile-links">
                 <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> <span>Inventory<small>{progression ? `${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm'}</small></span></button>
                 <button className="auth-codex" onClick={() => navigate('codex')}><BookOpen /> <span>Hán Tự Đồ Giám<small>{progression ? `${progression.discoveries.length} từ đã khám phá` : 'Bộ sưu tập HSK'}</small></span></button>
+                <button className="auth-castle" onClick={() => navigate('castle')}><MapIcon /> <span>Hán Tự Thành<small>{progression ? `Thành cấp ${Object.values(progression.castle.buildings).reduce((sum, level) => sum + level, 0)}` : 'Xây thành từ việc học'}</small></span></button>
                 <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> <span>Cửa hàng<small>Khung và hiệu ứng</small></span></button>
                 <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> <span>Thư viện nhạc<small>{audioTracks.length} bài đã lưu</small></span></button>
               </div>
@@ -1487,6 +1495,34 @@ export default function Home() {
         </section>
       </main>
     );
+  if (screen === 'castle') {
+    const castle = progression?.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
+    const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
+    const buildings = [
+      { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', baseWood: 80, baseInk: 25 },
+      { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', baseWood: 55, baseInk: 40 },
+      { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', baseWood: 65, baseInk: 35 },
+    ] as const;
+    return (
+      <main className="app castle-page">
+        {historyControls}
+        <header className="reward-header"><button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat</b></button><div className="reward-header-actions"><button onClick={() => navigate('auth')}>Profile</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div></header>
+        <section className="castle-panel">
+          <div className="castle-hero">
+            <div className="castle-copy"><span className="eyebrow">汉字城 · HÁN TỰ THÀNH</span><h1>{castleTitle}</h1><p>Học Hán tự, thu thập nguyên liệu và xây dựng thành trì của riêng bạn.</p><div className="castle-level"><b>Lv.{castleLevel}</b><span>Điểm phát triển thành</span></div></div>
+            <div className={`castle-scene castle-stage-${Math.min(5, Math.ceil(castleLevel / 5))}`} aria-label={castleTitle}><i className="castle-moon">月</i><span className="castle-tower left">阁</span><strong>🏯</strong><span className="castle-tower right">楼</span><em>汉字城</em></div>
+          </div>
+          {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
+            <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article></div>
+            {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
+            <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
+            <div className="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost; return <article key={building.id}><div className="building-art"><span>{building.icon}</span><i>{building.hanzi}</i></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${woodCost} 木 / ${inkCost} 墨`}</button></article>; })}</div>
+          </>}
+        </section>
+      </main>
+    );
+  }
   if (screen === 'codex') {
     const uniqueVocabulary = Array.from(new globalThis.Map(allVocabulary.map((entry) => [entry[0], entry])).values());
     const discovered = new Set(progression?.discoveries ?? []);

@@ -8,6 +8,7 @@
     { "source": "/shop", "destination": "/" },
     { "source": "/profile", "destination": "/" },
     { "source": "/profile/codex", "destination": "/" },
+    { "source": "/profile/castle", "destination": "/" },
     { "source": "/pvp", "destination": "/" },
     { "source": "/leaderboard", "destination": "/" },
     { "source": "/dictionary", "destination": "/" },
