@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import {
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   Flame,
   Music2,
   Play,
@@ -156,6 +158,27 @@ export default function Home() {
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
+  const animateScreenChange = useCallback((change: () => void) => {
+    const transitionDocument = document as Document & {
+      startViewTransition?: (callback: () => void) => void;
+    };
+    if (transitionDocument.startViewTransition) {
+      transitionDocument.startViewTransition(change);
+    } else {
+      change();
+    }
+  }, []);
+  const navigate = useCallback((nextScreen: Screen) => {
+    if (nextScreen === screen) return;
+    window.history.pushState({ hanzibeatScreen: nextScreen }, '');
+    animateScreenChange(() => setScreen(nextScreen));
+  }, [screen, animateScreenChange]);
+  const historyControls = (
+    <div className="history-controls" aria-label="Điều hướng trang">
+      <button onClick={() => window.history.back()} aria-label="Quay lại trang trước" title="Trang trước"><ChevronLeft /></button>
+      <button onClick={() => window.history.forward()} aria-label="Đi tới trang sau" title="Trang sau"><ChevronRight /></button>
+    </div>
+  );
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
     () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
@@ -187,7 +210,7 @@ export default function Home() {
   const makeRound = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
-      setScreen('result');
+      navigate('result');
       return;
     }
     setWord((w) => (w + 1) % vocab.length);
@@ -267,7 +290,7 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setScoreStatus('idle');
-    setScreen('game');
+    navigate('game');
     playDefaultTrack();
   };
   const ensurePvpPlayer = () => {
@@ -330,7 +353,7 @@ export default function Home() {
   const openLeaderboard = () => {
     setLeaderboardLevel(selected);
     setLeaderboardMode(mode);
-    setScreen('leaderboard');
+    navigate('leaderboard');
   };
   const submitScore = async () => {
     const cleanName = playerName.trim();
@@ -357,6 +380,18 @@ export default function Home() {
     }
     ensurePvpPlayer();
   }, []);
+  useEffect(() => {
+    window.history.replaceState({ hanzibeatScreen: screen }, '');
+    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp'];
+    const handleHistory = (event: PopStateEvent) => {
+      const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
+      if (previousScreen && validScreens.includes(previousScreen)) {
+        animateScreenChange(() => setScreen(previousScreen));
+      }
+    };
+    window.addEventListener('popstate', handleHistory);
+    return () => window.removeEventListener('popstate', handleHistory);
+  }, [animateScreenChange]);
   useEffect(() => {
     if (screen === 'leaderboard') void loadLeaderboard();
   }, [screen, loadLeaderboard]);
@@ -398,7 +433,7 @@ export default function Home() {
   const nextTypingWord = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
-      setScreen('result');
+      navigate('result');
       return;
     }
     setWord((w) => (w + 1) % vocab.length);
@@ -639,7 +674,7 @@ export default function Home() {
             setScore(0);
             setCombo(0);
             setProgress(0);
-            setScreen('game');
+            navigate('game');
             return { status: 'started', song: songs[i][1] };
           },
         },
@@ -661,7 +696,8 @@ export default function Home() {
     return (
       <main className="game typing-battle">
         <div className="hud">
-          <button onClick={() => setScreen('songs')}>EXIT</button>
+          {historyControls}
+          <button onClick={() => navigate('songs')}>EXIT</button>
           <div>
             <small>SCORE</small>
             <b>{score.toLocaleString()}</b>
@@ -768,7 +804,8 @@ export default function Home() {
     return (
       <main className="game audition">
         <div className="hud">
-          <button onClick={() => setScreen('songs')}>EXIT</button>
+          {historyControls}
+          <button onClick={() => navigate('songs')}>EXIT</button>
           <div>
             <small>SCORE</small>
             <b>{score.toLocaleString()}</b>
@@ -887,6 +924,7 @@ export default function Home() {
   if (screen === 'result')
     return (
       <main className="result">
+        {historyControls}
         <section>
           <span className="eyebrow">
             {mode === 'typing' ? 'TYPING BATTLE COMPLETE!' : 'DANCE COMPLETE!'}
@@ -942,13 +980,13 @@ export default function Home() {
             <button onClick={() => start()}>
               <Play /> Chơi lại
             </button>
-            <button onClick={() => setScreen('dictionary')}>
+            <button onClick={() => navigate('dictionary')}>
               <BookOpen /> Ôn từ
             </button>
             <button onClick={openLeaderboard}>
               <Trophy /> Xếp hạng
             </button>
-            <button onClick={() => setScreen('home')}>Về menu</button>
+            <button onClick={() => navigate('home')}>Về menu</button>
           </div>
         </section>
       </main>
@@ -956,9 +994,10 @@ export default function Home() {
   if (screen === 'pvp')
     return (
       <main className="app pvp-page">
+        {historyControls}
         <header>
-          <button className="brand" onClick={() => setScreen('home')}><span>汉</span><b>Hanzi Beat<small>Online battle</small></b></button>
-          <button className="leaderboard-back" onClick={() => setScreen('home')}>Về trang chủ</button>
+          <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Online battle</small></b></button>
+          <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
         </header>
         <section className="pvp-panel">
           <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
@@ -977,12 +1016,13 @@ export default function Home() {
   if (screen === 'leaderboard')
     return (
       <main className="app leaderboard-page">
+        {historyControls}
         <header>
-          <button className="brand" onClick={() => setScreen('home')}>
+          <button className="brand" onClick={() => navigate('home')}>
             <span>汉</span>
             <b>Hanzi Beat<small>Global ranking</small></b>
           </button>
-          <button className="leaderboard-back" onClick={() => setScreen('home')}>Về trang chủ</button>
+          <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
         </header>
         <section className="leaderboard-panel">
           <div className="title">
@@ -1025,8 +1065,9 @@ export default function Home() {
     );
   return (
     <main className="app">
+      {historyControls}
       <header>
-        <button className="brand" onClick={() => setScreen('home')}>
+        <button className="brand" onClick={() => navigate('home')}>
           <span>汉</span>
           <b>
             Hanzi Beat<small>Learn Chinese in rhythm</small>
@@ -1035,24 +1076,24 @@ export default function Home() {
         <nav>
           <button
             className={screen === 'home' ? 'on' : ''}
-            onClick={() => setScreen('home')}
+            onClick={() => navigate('home')}
           >
             Trang chủ
           </button>
           <button
             className={screen === 'songs' ? 'on' : ''}
-            onClick={() => setScreen('songs')}
+            onClick={() => navigate('songs')}
           >
             Bài hát
           </button>
           <button
             className={screen === 'dictionary' ? 'on' : ''}
-            onClick={() => setScreen('dictionary')}
+            onClick={() => navigate('dictionary')}
           >
             Từ điển
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
-          <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; setScreen('pvp'); }}>PvP Online</button>
+          <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; navigate('pvp'); }}>PvP Online</button>
         </nav>
         <button
           className="user audio-library-button"
@@ -1194,10 +1235,10 @@ export default function Home() {
                 qua giai điệu, pinyin và phản xạ thật tự nhiên.
               </p>
               <div className="actions">
-                <button onClick={() => setScreen('songs')}>
+                <button onClick={() => navigate('songs')}>
                   <Play /> Chơi ngay
                 </button>
-                <button onClick={() => setScreen('dictionary')}>
+                <button onClick={() => navigate('dictionary')}>
                   <BookOpen /> Từ điển của tôi
                 </button>
               </div>
