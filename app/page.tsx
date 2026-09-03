@@ -30,6 +30,7 @@ import {
   type VocabularyEntry,
 } from '@/lib/hsk2-vocabulary';
 import { defaultAudioTracks } from '@/lib/default-audio';
+import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 
 type Screen =
   | 'home'
@@ -48,14 +49,7 @@ type LeaderboardEntry = {
 };
 type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
 type PvpRoom = { code: string; seed: number; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
-const baseVocabulary: VocabularyEntry[] = [
-  ['你好', 'nǐ hǎo', 'ni hao', 'xin chào', 'HSK 1'],
-  ['朋友', 'péng you', 'peng you', 'bạn bè', 'HSK 1'],
-  ['学校', 'xué xiào', 'xue xiao', 'trường học', 'HSK 1'],
-  ['音乐', 'yīn yuè', 'yin yue', 'âm nhạc', 'HSK 1'],
-  ['喜欢', 'xǐ huan', 'xi huan', 'yêu thích', 'HSK 1'],
-  ['早上好', 'zǎo shang hǎo', 'zao shang hao', 'chào buổi sáng', 'HSK 1'],
-];
+const baseVocabulary = hsk1Vocabulary;
 const allVocabulary = [...baseVocabulary, ...hsk2Vocabulary];
 const WORDS_PER_MATCH = 20;
 const shuffleVocabulary = (entries: VocabularyEntry[], seed?: number) => {
