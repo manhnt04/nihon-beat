@@ -315,6 +315,36 @@
   border: 1px solid #eee5e4;
   cursor: pointer;
 }
+.hud .now {
+  position: relative;
+}
+.hud .sound-toggle {
+  position: absolute;
+  left: 50%;
+  top: 50px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  border: 1px solid #d6a53a66;
+  border-radius: 4px;
+  background: #281218;
+  color: #f2d27e;
+  padding: 5px 9px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.hud .sound-toggle:hover,
+.hud .sound-toggle.blocked,
+.hud .sound-toggle.error {
+  background: #b5272d;
+  color: white;
+}
+.hud .sound-toggle svg {
+  width: 13px;
+  height: 13px;
+}
 .audio-library-button > span svg {
   width: 19px;
 }

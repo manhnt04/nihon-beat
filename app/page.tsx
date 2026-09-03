@@ -13,6 +13,7 @@ import {
   Trophy,
   Upload,
   Volume2,
+  VolumeX,
 } from 'lucide-react';
 import {
   deleteAudioTrack,
@@ -77,6 +78,9 @@ export default function Home() {
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [volume, setVolume] = useState(0.65);
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
+  const [audioStatus, setAudioStatus] = useState<
+    'idle' | 'loading' | 'playing' | 'paused' | 'blocked' | 'error'
+  >('idle');
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const typingInputRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +114,44 @@ export default function Home() {
       ),
     );
   }, [round, selected]);
+  const playDefaultTrack = (trackIndex?: number) => {
+    const index =
+      trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
+    const track = defaultAudioTracks[index % defaultAudioTracks.length];
+    audioPlayer.current?.pause();
+    if (audioUrl.current) {
+      URL.revokeObjectURL(audioUrl.current);
+      audioUrl.current = null;
+    }
+    const nextVolume = volume <= 0.01 ? 0.65 : volume;
+    if (volume <= 0.01) setVolume(nextVolume);
+    const player = new Audio();
+    player.preload = 'auto';
+    player.loop = true;
+    player.volume = nextVolume;
+    player.src = track.src;
+    player.addEventListener('playing', () => setAudioStatus('playing'));
+    player.addEventListener('pause', () => setAudioStatus('paused'));
+    player.addEventListener('error', () => setAudioStatus('error'));
+    audioPlayer.current = player;
+    setCurrentTrackName(track.name);
+    setAudioStatus('loading');
+    player.load();
+    void player.play().catch(() => setAudioStatus('blocked'));
+  };
+  const toggleAudio = () => {
+    const player = audioPlayer.current;
+    if (!player) {
+      playDefaultTrack(0);
+      return;
+    }
+    if (player.paused) {
+      setAudioStatus('loading');
+      void player.play().catch(() => setAudioStatus('blocked'));
+    } else {
+      player.pause();
+    }
+  };
   const start = (songIndex = selected) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
     setSelected(nextSong);
@@ -129,19 +171,7 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setScreen('game');
-    const track =
-      defaultAudioTracks[Math.floor(Math.random() * defaultAudioTracks.length)];
-    audioPlayer.current?.pause();
-    if (audioUrl.current) {
-      URL.revokeObjectURL(audioUrl.current);
-      audioUrl.current = null;
-    }
-    const player = new Audio(track.src);
-    player.loop = true;
-    player.volume = volume;
-    audioPlayer.current = player;
-    setCurrentTrackName(track.name);
-    void player.play().catch(() => undefined);
+    playDefaultTrack();
   };
   const nextTypingWord = useCallback(() => {
     setWord((w) => (w + 1) % vocab.length);
@@ -410,6 +440,14 @@ export default function Home() {
           <div className="now">
             <b>TYPING BATTLE · {songs[selected][0]}</b>
             <small>♪ {currentTrackName} · 02:30</small>
+            <button className={`sound-toggle ${audioStatus}`} onClick={toggleAudio}>
+              {audioStatus === 'playing' ? <Volume2 /> : <VolumeX />}
+              {audioStatus === 'playing'
+                ? 'Tắt nhạc'
+                : audioStatus === 'loading'
+                  ? 'Đang tải…'
+                  : 'Bật nhạc'}
+            </button>
           </div>
           <div>
             <small>PERFECT CHAIN</small>
@@ -511,6 +549,14 @@ export default function Home() {
             <small>
               ♪ {currentTrackName} · {songs[selected][2]} BPM · 02:30
             </small>
+            <button className={`sound-toggle ${audioStatus}`} onClick={toggleAudio}>
+              {audioStatus === 'playing' ? <Volume2 /> : <VolumeX />}
+              {audioStatus === 'playing'
+                ? 'Tắt nhạc'
+                : audioStatus === 'loading'
+                  ? 'Đang tải…'
+                  : 'Bật nhạc'}
+            </button>
           </div>
           <div>
             <small>COMBO</small>
