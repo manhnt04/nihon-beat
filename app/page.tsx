@@ -585,9 +585,6 @@ export default function Home() {
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
       </button>
-      <button className={screen === 'codex' ? 'on' : ''} onClick={() => navigate('codex')}>
-        <MapIcon /><span>Đồ Giám</span>
-      </button>
       <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
         <Trophy /><span>Xếp hạng</span>
       </button>
@@ -1640,7 +1637,6 @@ export default function Home() {
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => navigate('inventory')}>Inventory</button>
-          <button onClick={() => navigate('codex')}>Đồ Giám</button>
           <button onClick={() => navigate('shop')}>Cửa hàng</button>
           <button onClick={openPvp}>PvP Online</button>
         </nav>
@@ -1789,9 +1785,6 @@ export default function Home() {
                 </button>
                 <button onClick={() => navigate('dictionary')}>
                   <BookOpen /> Từ điển của tôi
-                </button>
-                <button onClick={() => navigate('codex')}>
-                  <MapIcon /> Hán Tự Đồ Giám
                 </button>
               </div>
               <div className="streak">
