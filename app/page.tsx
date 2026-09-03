@@ -133,12 +133,12 @@ const songs = [
   ['龙门飞跃', 'Dragon Gate', '186', 'HSK 4', 'Thử thách', '#b5272d'],
 ];
 const shopItems = [
-  { id: 'streak-guard', type: 'consumable', name: 'Hộ Ấn', hanzi: '护印', price: 30, image: '/items/streak-guard.png', rarity: 'Hiếm', description: 'Tự động bảo vệ một ngày bỏ lỡ. Tối đa 2, dùng một lần mỗi 7 ngày.' },
-  { id: 'effect-jade', type: 'effect', name: 'Ngọc Quang', hanzi: '玉光', price: 60, image: '/items/jade-fragment.png', rarity: 'Hiếm', description: 'Hiệu ứng ánh ngọc khi trả lời chính xác.' },
-  { id: 'seal-scholar', type: 'seal', name: 'Ấn Học Giả', hanzi: '学者印', price: 100, image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Con dấu Học Giả hiển thị trên hồ sơ.' },
-  { id: 'frame-cinnabar', type: 'frame', name: 'Khung Chu Sa', hanzi: '朱砂框', price: 150, image: '/items/daily-seal.png', rarity: 'Sử thi', description: 'Khung avatar đỏ son với viền vàng cổ điển.' },
-  { id: 'effect-golden', type: 'effect', name: 'Kim Vân', hanzi: '金云', price: 180, image: '/items/daily-chest.png', rarity: 'Sử thi', description: 'Hiệu ứng mây vàng cho chuỗi Perfect.' },
-  { id: 'frame-dragon', type: 'frame', name: 'Khung Long Môn', hanzi: '龙门框', price: 300, image: '/items/streak-guard.png', rarity: 'Huyền thoại', description: 'Khung rồng dành cho người chinh phục hành trình.' },
+  { id: 'streak-guard', type: 'consumable', name: 'Hộ Ấn', hanzi: '护印', price: 30, image: '/items/shop-streak-guard.png', rarity: 'Hiếm', description: 'Tự động bảo vệ một ngày bỏ lỡ. Tối đa 2, dùng một lần mỗi 7 ngày.' },
+  { id: 'effect-jade', type: 'effect', name: 'Ngọc Quang', hanzi: '玉光', price: 60, image: '/items/shop-effect-jade.png', rarity: 'Hiếm', description: 'Hiệu ứng ánh ngọc khi trả lời chính xác.' },
+  { id: 'seal-scholar', type: 'seal', name: 'Ấn Học Giả', hanzi: '学者印', price: 100, image: '/items/shop-seal-scholar.png', rarity: 'Hiếm', description: 'Con dấu Học Giả hiển thị trên hồ sơ.' },
+  { id: 'frame-cinnabar', type: 'frame', name: 'Khung Chu Sa', hanzi: '朱砂框', price: 150, image: '/items/shop-frame-cinnabar.png', rarity: 'Sử thi', description: 'Khung avatar đỏ son với viền vàng cổ điển.' },
+  { id: 'effect-golden', type: 'effect', name: 'Kim Vân', hanzi: '金云', price: 180, image: '/items/shop-effect-golden.png', rarity: 'Sử thi', description: 'Hiệu ứng mây vàng cho chuỗi Perfect.' },
+  { id: 'frame-dragon', type: 'frame', name: 'Khung Long Môn', hanzi: '龙门框', price: 300, image: '/items/shop-frame-dragon.png', rarity: 'Huyền thoại', description: 'Khung rồng dành cho người chinh phục hành trình.' },
 ] as const;
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
@@ -1070,7 +1070,7 @@ export default function Home() {
   if (screen === 'game' && mode === 'typing')
     return (
       <main className="game typing-battle">
-        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/daily-chest.png' : '/items/jade-fragment.png'} alt="" /></div>}
+        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/shop-effect-golden.png' : '/items/shop-effect-jade.png'} alt="" /></div>}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
@@ -1187,7 +1187,7 @@ export default function Home() {
   if (screen === 'game')
     return (
       <main className="game audition">
-        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/daily-chest.png' : '/items/jade-fragment.png'} alt="" /></div>}
+        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/shop-effect-golden.png' : '/items/shop-effect-jade.png'} alt="" /></div>}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
@@ -1394,7 +1394,7 @@ export default function Home() {
     const itemDefinitions = [
       { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
       { id: 'daily-chest', type: 'chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Mở để nhận 5–8 Mảnh Ngọc, 30 XP và cơ hội nhận cosmetic.' },
-      { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
+      { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/shop-streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
       ...shopItems.filter((item) => item.type !== 'consumable'),
     ] as const;
     const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
