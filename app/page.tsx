@@ -1256,7 +1256,7 @@ export default function Home() {
             ) : leaderboard.map((entry, index) => (
               <div className="leaderboard-row" key={entry.id}>
                 <span className={`place place-${index + 1}`}>{index + 1}</span>
-                <span><b>{entry.name}</b><small>{new Date(entry.createdAt).toLocaleDateString('vi-VN')}</small></span>
+                <span><b>{entry.name}</b></span>
                 <span>{entry.correct}/20</span>
                 <strong>{entry.score.toLocaleString('vi-VN')}</strong>
               </div>
@@ -1466,9 +1466,14 @@ export default function Home() {
           </section>
           <aside>
             <section className="daily">
-              <span className="eyebrow">DAILY CHALLENGE</span>
-              <h3>20 từ HSK ngẫu nhiên</h3>
-              <p>Toàn bộ kho HSK 1–9 hiện có · Hoàn thành trước 23:59</p>
+              <div className="daily-pattern" aria-hidden="true">回</div>
+              <div className="daily-copy">
+                <span className="eyebrow">每日挑战 · DAILY CHALLENGE</span>
+                <h3>Thử thách hôm nay</h3>
+                <p>20 câu hỏi bất ngờ · Chinh phục trước 23:59</p>
+                <span className="daily-reward">火 Giữ chuỗi ngày học</span>
+              </div>
+              <div className="daily-seal" aria-hidden="true">挑<br />战</div>
               <button onClick={startDailyChallenge}>
                 <Play />
               </button>
