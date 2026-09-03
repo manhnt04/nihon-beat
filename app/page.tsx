@@ -324,7 +324,8 @@ export default function Home() {
   const [reelRun, setReelRun] = useState(0);
   const [spinError, setSpinError] = useState('');
   const [spinBusy, setSpinBusy] = useState(false);
-  const spinHoldRef = useRef(false);
+  const [autoSpin, setAutoSpin] = useState(false);
+  const autoSpinRef = useRef(false);
   const spinBusyRef = useRef(false);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
@@ -377,21 +378,37 @@ export default function Home() {
       })));
       await new Promise((resolve) => window.setTimeout(resolve, 2950));
       setSlotResult(data.slotResult);
-      if (spinHoldRef.current && (data.progression?.spins.balance ?? 0) > 0) {
+      if (autoSpinRef.current && (data.progression?.spins.balance ?? 0) > 0) {
         spinBusyRef.current = false;
         setSpinBusy(false);
         window.setTimeout(() => void spinOnce(), 90);
         return;
       }
+      autoSpinRef.current = false;
+      setAutoSpin(false);
     } catch (error) {
       setSpinError(error instanceof Error ? error.message : 'Không thể quay Thiên Cơ Luân.');
-      spinHoldRef.current = false;
+      autoSpinRef.current = false;
+      setAutoSpin(false);
     } finally {
       spinBusyRef.current = false;
       setSpinBusy(false);
     }
   }
-  const stopHoldingSpin = () => { spinHoldRef.current = false; };
+  const stopAutoSpin = () => {
+    autoSpinRef.current = false;
+    setAutoSpin(false);
+  };
+  const toggleAutoSpin = () => {
+    if (autoSpinRef.current) {
+      stopAutoSpin();
+      return;
+    }
+    if ((progression?.spins.balance ?? 0) < 1) return;
+    autoSpinRef.current = true;
+    setAutoSpin(true);
+    void spinOnce();
+  };
   const historyControls = (
     <>
       <div className="history-controls" aria-label="Điều hướng trang">
@@ -399,13 +416,13 @@ export default function Home() {
         <button onClick={() => window.history.forward()} aria-label="Đi tới trang sau" title="Trang sau"><ChevronRight /></button>
       </div>
       <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
-      {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
-        <button className="spin-modal-close" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
+      {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
+        <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <div className="jackpot-topbar"><span><img src="/items/coin.png" alt="Coin"/><b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span><strong>天机 JACKPOT</strong><span><img src="/items/spin-refund.png" alt="Spin"/><b>{progression?.spins.balance ?? 0}</b></span></div>
         <div className={`jackpot-machine ${slotResult?.triple ? 'jackpot-win' : ''}`}><div className="jackpot-marquee">天机宝库</div><div className="jackpot-payline"/><div className="jackpot-reels">{[0,1,2].map((reelIndex) => <div className="jackpot-reel" key={`${reelRun}-${reelIndex}`}><div className="jackpot-strip" style={{ transform: `translateY(-${reelOffsets[reelIndex]}px)`, transition: `transform ${2.1 + reelIndex * .35}s cubic-bezier(.12,.78,.16,1)` }}>{slotStrip.map((symbol, symbolIndex) => <div className="jackpot-symbol" key={`${reelIndex}-${symbolIndex}`}><img src={symbol.image} alt={symbol.label}/></div>)}</div></div>)}</div></div>
         <div className={`slot-result ${slotResult ? 'show' : ''}`}><small>{slotResult?.triple ? '🎉 BỘ BA' : 'PHẦN THƯỞNG'}</small><div>{slotResult && Object.entries(slotResult.rewards).filter(([,amount]) => amount > 0).map(([kind,amount]) => { const rewardAssets: Record<string,string> = { coins:'/items/coin.png',spins:'/items/spin-refund.png',wood:'/items/spin-wood.png',ink:'/items/spin-ink.png',jade:'/items/jade-fragment.png',chests:'/items/daily-chest.png',shields:'/items/spin-castle-shield.png',tickets:'/items/spin-siege-ticket.png',fragments:'/items/spin-destiny-fragment.png',jackpots:'/items/spin-jackpot.png' }; return <span key={kind}><img src={rewardAssets[kind]} alt=""/><b>×{amount}</b></span>; })}{slotResult && Object.values(slotResult.rewards).every((amount) => amount === 0) && <b>CHƯA TRÚNG</b>}</div>{!slotResult && <p>QUAY ĐỂ NHẬN THƯỞNG</p>}</div>
         {spinError && <p className="spin-error">{spinError}</p>}
-        <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''}`} disabled={!authUser || (progression?.spins.balance ?? 0) < 1} onPointerDown={() => { spinHoldRef.current = true; void spinOnce(); }} onPointerUp={stopHoldingSpin} onPointerCancel={stopHoldingSpin} onPointerLeave={stopHoldingSpin} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { spinHoldRef.current = true; void spinOnce(); } }} onKeyUp={stopHoldingSpin}>{spinBusy ? 'ĐANG QUAY…' : (progression?.spins.balance ?? 0) > 0 ? 'QUAY' : 'HẾT LƯỢT'}<small>Giữ để tự quay</small></button>
+        <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''} ${autoSpin ? 'auto-spinning' : ''}`} disabled={!authUser || (!autoSpin && (progression?.spins.balance ?? 0) < 1)} onClick={toggleAutoSpin}>{autoSpin ? 'DỪNG' : (progression?.spins.balance ?? 0) > 0 ? 'QUAY' : 'HẾT LƯỢT'}<small>{autoSpin ? 'Đang tự động quay' : 'Nhấn để tự động quay'}</small></button>
       </section></div>}
     </>
   );
