@@ -49,7 +49,7 @@ type LeaderboardEntry = {
   createdAt: string;
 };
 type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
-type PvpRoom = { code: string; seed: number; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
+type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
 const baseVocabulary = hsk1Vocabulary;
 const allVocabulary = [
   ...baseVocabulary,
@@ -157,6 +157,7 @@ export default function Home() {
   const [pvpRoom, setPvpRoom] = useState<PvpRoom | null>(null);
   const [pvpWaiting, setPvpWaiting] = useState(false);
   const [pvpError, setPvpError] = useState('');
+  const [pvpGameMode, setPvpGameMode] = useState<'audition' | 'typing'>('audition');
   const [dailyChallenge, setDailyChallenge] = useState(false);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
@@ -333,7 +334,7 @@ export default function Home() {
     pvpStarted.current = true;
     pvpScoreSent.current = false;
     setPvpRoom(room);
-    setMode('typing');
+    setMode(room.mode ?? 'typing');
     const sharedWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, WORDS_PER_MATCH);
     start(1, sharedWords);
   }, []);
@@ -349,7 +350,7 @@ export default function Home() {
       const response = await fetch('/api/pvp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, playerId: ensurePvpPlayer(), name, code: pvpCode }),
+        body: JSON.stringify({ action, playerId: ensurePvpPlayer(), name, code: pvpCode, mode: pvpGameMode }),
       });
       const data = (await response.json()) as { room?: PvpRoom | null; error?: string };
       if (!response.ok) throw new Error(data.error || 'Không thể kết nối PvP.');
@@ -980,15 +981,19 @@ export default function Home() {
           <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
         </header>
         <section className="pvp-panel">
-          <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
+          <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng chế độ, cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
           {!pvpRoom && !pvpWaiting ? <>
             <label className="pvp-name">Tên người chơi<input value={pvpName} maxLength={20} onChange={(event) => setPvpName(event.target.value)} placeholder="Nhập tên của bạn" /></label>
+            <div className="pvp-mode-picker">
+              <button className={pvpGameMode === 'audition' ? 'on' : ''} onClick={() => setPvpGameMode('audition')}><b>Rhythm Quiz</b><small>Chọn nghĩa tiếng Việt hoặc chữ Hán</small></button>
+              <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><b>Typing Battle</b><small>Nhập đáp án bằng bàn phím</small></button>
+            </div>
             <div className="pvp-choices">
               <article><span>⚔</span><h2>Ghép trận</h2><p>Tìm một đối thủ đang chờ trên toàn hệ thống.</p><button onClick={() => pvpAction('match')}>Tìm đối thủ</button></article>
               <article><span>🏮</span><h2>Tạo phòng</h2><p>Tạo mã riêng và gửi cho bạn bè cùng tham gia.</p><button onClick={() => pvpAction('create')}>Tạo phòng mới</button></article>
             </div>
             <div className="join-room"><input value={pvpCode} maxLength={6} onChange={(event) => setPvpCode(event.target.value.toUpperCase())} placeholder="NHẬP MÃ PHÒNG" /><button onClick={() => pvpAction('join')}>Vào phòng</button></div>
-          </> : <div className="pvp-waiting"><div className="pvp-spinner">汉</div><span>{pvpRoom ? `MÃ PHÒNG: ${pvpRoom.code}` : 'ĐANG GHÉP TRẬN'}</span><h2>{pvpRoom?.guest ? 'Đã tìm thấy đối thủ!' : 'Đang chờ đối thủ...'}</h2>{pvpRoom && <><p>Gửi mã này cho bạn bè:</p><button className="room-code" onClick={() => navigator.clipboard.writeText(pvpRoom.code)}>{pvpRoom.code}</button></>}<small>Trận đấu sẽ tự bắt đầu khi đủ 2 người.</small></div>}
+          </> : <div className="pvp-waiting"><div className="pvp-spinner">汉</div><span>{pvpRoom ? `MÃ PHÒNG: ${pvpRoom.code}` : 'ĐANG GHÉP TRẬN'}</span><h2>{pvpRoom?.guest ? 'Đã tìm thấy đối thủ!' : 'Đang chờ đối thủ...'}</h2><p className="pvp-waiting-mode">{(pvpRoom?.mode ?? pvpGameMode) === 'audition' ? 'Rhythm Quiz' : 'Typing Battle'}</p>{pvpRoom && <><p>Gửi mã này cho bạn bè:</p><button className="room-code" onClick={() => navigator.clipboard.writeText(pvpRoom.code)}>{pvpRoom.code}</button></>}<small>Trận đấu sẽ tự bắt đầu khi đủ 2 người.</small></div>}
           {pvpError && <p className="pvp-error">{pvpError}</p>}
         </section>
       </main>

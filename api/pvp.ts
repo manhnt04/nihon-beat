@@ -7,13 +7,14 @@ const cleanName = (value: unknown) =>
 const roomKey = (code: string) => `hanzibeat:pvp:room:${code}`;
 const playerKey = (id: string) => `hanzibeat:pvp:player:${id}`;
 type Player = { id: string; name: string; score: number | null; correct: number | null };
-type Room = { code: string; seed: number; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string };
+type GameMode = 'audition' | 'typing';
+type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string };
 
 async function saveRoom(room: Room) {
   await redis.set(roomKey(room.code), room, { ex: ROOM_TTL });
 }
 
-async function createRoom(player: Player) {
+async function createRoom(player: Player, mode: GameMode) {
   let code = '';
   for (let attempt = 0; attempt < 6; attempt += 1) {
     code = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -22,6 +23,7 @@ async function createRoom(player: Player) {
   const room: Room = {
     code,
     seed: Math.floor(Math.random() * 2_147_483_647),
+    mode,
     status: 'waiting',
     host: player,
     guest: null,
@@ -45,25 +47,29 @@ export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') return response.status(405).json({ error: 'Không hỗ trợ.' });
 
   const action = String(request.body?.action ?? '');
+  const mode: GameMode = request.body?.mode === 'audition' ? 'audition' : 'typing';
   const playerId = String(request.body?.playerId ?? '').slice(0, 80);
   if (playerId.length < 8) return response.status(400).json({ error: 'Người chơi không hợp lệ.' });
   const player: Player = { id: playerId, name: cleanName(request.body?.name), score: null, correct: null };
 
   if (action === 'create') {
-    return response.status(201).json({ room: await createRoom(player) });
+    return response.status(201).json({ room: await createRoom(player, mode) });
   }
   if (action === 'match') {
     const existingCode = await redis.get<string>(playerKey(playerId));
     if (existingCode) {
       const existingRoom = await redis.get<Room>(roomKey(existingCode));
-      if (existingRoom) return response.status(200).json({ room: existingRoom });
+      if (existingRoom && existingRoom.status !== 'finished') {
+        return response.status(200).json({ room: existingRoom });
+      }
+      await redis.del(playerKey(playerId));
     }
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const opponentId = await redis.lpop<string>('hanzibeat:pvp:queue');
+      const opponentId = await redis.lpop<string>(`hanzibeat:pvp:queue:${mode}`);
       if (!opponentId || opponentId === playerId) break;
       const opponentData = await redis.get<{ name: string }>(`hanzibeat:pvp:waiting:${opponentId}`);
       if (!opponentData) continue;
-      const room = await createRoom({ id: opponentId, name: opponentData.name, score: null, correct: null });
+      const room = await createRoom({ id: opponentId, name: opponentData.name, score: null, correct: null }, mode);
       room.guest = player;
       room.status = 'playing';
       await saveRoom(room);
@@ -71,8 +77,8 @@ export default async function handler(request: any, response: any) {
       await redis.del(`hanzibeat:pvp:waiting:${opponentId}`);
       return response.status(200).json({ room });
     }
-    await redis.set(`hanzibeat:pvp:waiting:${playerId}`, { name: player.name }, { ex: 180 });
-    await redis.rpush('hanzibeat:pvp:queue', playerId);
+    await redis.set(`hanzibeat:pvp:waiting:${playerId}`, { name: player.name, mode }, { ex: 180 });
+    await redis.rpush(`hanzibeat:pvp:queue:${mode}`, playerId);
     return response.status(202).json({ room: null, waiting: true });
   }
   if (action === 'join') {
