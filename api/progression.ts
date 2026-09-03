@@ -22,6 +22,7 @@ type Progression = {
   xp: number;
   level: number;
   jade: number;
+  dragonCrystals: number;
   coins: number;
   streak: number;
   lastStampDate: string | null;
@@ -47,6 +48,7 @@ type Progression = {
     shieldActiveUntil: number;
     likes: number;
     theme: string;
+    ownedThemes: string[];
     attackEnergy: number;
     attackUpdatedAt: number;
     peaceUntil: number;
@@ -54,6 +56,7 @@ type Progression = {
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
+  battlePass: { season: string; xp: number; premium: boolean; claimed: string[] };
 };
 
 const castleBuildings = {
@@ -142,6 +145,12 @@ const shopCatalog = {
   'effect-golden': { price: 180, type: 'effect' },
   'frame-dragon': { price: 300, type: 'frame' },
 } as const;
+const castleCommerceCatalog = {
+  'theme-jade': { price: 120, kind: 'theme', theme: 'jade' },
+  'theme-lantern': { price: 180, kind: 'theme', theme: 'lantern' },
+  'seasonal-lantern-gate': { price: 90, kind: 'cosmetic', theme: 'festival' },
+  'premium-pass': { price: 129, kind: 'pass', theme: '' },
+} as const;
 
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -195,16 +204,18 @@ const loadProgression = async (uid: string, name: string) => {
   const stored = await redis.get<Progression>(key);
   const date = bangkokDate();
   const progression: Progression = stored ?? {
-    uid, name, xp: 0, level: 1, jade: 0, coins: 0, streak: 0,
+    uid, name, xp: 0, level: 1, jade: 0, dragonCrystals: 0, coins: 0, streak: 0,
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
-    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } },
+    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
+    battlePass: { season: new Date().toISOString().slice(0, 7), xp: 0, premium: false, claimed: [] },
   };
   progression.name = name || progression.name;
   progression.coins = Math.max(0, Math.floor(Number(progression.coins ?? 0)));
+  progression.dragonCrystals = Math.max(0, Math.floor(Number(progression.dragonCrystals ?? 0)));
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
@@ -214,7 +225,7 @@ const loadProgression = async (uid: string, name: string) => {
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
@@ -222,6 +233,7 @@ const loadProgression = async (uid: string, name: string) => {
   if (progression.castle.shieldActiveUntil <= Date.now()) progression.castle.shieldActiveUntil = 0;
   progression.castle.likes = Math.max(0, Number(progression.castle.likes ?? 0));
   progression.castle.theme = String(progression.castle.theme ?? 'classic');
+  progression.castle.ownedThemes = Array.from(new Set(['classic', ...(progression.castle.ownedThemes ?? [])]));
   progression.castle.attackEnergy = Math.max(0, Math.min(5, Number(progression.castle.attackEnergy ?? 5)));
   progression.castle.attackUpdatedAt = Number(progression.castle.attackUpdatedAt ?? Date.now());
   const recoveredEnergy = Math.floor((Date.now() - progression.castle.attackUpdatedAt) / 7_200_000);
@@ -231,6 +243,8 @@ const loadProgression = async (uid: string, name: string) => {
   }
   progression.castle.peaceUntil = Number(progression.castle.peaceUntil ?? 0);
   progression.castle.newbieUntil = Number(progression.castle.newbieUntil ?? 0);
+  const passSeason = new Date().toISOString().slice(0, 7);
+  progression.battlePass = progression.battlePass?.season === passSeason ? progression.battlePass : { season: passSeason, xp: 0, premium: false, claimed: [] };
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
@@ -278,6 +292,12 @@ export default async function handler(request: any, response: any) {
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     await redis.set(coinGrantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
   }
+  const crystalGrantKey = `hanzibeat:special-grant:dragon-crystals-999:${user.localId}`;
+  if (normalizedEmail === 'manhnt@gmail.com' && !await redis.get(crystalGrantKey)) {
+    progression.dragonCrystals = Math.max(999, progression.dragonCrystals);
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    await redis.set(crystalGrantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
+  }
 
   if (request.method === 'GET') {
     return response.status(200).json({ progression: publicProgression(progression) });
@@ -288,6 +308,36 @@ export default async function handler(request: any, response: any) {
   }
 
   const action = String(request.body?.action ?? '');
+  if (action === 'castle-commerce') {
+    const operation = String(request.body?.operation ?? 'list');
+    if (operation === 'buy') {
+      const itemId = String(request.body?.itemId ?? '') as keyof typeof castleCommerceCatalog;
+      const item = castleCommerceCatalog[itemId];
+      if (!item) return response.status(400).json({ error: 'Sản phẩm không tồn tại.' });
+      if (progression.dragonCrystals < item.price) return response.status(409).json({ error: 'Không đủ Long Tinh.' });
+      if (item.kind === 'pass' && progression.battlePass.premium) return response.status(409).json({ error: 'Bạn đã sở hữu Premium Pass mùa này.' });
+      if (item.theme && progression.castle.ownedThemes.includes(item.theme)) return response.status(409).json({ error: 'Bạn đã sở hữu trang trí này.' });
+      progression.dragonCrystals -= item.price;
+      if (item.kind === 'pass') progression.battlePass.premium = true;
+      else progression.castle.ownedThemes.push(item.theme);
+    } else if (operation === 'equip') {
+      const theme = String(request.body?.theme ?? 'classic');
+      if (!progression.castle.ownedThemes.includes(theme)) return response.status(403).json({ error: 'Bạn chưa sở hữu Theme này.' });
+      progression.castle.theme = theme;
+    } else if (operation === 'claim') {
+      const tier = Math.max(1, Math.min(5, Number(request.body?.tier ?? 1)));
+      const premium = Boolean(request.body?.premium);
+      const claimId = `${premium ? 'premium' : 'free'}-${tier}`;
+      if (progression.battlePass.xp < tier * 100) return response.status(409).json({ error: 'Chưa đủ XP Battle Pass.' });
+      if (premium && !progression.battlePass.premium) return response.status(403).json({ error: 'Cần Premium Pass.' });
+      if (progression.battlePass.claimed.includes(claimId)) return response.status(409).json({ error: 'Đã nhận phần thưởng này.' });
+      const rewardTheme = premium ? `pass-dragon-${tier}` : `pass-banner-${tier}`;
+      progression.castle.ownedThemes.push(rewardTheme);
+      progression.battlePass.claimed.push(claimId);
+    }
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({ progression: publicProgression(progression), commerce: { catalog: castleCommerceCatalog } });
+  }
   if (action === 'castle-combat') {
     const operation = String(request.body?.operation ?? 'logs');
     if (operation === 'peace') {
@@ -572,6 +622,7 @@ export default async function handler(request: any, response: any) {
     const questionXp = Math.min(correct * 2, availableQuestionXp);
     daily.questionXp += questionXp;
     daily.correct += correct;
+    progression.battlePass.xp = Math.min(500, progression.battlePass.xp + 10 + correct);
     let requestedBonusXp = 10;
     let jadeEarned = 0;
     if (session.kind === 'daily') {

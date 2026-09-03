@@ -95,6 +95,7 @@ type Progression = {
   xp: number;
   level: number;
   jade: number;
+  dragonCrystals: number;
   coins: number;
   streak: number;
   stamps: number;
@@ -112,12 +113,14 @@ type Progression = {
     shieldActiveUntil: number;
     likes: number;
     theme: string;
+    ownedThemes: string[];
     attackEnergy: number;
     attackUpdatedAt: number;
     peaceUntil: number;
     newbieUntil: number;
     buildings: { main: number; library: number; listening: number };
   };
+  battlePass: { season: string; xp: number; premium: boolean; claimed: string[] };
   completedTasks: number;
   levelProgress: { level: number; currentXp: number; nextXp: number };
   daily: {
@@ -774,6 +777,18 @@ export default function Home() {
         setCombatQuiz({ ...data.combatSession, questions, index: 0, correct: 0 });
       }
     } catch (error) { setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện Công Thành.'); }
+  }, []);
+  const runCastleCommerce = useCallback(async (operation: 'list' | 'buy' | 'equip' | 'claim', payload: { itemId?: string; theme?: string; tier?: number; premium?: boolean } = {}) => {
+    const user = firebaseAuth.currentUser;
+    if (!user) return;
+    setRewardActionError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-commerce', operation, ...payload }) });
+      const data = await response.json() as { progression?: Progression; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Không thể thực hiện giao dịch.');
+      if (data.progression) setProgression(data.progression);
+    } catch (error) { setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện giao dịch.'); }
   }, []);
   const answerCombatQuestion = (answer: string) => {
     if (!combatQuiz) return;
@@ -1691,7 +1706,7 @@ export default function Home() {
       </main>
     );
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
@@ -1720,6 +1735,7 @@ export default function Home() {
             <button className="castle-shop-trigger" onClick={() => setCastleShopOpen(true)}><span>建设商店</span><b>CỬA HÀNG THÀNH</b><small>Nâng cấp công trình</small></button>
             <section className="castle-social-panel"><header><div><span>社交 · XÃ HỘI</span><h2>Castle Rank · {castleSocial?.season ?? 'Mùa hiện tại'}</h2></div><b>♥ {castle.likes}</b></header><div className="castle-theme-picker">{[{id:'classic',name:'Cổ Điển',level:1},{id:'moon',name:'Nguyệt Dạ',level:4},{id:'crimson',name:'Xích Hà',level:7}].map((theme) => <button key={theme.id} className={castle.theme === theme.id ? 'on' : ''} disabled={castle.buildings.main < theme.level} onClick={() => void runCastleSocial('theme', undefined, theme.id)}>{theme.name}<small>Lv.{theme.level}</small></button>)}</div><div className="castle-rank-list">{castleSocial?.castles.map((entry,index) => { const rival = entry.uid !== authUser?.id && !castleSocial.castles.slice(0,index).some((item) => item.uid !== authUser?.id); return <article key={entry.uid} className={rival ? 'rival' : ''}><b>#{index+1}</b><i>{entry.name.slice(0,1).toUpperCase()}</i><span><strong>{entry.name}</strong><small>主城 Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><em>♥ {entry.likes}</em>{entry.uid !== authUser?.id && <div><button onClick={() => void runCastleSocial('visit',entry.uid)}>Ghé thăm</button><button onClick={() => void runCastleSocial('like',entry.uid)}>Like</button><button className="attack" onClick={() => void runCastleCombat('start',{targetId:entry.uid})}>Công thành</button></div>}{rival && <mark>RIVAL</mark>}</article>; })}</div><div className="castle-visitors"><h3>Nhật ký khách ghé thăm</h3>{castleSocial?.visitors.length ? castleSocial.visitors.map((visitor) => <p key={`${visitor.uid}-${visitor.visitedAt}`}><b>{visitor.name}</b><span>{new Date(visitor.visitedAt).toLocaleString('vi-VN')}</span></p>) : <small>Chưa có khách ghé thăm.</small>}</div></section>
             <section className="castle-combat-panel"><header><div><span>攻城 · CÔNG THÀNH</span><h2>Attack Energy</h2></div><b>⚡ {castle.attackEnergy}/5</b><button className={castle.peaceUntil > Date.now() ? 'on' : ''} onClick={() => void runCastleCombat('peace')}>{castle.peaceUntil > Date.now() ? 'Tắt Peace Mode' : 'Bật Peace Mode 8h'}</button></header><p>Hồi 1 năng lượng mỗi 2 giờ · thắng khi đúng ít nhất 7/10 câu · tối đa 3 trận/cặp mỗi ngày.</p><div className="combat-protection"><span>🛡 Hộ Thành Phù: {castle.shieldActiveUntil > Date.now() ? 'Đang bảo vệ' : 'Không hoạt động'}</span><span>🌱 Newbie Protection: {castle.newbieUntil > Date.now() ? 'Đang bảo vệ' : 'Đã kết thúc'}</span></div><h3>Nhật ký chiến đấu</h3><div className="combat-log-list">{combatLogs.length ? combatLogs.map((log) => { const defending = log.defenderId === authUser?.id; const rivalId = defending ? log.attackerId : log.defenderId; return <article key={log.id}><b className={log.won ? 'win' : 'lose'}>{log.shielded ? 'ĐÃ CHẶN' : log.won ? 'THẮNG' : 'THUA'}</b><span><strong>{log.attackerName} → {log.defenderName}</strong><small>{log.correct}/10 câu · {new Date(log.createdAt).toLocaleString('vi-VN')}</small></span>{defending && <button onClick={() => void runCastleCombat('start',{targetId:rivalId})}>Trả đũa</button>}</article>; }) : <small>Chưa có trận Công Thành.</small>}</div></section>
+            <section className="castle-commerce-panel"><header><div><span>龙晶商会 · THƯƠNG MẠI</span><h2>Theme & Cosmetic</h2></div><b>💎 {progression?.dragonCrystals ?? 0} Long Tinh</b></header><p>Chỉ bán trang trí. Không bán Coin, Gỗ, Mực, Attack Energy hoặc vật phẩm phòng thủ.</p><div className="commerce-products">{[{id:'theme-jade',theme:'jade',name:'Theme Pack · Bích Ngọc',price:120},{id:'theme-lantern',theme:'lantern',name:'Theme Pack · Đèn Trời',price:180},{id:'seasonal-lantern-gate',theme:'festival',name:'Cổng Lễ Hội · Mùa Thu',price:90}].map((item) => { const owned = castle.ownedThemes.includes(item.theme); return <article key={item.id} className={`preview-${item.theme}`}><i>城</i><span><strong>{item.name}</strong><small>{owned ? 'Đã sở hữu' : `${item.price} 龙晶`}</small></span><button onClick={() => void runCastleCommerce(owned ? 'equip' : 'buy', owned ? {theme:item.theme} : {itemId:item.id})}>{owned ? castle.theme === item.theme ? 'Đang dùng' : 'Trang bị' : 'Mua'}</button></article>; })}</div><div className="castle-pass"><header><span><b>BATTLE PASS · {progression?.battlePass.season}</b><small>{progression?.battlePass.premium ? 'PREMIUM ĐÃ MỞ' : 'FREE PASS'}</small></span><button disabled={progression?.battlePass.premium} onClick={() => void runCastleCommerce('buy',{itemId:'premium-pass'})}>{progression?.battlePass.premium ? 'Đã mở' : 'Mở Premium · 129 💎'}</button></header><div className="pass-progress"><i style={{width:`${Math.min(100,(progression?.battlePass.xp ?? 0)/5)}%`}}/><span>{progression?.battlePass.xp ?? 0}/500 XP</span></div><div className="pass-tiers">{[1,2,3,4,5].map((tier) => { const ready = (progression?.battlePass.xp ?? 0) >= tier*100; const freeId=`free-${tier}`; const premiumId=`premium-${tier}`; return <article key={tier}><b>Lv.{tier}</b><button disabled={!ready || progression?.battlePass.claimed.includes(freeId)} onClick={() => void runCastleCommerce('claim',{tier})}>🎏 Free</button><button disabled={!ready || !progression?.battlePass.premium || progression?.battlePass.claimed.includes(premiumId)} onClick={() => void runCastleCommerce('claim',{tier,premium:true})}>🐉 Premium</button></article>; })}</div></div></section>
           </>}
         </section>
         {castleShopOpen && <div className="castle-shop-backdrop" onClick={() => setCastleShopOpen(false)}><section className="castle-shop-modal" role="dialog" aria-modal="true" aria-label="Cửa hàng Thành" onClick={(event) => event.stopPropagation()}><header><small>建设商店</small><h2>Cửa hàng Thành</h2><button onClick={() => setCastleShopOpen(false)}>×</button></header><div className="castle-shop-list">{buildings.map((building) => { const level = castle.buildings[building.id]; const maxed = level >= 10; const stage = castleVisualStage(level); const nextStage = castleVisualStage(Math.min(10, level + 1)); const currentAsset = building.id === 'main' ? stage : 1; const nextAsset = building.id === 'main' ? nextStage : 1; const cost = castleUpgradeCost(building, level); const enough = castle.wood >= cost.wood && castle.ink >= cost.ink && (progression?.coins ?? 0) >= cost.coin; const supportReady = building.id !== 'main' || Math.min(castle.buildings.library, castle.buildings.listening) >= level; const playerReady = building.id !== 'main' || (progression?.level ?? 1) >= (mainCastleLevelRequirements[level + 1] ?? 100); const mainReady = building.id === 'main' || level < castle.buildings.main; const canBuy = !maxed && enough && supportReady && playerReady && mainReady; return <article key={building.id}><div className="castle-shop-art"><img src={`/castle/buildings/${building.id}/stage-${currentAsset}.webp`} alt=""/>{!maxed && <><i>›</i><img src={`/castle/buildings/${building.id}/stage-${nextAsset}.webp`} alt=""/></>}</div><div className="castle-shop-info"><span>{building.hanzi}</span><h3>{building.name}</h3><div className="castle-shop-stars">{Array.from({length:10},(_,index)=><i key={index} className={index < level ? 'on' : ''}>★</i>)}</div><small>Lv.{level}/10 · 🪵 {cost.wood} · 🖌 {cost.ink}</small></div>{maxed ? <strong>HOÀN TẤT!</strong> : <div className="castle-shop-buy"><b>🪙 {cost.coin.toLocaleString('vi-VN')}</b><button disabled={rewardActionStatus === 'loading' || !canBuy} onClick={() => void runProgressionAction('upgrade-castle', building.id)}>NÂNG CẤP</button></div>}</article>; })}</div></section></div>}
