@@ -1,6 +1,7 @@
 .castle-hero {
   grid-template-columns: minmax(250px, .55fr) minmax(0, 1.45fr);
   min-height: 430px;
+  overflow: visible;
 }
 .castle-copy { position: relative; z-index: 2; }
 .castle-owner-card { display: flex; align-items: center; gap: 11px; margin-top: 20px; }
@@ -8,7 +9,7 @@
 .castle-owner-card span, .castle-owner-card small, .castle-owner-card b { display: block; }
 .castle-owner-card small { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ead9bb; font-size: 9px; font-weight: 900; }
 .castle-owner-card b { margin-top: 3px; color: #efcd68; font-size: 12px; }
-.castle-scene { height: auto; aspect-ratio: 3 / 2; display: block; border-radius: 12px; background: #17263c; isolation: isolate; }
+.castle-scene { height: auto; aspect-ratio: 3 / 2; display: block; border-radius: 12px; background: #17263c; isolation: isolate; overflow: visible; perspective: 1100px; transform-style: preserve-3d; }
 .castle-scene::before { display: none; }
 .castle-scene > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; border-radius: inherit; filter: saturate(.94) contrast(1.02); }
 .castle-scene::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; background: linear-gradient(180deg, transparent 64%, #160b0966); pointer-events: none; }
@@ -46,19 +47,20 @@
 
 /* Layered base-building map: every structure is an independent level-aware component. */
 .castle-map-base { position: absolute; inset: 0; z-index: 0; }
-.map-building { position: absolute; z-index: 2; display: block; padding: 0; border: 0; background: transparent; filter: drop-shadow(0 10px 8px #1b0d0b55); transition: transform .22s ease, filter .22s ease; }
-.map-building:hover { z-index: 5; filter: drop-shadow(0 15px 12px #1b0d0b88) brightness(1.05); }
+.map-building { position: absolute; z-index: 2; display: block; padding: 0; border: 0; background: transparent; filter: drop-shadow(0 13px 9px #1b0d0b77); transform-style: preserve-3d; will-change: transform,filter; transition: transform .24s cubic-bezier(.2,.8,.2,1), filter .24s ease; }
+.map-building::before { content: ""; position: absolute; z-index: -1; left: 17%; right: 17%; bottom: 5%; height: 13%; border-radius: 50%; background: #160b0988; filter: blur(9px); transform: rotateX(65deg) translateZ(-8px); pointer-events: none; }
+.map-building:hover { z-index: 6; filter: drop-shadow(0 22px 15px #1b0d0b99) brightness(1.07); }
 .map-building > img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
 .map-building > span { position: absolute; left: 50%; bottom: 2%; min-width: 92px; padding: 5px 8px; border: 1px solid #efcd68; border-radius: 15px; background: #351714e8; color: #fff2d0; transform: translateX(-50%); box-shadow: 0 5px 12px #0005; white-space: nowrap; }
 .map-building > span b, .map-building > span small { display: block; }
 .map-building > span b { font: 700 11px "Songti SC", "SimSun", serif; }
 .map-building > span small { margin-top: 1px; color: #e9c961; font-size: 7px; }
-.map-building-main { left: 29%; top: -5%; width: 43%; height: 58%; }
-.map-building-main:hover { transform: translateY(-5px) scale(1.025); }
-.map-building-library { left: 10%; top: 24%; width: 28%; height: 40%; }
-.map-building-library:hover { transform: translateY(-5px) scale(1.035); }
-.map-building-listening { right: 12%; top: 23%; width: 28%; height: 40%; }
-.map-building-listening:hover { transform: translateY(-5px) scale(1.035); }
+.map-building-main { left: 27%; top: -15%; width: 47%; height: 60%; transform: translateZ(28px); }
+.map-building-main:hover { transform: translateY(-10px) translateZ(54px) scale(1.04); }
+.map-building-library { left: 9%; top: 16%; width: 30%; height: 41%; transform: translateZ(22px); }
+.map-building-library:hover { transform: translateY(-9px) translateZ(48px) scale(1.055); }
+.map-building-listening { right: 11%; top: 15%; width: 30%; height: 41%; transform: translateZ(22px); }
+.map-building-listening:hover { transform: translateY(-9px) translateZ(48px) scale(1.055); }
 .map-building.visual-stage-2 { filter: drop-shadow(0 10px 9px #1b0d0b66) saturate(1.03); }
 .map-building.visual-stage-3 { filter: drop-shadow(0 12px 10px #1b0d0b77) saturate(1.06); }
 .map-building.visual-stage-4 { filter: drop-shadow(0 14px 12px #1b0d0b88) saturate(1.08); }
@@ -67,9 +69,9 @@
 .building-art > b { position: absolute; left: 9px; top: 9px; padding: 4px 7px; border-radius: 4px; background: #176b5be8; color: #efffd7; font-size: 8px; }
 @media (max-width: 520px) {
   .castle-scene { aspect-ratio: 3 / 2; }
-  .map-building-main { left: 29%; top: -5%; width: 43%; height: 58%; }
-  .map-building-library { left: 10%; top: 24%; width: 28%; height: 40%; }
-  .map-building-listening { right: 12%; top: 23%; width: 28%; height: 40%; }
+  .map-building-main { left: 27%; top: -15%; width: 47%; height: 60%; }
+  .map-building-library { left: 9%; top: 16%; width: 30%; height: 41%; }
+  .map-building-listening { right: 11%; top: 15%; width: 30%; height: 41%; }
   .map-building > span { min-width: 70px; padding: 4px 5px; }
   .map-building > span b { font-size: 9px; }
   .map-building > span small { font-size: 6px; }
