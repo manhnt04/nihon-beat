@@ -67,6 +67,15 @@ type Screen =
   | 'shop'
   | 'codex'
   | 'auth';
+const screenPaths: Record<Screen, string> = {
+  home: '/', songs: '/lessons', game: '/play', result: '/result',
+  dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
+  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', auth: '/profile',
+};
+const screenFromPath = (pathname: string): Screen => {
+  const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return (Object.entries(screenPaths).find(([, path]) => path === normalized)?.[0] as Screen | undefined) ?? 'home';
+};
 type AuthUser = { id: string; name: string; email: string };
 type LeaderboardEntry = {
   id: string;
@@ -275,7 +284,7 @@ export default function Home() {
   }, []);
   const navigate = useCallback((nextScreen: Screen) => {
     if (nextScreen === screen) return;
-    window.history.pushState({ hanzibeatScreen: nextScreen }, '');
+    window.history.pushState({ hanzibeatScreen: nextScreen }, '', screenPaths[nextScreen]);
     animateScreenChange(() => setScreen(nextScreen));
   }, [screen, animateScreenChange]);
   const historyControls = (
@@ -756,13 +765,12 @@ export default function Home() {
     }
   }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
-    window.history.replaceState({ hanzibeatScreen: screen }, '');
-    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'shop', 'codex', 'auth'];
+    const initialScreen = screenFromPath(window.location.pathname);
+    if (initialScreen !== screen) animateScreenChange(() => setScreen(initialScreen));
+    window.history.replaceState({ hanzibeatScreen: initialScreen }, '', screenPaths[initialScreen]);
     const handleHistory = (event: PopStateEvent) => {
-      const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
-      if (previousScreen && validScreens.includes(previousScreen)) {
-        animateScreenChange(() => setScreen(previousScreen));
-      }
+      const previousScreen = (event.state?.hanzibeatScreen as Screen | undefined) ?? screenFromPath(window.location.pathname);
+      animateScreenChange(() => setScreen(previousScreen));
     };
     window.addEventListener('popstate', handleHistory);
     return () => window.removeEventListener('popstate', handleHistory);
