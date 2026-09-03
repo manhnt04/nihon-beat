@@ -27,7 +27,20 @@ import {
 } from '@/lib/hsk2-vocabulary';
 import { defaultAudioTracks } from '@/lib/default-audio';
 
-type Screen = 'home' | 'songs' | 'game' | 'result' | 'dictionary';
+type Screen =
+  | 'home'
+  | 'songs'
+  | 'game'
+  | 'result'
+  | 'dictionary'
+  | 'leaderboard';
+type LeaderboardEntry = {
+  id: string;
+  name: string;
+  score: number;
+  correct: number;
+  createdAt: string;
+};
 const baseVocabulary: VocabularyEntry[] = [
   ['你好', 'nǐ hǎo', 'ni hao', 'xin chào', 'HSK 1'],
   ['朋友', 'péng you', 'peng you', 'bạn bè', 'HSK 1'],
@@ -116,6 +129,12 @@ export default function Home() {
   const [typingLocked, setTypingLocked] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
   const [dictionaryQuery, setDictionaryQuery] = useState('');
+  const [playerName, setPlayerName] = useState('');
+  const [scoreStatus, setScoreStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [leaderboardLevel, setLeaderboardLevel] = useState(0);
+  const [leaderboardMode, setLeaderboardMode] = useState<'audition' | 'typing'>('audition');
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
     () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
@@ -225,9 +244,55 @@ export default function Home() {
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
+    setScoreStatus('idle');
     setScreen('game');
     playDefaultTrack();
   };
+  const loadLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    try {
+      const response = await fetch(
+        `/api/leaderboard?level=${leaderboardLevel}&mode=${leaderboardMode}`,
+        { cache: 'no-store' },
+      );
+      if (!response.ok) throw new Error('Không tải được bảng xếp hạng');
+      const data = await response.json();
+      setLeaderboard(data.entries ?? []);
+    } catch {
+      setLeaderboard([]);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [leaderboardLevel, leaderboardMode]);
+  const openLeaderboard = () => {
+    setLeaderboardLevel(selected);
+    setLeaderboardMode(mode);
+    setScreen('leaderboard');
+  };
+  const submitScore = async () => {
+    const cleanName = playerName.trim();
+    if (cleanName.length < 2 || scoreStatus === 'saving' || scoreStatus === 'saved') return;
+    setScoreStatus('saving');
+    try {
+      const response = await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cleanName, level: selected, mode, score, correct }),
+      });
+      if (!response.ok) throw new Error('Không lưu được điểm');
+      localStorage.setItem('hanzibeat-player-name', cleanName);
+      setScoreStatus('saved');
+    } catch {
+      setScoreStatus('error');
+    }
+  };
+  useEffect(() => {
+    const savedName = localStorage.getItem('hanzibeat-player-name');
+    if (savedName) setPlayerName(savedName);
+  }, []);
+  useEffect(() => {
+    if (screen === 'leaderboard') void loadLeaderboard();
+  }, [screen, loadLeaderboard]);
   const nextTypingWord = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
@@ -743,6 +808,27 @@ export default function Home() {
               xác
             </span>
           </div>
+          <div className="score-submit">
+            <input
+              value={playerName}
+              onChange={(event) => {
+                setPlayerName(event.target.value);
+                if (scoreStatus === 'error') setScoreStatus('idle');
+              }}
+              maxLength={20}
+              placeholder="Tên người chơi"
+              aria-label="Tên người chơi"
+            />
+            <button onClick={submitScore} disabled={scoreStatus === 'saving' || scoreStatus === 'saved'}>
+              <Trophy />
+              {scoreStatus === 'saving'
+                ? 'Đang lưu...'
+                : scoreStatus === 'saved'
+                  ? 'Đã lên hạng'
+                  : 'Đăng điểm'}
+            </button>
+          </div>
+          {scoreStatus === 'error' && <p className="score-error">Không thể đăng điểm. Hãy thử lại.</p>}
           <div className="actions">
             <button onClick={() => start()}>
               <Play /> Chơi lại
@@ -750,7 +836,59 @@ export default function Home() {
             <button onClick={() => setScreen('dictionary')}>
               <BookOpen /> Ôn từ
             </button>
+            <button onClick={openLeaderboard}>
+              <Trophy /> Xếp hạng
+            </button>
             <button onClick={() => setScreen('home')}>Về menu</button>
+          </div>
+        </section>
+      </main>
+    );
+  if (screen === 'leaderboard')
+    return (
+      <main className="app leaderboard-page">
+        <header>
+          <button className="brand" onClick={() => setScreen('home')}>
+            <span>汉</span>
+            <b>Hanzi Beat<small>Global ranking</small></b>
+          </button>
+          <button className="leaderboard-back" onClick={() => setScreen('home')}>Về trang chủ</button>
+        </header>
+        <section className="leaderboard-panel">
+          <div className="title">
+            <span className="eyebrow"><Trophy /> BẢNG VÀNG TOÀN CẦU</span>
+            <h1>Xếp hạng người chơi</h1>
+            <p>Top 50 điểm cao nhất của từng màn và chế độ.</p>
+          </div>
+          <div className="leaderboard-filters">
+            <div>
+              {songs.map((song, index) => (
+                <button key={song[0]} className={leaderboardLevel === index ? 'on' : ''} onClick={() => setLeaderboardLevel(index)}>
+                  {song[0]}
+                </button>
+              ))}
+            </div>
+            <div>
+              <button className={leaderboardMode === 'audition' ? 'on' : ''} onClick={() => setLeaderboardMode('audition')}>Vũ đạo</button>
+              <button className={leaderboardMode === 'typing' ? 'on' : ''} onClick={() => setLeaderboardMode('typing')}>Gõ chữ</button>
+            </div>
+          </div>
+          <div className="leaderboard-table">
+            <div className="leaderboard-row leaderboard-head">
+              <span>Hạng</span><span>Người chơi</span><span>Từ đúng</span><span>Điểm</span>
+            </div>
+            {leaderboardLoading ? (
+              <p className="leaderboard-empty">Đang tải bảng xếp hạng...</p>
+            ) : leaderboard.length === 0 ? (
+              <p className="leaderboard-empty">Chưa có điểm. Hãy trở thành người đầu tiên!</p>
+            ) : leaderboard.map((entry, index) => (
+              <div className="leaderboard-row" key={entry.id}>
+                <span className={`place place-${index + 1}`}>{index + 1}</span>
+                <span><b>{entry.name}</b><small>{new Date(entry.createdAt).toLocaleDateString('vi-VN')}</small></span>
+                <span>{entry.correct}/20</span>
+                <strong>{entry.score.toLocaleString('vi-VN')}</strong>
+              </div>
+            ))}
           </div>
         </section>
       </main>
@@ -783,6 +921,7 @@ export default function Home() {
           >
             Từ điển
           </button>
+          <button onClick={openLeaderboard}>Xếp hạng</button>
         </nav>
         <button
           className="user audio-library-button"
