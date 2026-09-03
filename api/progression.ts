@@ -25,6 +25,7 @@ type Progression = {
   streak: number;
   lastStampDate: string | null;
   stamps: number;
+  inventory: Record<string, number>;
   daily: DailyProgress;
 };
 
@@ -81,11 +82,12 @@ const loadProgression = async (uid: string, name: string) => {
   const date = bangkokDate();
   const progression: Progression = stored ?? {
     uid, name, xp: 0, level: 1, jade: 0, streak: 0,
-    lastStampDate: null, stamps: 0, daily: emptyDaily(date),
+    lastStampDate: null, stamps: 0, inventory: {}, daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
+  progression.inventory = progression.inventory ?? {};
   return progression;
 };
 
@@ -144,7 +146,10 @@ export default async function handler(request: any, response: any) {
     let jadeEarned = 0;
     if (session.kind === 'daily') {
       requestedBonusXp = daily.dailyCompleted ? 0 : 30;
-      if (!daily.dailyCompleted) jadeEarned = 5;
+      if (!daily.dailyCompleted) {
+        jadeEarned = 5;
+        progression.inventory['daily-chest'] = Number(progression.inventory['daily-chest'] ?? 0) + 1;
+      }
       daily.dailyCompleted = true;
     } else if (session.kind === 'pvp') {
       requestedBonusXp = daily.rewardedPvpMatches < 10 ? 8 : 0;
@@ -166,6 +171,7 @@ export default async function handler(request: any, response: any) {
     if (taskCount(daily) >= 3 && !daily.stampEarned) {
       daily.stampEarned = true;
       progression.stamps += 1;
+      progression.inventory['daily-seal'] = Number(progression.inventory['daily-seal'] ?? 0) + 1;
       const distance = progression.lastStampDate
         ? dayDistance(progression.lastStampDate, daily.date) : 0;
       progression.streak = distance === 1 ? progression.streak + 1 : 1;

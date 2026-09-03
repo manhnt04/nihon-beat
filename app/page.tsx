@@ -12,6 +12,7 @@ import {
   LogIn,
   LogOut,
   Music2,
+  Package,
   Play,
   Sparkles,
   Trash2,
@@ -60,6 +61,7 @@ type Screen =
   | 'dictionary'
   | 'leaderboard'
   | 'pvp'
+  | 'inventory'
   | 'auth';
 type AuthUser = { id: string; name: string; email: string };
 type LeaderboardEntry = {
@@ -77,6 +79,7 @@ type Progression = {
   jade: number;
   streak: number;
   stamps: number;
+  inventory: Record<string, number>;
   completedTasks: number;
   levelProgress: { level: number; currentXp: number; nextXp: number };
   daily: {
@@ -677,7 +680,7 @@ export default function Home() {
   }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
-    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'auth'];
+    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'auth'];
     const handleHistory = (event: PopStateEvent) => {
       const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
       if (previousScreen && validScreens.includes(previousScreen)) {
@@ -1309,6 +1312,7 @@ export default function Home() {
                 <span><b>{progression.jade}</b>玉片</span>
                 <span><b>{progression.streak}</b>Chuỗi Nhật Ấn</span>
               </div>}
+              <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> Mở Inventory <small>{progression ? `${progression.jade} 玉片 · ${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm tài khoản'}</small></button>
               <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
               <button onClick={logout}><LogOut /> Đăng xuất</button>
               <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
@@ -1330,6 +1334,43 @@ export default function Home() {
         </section>
       </main>
     );
+  if (screen === 'inventory') {
+    const itemDefinitions = [
+      { id: 'daily-seal', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành tiến độ hằng ngày.' },
+      { id: 'daily-chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Nhận từ lần hoàn thành Daily Challenge đầu tiên trong ngày.' },
+      { id: 'streak-guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/streak-guard.png', rarity: 'Sử thi', description: 'Bảo vệ chuỗi Nhật Ấn khi bỏ lỡ một ngày.' },
+    ];
+    return (
+      <main className="app inventory-page">
+        {historyControls}
+        {mobileNavigation}
+        <header>
+          <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Inventory</small></b></button>
+          <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
+        </header>
+        <section className="inventory-panel">
+          <div className="title"><span className="eyebrow"><Package /> 行囊 · TÚI HÀNH TRANG</span><h1>Inventory</h1><p>Currency, vật phẩm và phần thưởng bạn thu thập trong hành trình.</p></div>
+          {!authUser ? <div className="inventory-login"><Package /><h2>Kho đồ cần tài khoản</h2><p>Đăng nhập để đồng bộ Mảnh Ngọc và vật phẩm trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
+            <div className="inventory-wallet">
+              <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
+              <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
+            </div>
+            <div className="inventory-heading"><div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div><b>{Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm</b></div>
+            <div className="inventory-grid">
+              {itemDefinitions.map((item) => {
+                const quantity = progression?.inventory?.[item.id] ?? 0;
+                return <article key={item.id} className={quantity === 0 ? 'locked' : ''}>
+                  <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
+                  <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
+                  <button disabled={quantity === 0}>{quantity > 0 ? 'Xem vật phẩm' : 'Chưa sở hữu'}</button>
+                </article>;
+              })}
+            </div>
+          </>}
+        </section>
+      </main>
+    );
+  }
   if (screen === 'pvp')
     return (
       <main className="app pvp-page">
@@ -1439,6 +1480,7 @@ export default function Home() {
             Từ điển
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
+          <button onClick={() => navigate('inventory')}>Inventory</button>
           <button onClick={openPvp}>PvP Online</button>
         </nav>
         <button
@@ -1673,10 +1715,10 @@ export default function Home() {
               <BookOpen />
               <b>{progression?.xp ?? 0}</b>Tổng XP
             </span>
-            <span>
+            <button className="quick-inventory" onClick={() => navigate('inventory')}>
               <img className="currency-icon" src="/items/jade-fragment.png" alt="Mảnh Ngọc" />
               <b>{progression?.jade ?? 0}</b>Mảnh Ngọc 玉片
-            </span>
+            </button>
           </section>
         </div>
       )}
