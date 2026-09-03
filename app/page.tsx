@@ -1502,12 +1502,12 @@ export default function Home() {
           </div>
           {lastReward && (
             <div className="match-reward">
-              <span>奖励 · PHẦN THƯỞNG</span>
-              <b>+{lastReward.xp} XP</b>
-              {lastReward.jade > 0 && <b className="jade-reward"><img src="/items/jade-fragment.png" alt="" />+{lastReward.jade} 玉片</b>}
-              {(lastReward.castleBonusRate ?? 0) > 0 && <small className="castle-reward-breakdown">Nhà Chính Lv.{progression?.castle.buildings.main ?? 1}: +{lastReward.castleBonusRate}%{(lastReward.castleBonusJade ?? 0) > 0 ? ` · +${lastReward.castleBonusJade} 玉片 trận này` : ' · đang tích lũy bonus'}</small>}
-              <b className="castle-material-reward">+{lastReward.wood ?? 0} 木材 · +{lastReward.ink ?? 0} 墨</b>
-              {(lastReward.spins ?? 0) > 0 && <b className="spin-match-reward">+{lastReward.spins} Spin · 天机轮</b>}
+              <small className="reward-label">奖励 · PHẦN THƯỞNG</small>
+              <span className="reward-chip reward-xp"><i>XP</i><b>×{lastReward.xp}</b></span>
+              {lastReward.jade > 0 && <span className="reward-chip"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc"/><b>×{lastReward.jade}</b></span>}
+              {(lastReward.wood ?? 0) > 0 && <span className="reward-chip"><img src="/items/spin-wood.png" alt="Gỗ"/><b>×{lastReward.wood}</b></span>}
+              {(lastReward.ink ?? 0) > 0 && <span className="reward-chip"><img src="/items/spin-ink.png" alt="Mực"/><b>×{lastReward.ink}</b></span>}
+              {(lastReward.spins ?? 0) > 0 && <span className="reward-chip"><img src="/items/spin-refund.png" alt="Spin"/><b>×{lastReward.spins}</b></span>}
             </div>
           )}
           {pvpRoom && (() => {
