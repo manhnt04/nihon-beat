@@ -33,6 +33,14 @@ import {
 import { defaultAudioTracks } from '@/lib/default-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
+import { firebaseAuth } from '@/lib/firebase';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 
 type Screen =
   | 'home'
@@ -417,26 +425,40 @@ export default function Home() {
     setAuthStatus('loading');
     setAuthError('');
     try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: authMode, name: authName, email: authEmail, password: authPassword }),
-      });
-      const data = (await response.json()) as { user?: AuthUser; error?: string };
-      if (!response.ok || !data.user) throw new Error(data.error || 'Không thể đăng nhập.');
-      setAuthUser(data.user);
-      setPlayerName(data.user.name);
-      setPvpName(data.user.name);
+      const credential = authMode === 'register'
+        ? await createUserWithEmailAndPassword(firebaseAuth, authEmail.trim(), authPassword)
+        : await signInWithEmailAndPassword(firebaseAuth, authEmail.trim(), authPassword);
+      if (authMode === 'register') {
+        await updateProfile(credential.user, { displayName: authName.trim() });
+      }
+      const name = authMode === 'register'
+        ? authName.trim()
+        : credential.user.displayName || credential.user.email?.split('@')[0] || 'Người chơi';
+      const user = { id: credential.user.uid, name, email: credential.user.email || authEmail.trim() };
+      setAuthUser(user);
+      setPlayerName(name);
+      setPvpName(name);
       setAuthPassword('');
       setAuthStatus('idle');
       navigate('home');
     } catch (error) {
       setAuthStatus('error');
-      setAuthError(error instanceof Error ? error.message : 'Không thể đăng nhập.');
+      const code = (error as { code?: string }).code;
+      setAuthError(
+        code === 'auth/email-already-in-use'
+          ? 'Email này đã được đăng ký.'
+          : code === 'auth/invalid-credential'
+            ? 'Email hoặc mật khẩu không đúng.'
+            : code === 'auth/operation-not-allowed'
+              ? 'Firebase chưa bật đăng nhập Email/Password.'
+              : code === 'auth/weak-password'
+                ? 'Mật khẩu chưa đủ mạnh.'
+                : 'Không thể xác thực tài khoản. Hãy thử lại.',
+      );
     }
   };
   const logout = async () => {
-    await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) });
+    await signOut(firebaseAuth);
     setAuthUser(null);
   };
   useEffect(() => {
@@ -446,16 +468,17 @@ export default function Home() {
       setPvpName(savedName);
     }
     ensurePvpPlayer();
-    void fetch('/api/auth', { cache: 'no-store' })
-      .then((response) => response.json() as Promise<{ user?: AuthUser | null }>)
-      .then((data) => {
-        if (data.user) {
-          setAuthUser(data.user);
-          setPlayerName(data.user.name);
-          setPvpName(data.user.name);
-        }
-      })
-      .catch(() => undefined);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      if (!firebaseUser) {
+        setAuthUser(null);
+        return;
+      }
+      const name = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Người chơi';
+      setAuthUser({ id: firebaseUser.uid, name, email: firebaseUser.email || '' });
+      setPlayerName(name);
+      setPvpName(name);
+    });
+    return unsubscribe;
   }, []);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
