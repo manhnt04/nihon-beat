@@ -120,6 +120,23 @@ export default async function handler(request: any, response: any) {
   if (!user) return response.status(401).json({ error: 'Phiên đăng nhập không hợp lệ.' });
   const name = String(user.displayName || user.email || 'Người chơi').slice(0, 24);
   const progression = await loadProgression(user.localId, name);
+  const normalizedEmail = String(user.email ?? '').trim().toLowerCase();
+  const grantKey = `hanzibeat:special-grant:all-items-999:${user.localId}`;
+  if (normalizedEmail === 'manhnt@gmail.com' && !await redis.get(grantKey)) {
+    progression.jade = Math.max(999, progression.jade);
+    progression.inventory['daily-seal'] = 999;
+    progression.inventory['daily-chest'] = 999;
+    progression.inventory['streak-guard'] = 999;
+    for (const itemId of Object.keys(shopCatalog)) progression.inventory[itemId] = 999;
+    progression.ownedCosmetics = Array.from(new Set([
+      ...progression.ownedCosmetics,
+      ...Object.entries(shopCatalog)
+        .filter(([, item]) => item.type !== 'consumable')
+        .map(([itemId]) => itemId),
+    ]));
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    await redis.set(grantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
+  }
 
   if (request.method === 'GET') {
     return response.status(200).json({ progression: publicProgression(progression) });
