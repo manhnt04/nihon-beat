@@ -13,7 +13,7 @@ const levelFromXp = (xp: number) => { let level = 1; let remaining = xp; while (
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 type RankProfile = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
-type Player = { id: string; name: string; score: number | null; correct: number | null; submittedAt: number | null; mmr: number; rank: string };
+type Player = { id: string; name: string; score: number | null; correct: number | null; liveScore: number; liveCorrect: number; submittedAt: number | null; mmr: number; rank: string };
 type GameMode = 'audition' | 'typing';
 type Integrity = { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean };
 type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string; startedAt: number | null; completedAt: number | null; integrity: Integrity | null; rankChanges: Record<string, number> | null };
@@ -32,7 +32,7 @@ const loadRank = async (uid: string): Promise<RankProfile> => {
   return { season: seasonId(), mmr, wins: Number(stored?.wins ?? 0), losses: Number(stored?.losses ?? 0), draws: Number(stored?.draws ?? 0), matches: Number(stored?.matches ?? 0), rank: rankName(mmr) };
 };
 const saveRoom = async (room: Room) => redis.set(roomKey(room.code), room, { ex: ROOM_TTL });
-const makePlayer = async (id: string, name: string): Promise<Player> => { const profile = await loadRank(id); return { id, name, score: null, correct: null, submittedAt: null, mmr: profile.mmr, rank: profile.rank }; };
+const makePlayer = async (id: string, name: string): Promise<Player> => { const profile = await loadRank(id); return { id, name, score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr: profile.mmr, rank: profile.rank }; };
 const createRoom = async (player: Player, mode: GameMode) => {
   let code = '';
   for (let attempt = 0; attempt < 6; attempt += 1) { code = Math.random().toString(36).slice(2, 8).toUpperCase(); if (!(await redis.exists(roomKey(code)))) break; }
@@ -77,6 +77,15 @@ export default async function handler(request: any, response: any) {
     room.status = room.guest ? 'playing' : 'waiting'; if (room.status === 'playing' && !room.startedAt) room.startedAt = Date.now();
     await saveRoom(room); await redis.set(playerKey(playerId), code, { ex: ROOM_TTL }); return response.status(200).json({ room, profile: await loadRank(playerId) });
   }
+  if (action === 'progress') {
+    const code = String(request.body?.code ?? '').toUpperCase().slice(0, 6); const room = await redis.get<Room>(roomKey(code));
+    const liveScore = Math.floor(Number(request.body?.score)); const liveCorrect = Math.floor(Number(request.body?.correct));
+    if (!room || room.status !== 'playing' || !Number.isFinite(liveScore) || !Number.isFinite(liveCorrect) || liveScore < 0 || liveScore > 100_000 || liveCorrect < 0 || liveCorrect > 20) return response.status(400).json({ error: 'Tiến độ không hợp lệ.' });
+    const target = room.host.id === playerId ? room.host : room.guest?.id === playerId ? room.guest : null;
+    if (!target) return response.status(403).json({ error: 'Bạn không thuộc phòng này.' });
+    target.liveScore = Math.max(Number(target.liveScore ?? 0), liveScore); target.liveCorrect = Math.max(Number(target.liveCorrect ?? 0), liveCorrect);
+    await saveRoom(room); return response.status(200).json({ room });
+  }
   if (action === 'score') {
     const code = String(request.body?.code ?? '').toUpperCase().slice(0, 6); const room = await redis.get<Room>(roomKey(code));
     const score = Math.floor(Number(request.body?.score)); const correct = Math.floor(Number(request.body?.correct));
@@ -87,7 +96,7 @@ export default async function handler(request: any, response: any) {
     const elapsed = Date.now() - Number(room.startedAt ?? Date.now());
     if (elapsed < 15_000) return response.status(422).json({ error: 'Trận quá ngắn để được công nhận.' });
     if (score > correct * 3_000 + 1_000) return response.status(422).json({ error: 'Điểm và số câu đúng không khớp.' });
-    target.score = score; target.correct = correct; target.submittedAt = Date.now();
+    target.score = score; target.correct = correct; target.liveScore = score; target.liveCorrect = correct; target.submittedAt = Date.now();
     const guest = room.guest;
     if (guest && room.host.score !== null && guest.score !== null) {
       room.status = 'finished'; room.completedAt = Date.now();

@@ -84,7 +84,7 @@ type LeaderboardEntry = {
   correct: number;
   createdAt: string;
 };
-type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null; submittedAt?: number | null; mmr?: number; rank?: string };
+type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null; liveScore?: number; liveCorrect?: number; submittedAt?: number | null; mmr?: number; rank?: string };
 type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null; startedAt?: number | null; completedAt?: number | null; integrity?: { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean } | null; rankChanges?: Record<string, number> | null };
 type PvpRank = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
 type Progression = {
@@ -610,6 +610,12 @@ export default function Home() {
       </button>
     </nav>
   );
+  const pvpLiveScoreboard = pvpRoom && authUser ? (() => {
+    const me = pvpRoom.host.id === authUser.id ? pvpRoom.host : pvpRoom.guest;
+    const rival = pvpRoom.host.id === authUser.id ? pvpRoom.guest : pvpRoom.host;
+    const myScore = Math.max(score, Number(me?.liveScore ?? 0));
+    return <aside className="pvp-live-score" aria-label="Điểm trực tiếp PvP"><header><span>实时比分</span><b>LIVE</b></header><div className="pvp-live-player me"><i>{me?.name.slice(0, 1).toUpperCase()}</i><span><small>BẠN · {me?.name}</small><b>{myScore.toLocaleString('vi-VN')}</b><em>{Math.max(correct, Number(me?.liveCorrect ?? 0))}/20 đúng</em></span></div><div className="pvp-live-vs">VS</div><div className="pvp-live-player"><i>{rival?.name.slice(0, 1).toUpperCase() ?? '?'}</i><span><small>ĐỐI THỦ · {rival?.name ?? 'Đang kết nối'}</small><b>{Number(rival?.liveScore ?? 0).toLocaleString('vi-VN')}</b><em>{Number(rival?.liveCorrect ?? 0)}/20 đúng</em></span></div></aside>;
+  })() : null;
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
     if (authStatus === 'loading') return;
@@ -813,6 +819,23 @@ export default function Home() {
       body: JSON.stringify({ action: 'score', code: pvpRoom.code, score, correct }),
     })).then((response) => response?.json() as Promise<{ room?: PvpRoom; profile?: PvpRank; error?: string }>).then((data) => { if (data?.room) setPvpRoom(data.room); if (data?.profile) setPvpRank(data.profile); if (data?.error) setPvpError(data.error); });
   }, [screen, pvpRoom?.code, score, correct]);
+  useEffect(() => {
+    if (screen !== 'game' || !pvpRoom?.code || !firebaseAuth.currentUser) return;
+    const timer = window.setTimeout(() => {
+      void firebaseAuth.currentUser?.getIdToken().then((token) => fetch('/api/pvp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'progress', code: pvpRoom.code, score, correct }),
+      })).catch(() => undefined);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [screen, pvpRoom?.code, score, correct]);
+  useEffect(() => {
+    if (screen !== 'game' || !pvpRoom?.code) return;
+    const timer = window.setInterval(() => {
+      void fetch(`/api/pvp?code=${pvpRoom.code}`, { cache: 'no-store' }).then((response) => response.json() as Promise<{ room?: PvpRoom }>).then((data) => data.room && setPvpRoom(data.room)).catch(() => undefined);
+    }, 900);
+    return () => window.clearInterval(timer);
+  }, [screen, pvpRoom?.code]);
   useEffect(() => {
     if (screen !== 'result' || !pvpRoom || pvpRoom.status === 'finished') return;
     const timer = window.setInterval(async () => {
@@ -1141,6 +1164,7 @@ export default function Home() {
     return (
       <main className="game typing-battle">
         {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/shop-effect-golden.png' : '/items/shop-effect-jade.png'} alt="" /></div>}
+        {pvpLiveScoreboard}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
@@ -1258,6 +1282,7 @@ export default function Home() {
     return (
       <main className="game audition">
         {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/shop-effect-golden.png' : '/items/shop-effect-jade.png'} alt="" /></div>}
+        {pvpLiveScoreboard}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
