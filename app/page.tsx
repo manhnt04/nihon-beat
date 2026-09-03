@@ -155,6 +155,7 @@ export default function Home() {
   const [pvpRoom, setPvpRoom] = useState<PvpRoom | null>(null);
   const [pvpWaiting, setPvpWaiting] = useState(false);
   const [pvpError, setPvpError] = useState('');
+  const [dailyChallenge, setDailyChallenge] = useState(false);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
@@ -265,13 +266,18 @@ export default function Home() {
       player.pause();
     }
   };
-  const start = (songIndex = selected, forcedVocabulary?: VocabularyEntry[]) => {
+  const start = (
+    songIndex = selected,
+    forcedVocabulary?: VocabularyEntry[],
+    isDailyChallenge = false,
+  ) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
     const requestedPool = nextSong === 1 ? hsk2Vocabulary : baseVocabulary;
     const pool =
       requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
     const nextVocabulary = forcedVocabulary ?? shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
     if (!forcedVocabulary) setPvpRoom(null);
+    setDailyChallenge(isDailyChallenge);
     setSelected(nextSong);
     setMatchVocabulary(nextVocabulary);
     setScore(0);
@@ -292,6 +298,17 @@ export default function Home() {
     setScoreStatus('idle');
     navigate('game');
     playDefaultTrack();
+  };
+  const startDailyChallenge = () => {
+    const availableHskVocabulary = allVocabulary.filter((entry) => {
+      const level = Number(entry[4].replace('HSK ', ''));
+      return level >= 1 && level <= 9;
+    });
+    const dailyWords = shuffleVocabulary(availableHskVocabulary).slice(
+      0,
+      WORDS_PER_MATCH,
+    );
+    start(1, dailyWords, true);
   };
   const ensurePvpPlayer = () => {
     if (!pvpPlayerId.current) {
@@ -930,8 +947,8 @@ export default function Home() {
             {mode === 'typing' ? 'TYPING BATTLE COMPLETE!' : 'DANCE COMPLETE!'}
           </span>
           <div className="rank">A</div>
-          <h1>{songs[selected][0]}</h1>
-          <p>{songs[selected][1]}</p>
+          <h1>{dailyChallenge ? '每日挑战' : songs[selected][0]}</h1>
+          <p>{dailyChallenge ? 'Daily Challenge · HSK 1–9' : songs[selected][1]}</p>
           <b className="final">{score.toLocaleString()}</b>
           <div className="stats">
             <span>
@@ -1264,9 +1281,9 @@ export default function Home() {
           <aside>
             <section className="daily">
               <span className="eyebrow">DAILY CHALLENGE</span>
-              <h3>Beijing Morning</h3>
-              <p>Hoàn thành trước 23:59</p>
-              <button onClick={() => start()}>
+              <h3>20 từ HSK ngẫu nhiên</h3>
+              <p>Toàn bộ kho HSK 1–9 hiện có · Hoàn thành trước 23:59</p>
+              <button onClick={startDailyChallenge}>
                 <Play />
               </button>
             </section>
