@@ -225,10 +225,20 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 type CastleBuildingKind = 'main' | 'library' | 'listening';
 type SpinReward = { id: string; label: string; icon: string; amount: number; slot: number };
 const spinWheelSlots = [
-  ['🪵', 'Gỗ'], ['🪵', 'Gỗ lớn'], ['🖌️', 'Mực'], ['🖌️', 'Mực lớn'],
-  ['玉', 'Ngọc'], ['🛡️', 'Khiên'], ['🎟️', 'Vé'], ['🎁', 'Rương'],
-  ['🔄', 'Spin'], ['✨', 'Mảnh hiếm'], ['🌟', 'Hiếm'], ['🐉', 'Jackpot'],
+  { id: 'wood-small', label: 'Gỗ', image: '/items/spin-wood.png' },
+  { id: 'wood-medium', label: 'Gỗ lớn', image: '/items/spin-wood.png' },
+  { id: 'ink-small', label: 'Mực', image: '/items/spin-ink.png' },
+  { id: 'ink-medium', label: 'Mực lớn', image: '/items/spin-ink.png' },
+  { id: 'jade', label: 'Ngọc', image: '/items/jade-fragment.png' },
+  { id: 'shield', label: 'Khiên', image: '/items/spin-castle-shield.png' },
+  { id: 'siege-ticket', label: 'Vé', image: '/items/spin-siege-ticket.png' },
+  { id: 'resource-chest', label: 'Rương', image: '/items/daily-chest.png' },
+  { id: 'spin-refund', label: 'Spin', image: '/items/spin-refund.png' },
+  { id: 'rare-fragment', label: 'Mảnh hiếm', image: '/items/spin-destiny-fragment.png' },
+  { id: 'rare-cosmetic', label: 'Hiếm', image: '/items/spin-rare-cosmetic.png' },
+  { id: 'jackpot', label: 'Jackpot', image: '/items/spin-jackpot.png' },
 ] as const;
+const spinRewardImage = (rewardId?: string) => spinWheelSlots.find((slot) => slot.id === rewardId)?.image ?? '/items/celestial-wheel-icon.png';
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
 const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
@@ -368,8 +378,8 @@ export default function Home() {
         <button className="spin-modal-close" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <header><small>天机轮 · THIÊN CƠ LUÂN</small><h2>Vòng quay vận may</h2><p>Giữ nút để quay liên tục đến khi hết lượt.</p></header>
         <div className="spin-balance"><img src="/items/celestial-wheel-icon.png" alt=""/><span><small>LƯỢT HIỆN CÓ</small><b>{progression?.spins.balance ?? 0} Spin</b></span><em>+1 mỗi giờ · kho hồi 24</em></div>
-        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map(([icon, label], index) => <span key={label} style={{ '--slot': index } as CSSProperties}><i>{icon}</i><small>{label}</small></span>)}<strong>运</strong></div></div>
-        <div className={`spin-result ${spinReward ? 'show' : ''}`}><span>{spinReward?.icon ?? '✦'}</span><div><small>{spinReward ? 'ĐÃ NHẬN' : 'PHẦN THƯỞNG'}</small><b>{spinReward ? `${spinReward.label} ×${spinReward.amount}` : 'Chạm để thử vận may'}</b></div></div>
+        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map((slot, index) => <span key={slot.id} style={{ '--slot': index } as CSSProperties}><img src={slot.image} alt=""/><small>{slot.label}</small></span>)}<strong>运</strong></div></div>
+        <div className={`spin-result ${spinReward ? 'show' : ''}`}><img src={spinRewardImage(spinReward?.id)} alt=""/><div><small>{spinReward ? 'ĐÃ NHẬN' : 'PHẦN THƯỞNG'}</small><b>{spinReward ? `${spinReward.label} ×${spinReward.amount}` : 'Chạm để thử vận may'}</b></div></div>
         {spinError && <p className="spin-error">{spinError}</p>}
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''}`} disabled={!authUser || (progression?.spins.balance ?? 0) < 1} onPointerDown={() => { spinHoldRef.current = true; void spinOnce(); }} onPointerUp={stopHoldingSpin} onPointerCancel={stopHoldingSpin} onPointerLeave={stopHoldingSpin} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { spinHoldRef.current = true; void spinOnce(); } }} onKeyUp={stopHoldingSpin}>{spinBusy ? 'ĐANG QUAY…' : (progression?.spins.balance ?? 0) > 0 ? 'GIỮ ĐỂ QUAY' : 'ĐÃ HẾT LƯỢT'}<small>Thả nút để dừng sau lượt hiện tại</small></button>
         <footer><span>78% Gỗ/Mực</span><span>Đồ hiếm 0,20%</span><span>Jackpot 0,05%</span></footer>
@@ -1678,10 +1688,10 @@ export default function Home() {
       { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
       { id: 'daily-chest', type: 'chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Mở để nhận 5–8 Mảnh Ngọc, 30 XP và cơ hội nhận cosmetic.' },
       { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/shop-streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
-      { id: 'castle-shield', type: 'collectible', name: 'Khiên Thành', hanzi: '城盾', image: '/items/shop-streak-guard.png', rarity: 'Thường', description: 'Bảo vệ Hán Tự Thành trong một lượt Công Thành. Tối đa 5.' },
-      { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/daily-seal.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
-      { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/celestial-wheel-icon.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
-      { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/celestial-wheel-icon.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
+      { id: 'castle-shield', type: 'collectible', name: 'Khiên Thành', hanzi: '城盾', image: '/items/spin-castle-shield.png', rarity: 'Thường', description: 'Bảo vệ Hán Tự Thành trong một lượt Công Thành. Tối đa 5.' },
+      { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/spin-siege-ticket.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
+      { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/spin-destiny-fragment.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
+      { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/spin-jackpot.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
       ...shopItems.filter((item) => item.type !== 'consumable'),
     ] as const;
     const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
