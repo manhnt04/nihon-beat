@@ -44,6 +44,7 @@ type Progression = {
     wood: number;
     ink: number;
     jadeBonusCarry: number;
+    shieldActiveUntil: number;
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
@@ -193,7 +194,7 @@ const loadProgression = async (uid: string, name: string) => {
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
-    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } },
+    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -207,10 +208,12 @@ const loadProgression = async (uid: string, name: string) => {
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
+  progression.castle.shieldActiveUntil = Number(progression.castle.shieldActiveUntil ?? 0);
+  if (progression.castle.shieldActiveUntil <= Date.now()) progression.castle.shieldActiveUntil = 0;
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
@@ -334,6 +337,31 @@ export default async function handler(request: any, response: any) {
       progression: publicProgression(progression),
       chestReward: { jade: jadeReward, xp: xpReward, bonus },
     });
+  }
+
+  if (action === 'use-castle-item') {
+    const itemId = String(request.body?.itemId ?? '');
+    const quantity = Number(progression.inventory[itemId] ?? 0);
+    if (!['siege-ticket', 'castle-shield'].includes(itemId)) {
+      return response.status(400).json({ error: 'Vật phẩm Công Thành không hợp lệ.' });
+    }
+    if (quantity < 1) return response.status(409).json({ error: 'Bạn không có vật phẩm này.' });
+    progression.inventory[itemId] = quantity - 1;
+    if (itemId === 'castle-shield') {
+      progression.castle.shieldActiveUntil = Math.max(Date.now(), progression.castle.shieldActiveUntil) + 24 * 60 * 60 * 1000;
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+      return response.status(200).json({ progression: publicProgression(progression), castleEffect: { type: 'shield', shieldActiveUntil: progression.castle.shieldActiveUntil } });
+    }
+    const siegeReward = {
+      coins: 1_000 + Math.floor(randomUnit() * 1_501),
+      wood: 40 + Math.floor(randomUnit() * 31),
+      ink: 15 + Math.floor(randomUnit() * 16),
+    };
+    progression.coins += siegeReward.coins;
+    progression.castle.wood += siegeReward.wood;
+    progression.castle.ink += siegeReward.ink;
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({ progression: publicProgression(progression), castleEffect: { type: 'siege', rewards: siegeReward } });
   }
 
   if (action === 'spin-wheel') {

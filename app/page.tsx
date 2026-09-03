@@ -109,6 +109,7 @@ type Progression = {
     wood: number;
     ink: number;
     jadeBonusCarry: number;
+    shieldActiveUntil: number;
     buildings: { main: number; library: number; listening: number };
   };
   completedTasks: number;
@@ -314,6 +315,7 @@ export default function Home() {
   const [rewardActionStatus, setRewardActionStatus] = useState<'idle' | 'loading'>('idle');
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
+  const [castleEffect, setCastleEffect] = useState<{ type: 'siege' | 'shield'; rewards?: { coins: number; wood: number; ink: number } } | null>(null);
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -693,7 +695,7 @@ export default function Home() {
       setScoreStatus('error');
     }
   }, [authUser?.id, authUser?.name, playerName, scoreStatus, selected, mode, score, correct]);
-  const runProgressionAction = async (action: 'buy-item' | 'equip-item' | 'open-chest' | 'upgrade-castle', itemId?: string) => {
+  const runProgressionAction = async (action: 'buy-item' | 'equip-item' | 'open-chest' | 'upgrade-castle' | 'use-castle-item', itemId?: string) => {
     const user = firebaseAuth.currentUser;
     if (!user || rewardActionStatus === 'loading') return;
     setRewardActionStatus('loading');
@@ -708,11 +710,16 @@ export default function Home() {
       const data = await response.json() as {
         progression?: Progression;
         chestReward?: { jade: number; xp: number; bonus: string | null };
+        castleEffect?: { type: 'siege' | 'shield'; rewards?: { coins: number; wood: number; ink: number } };
         error?: string;
       };
       if (!response.ok) throw new Error(data.error || 'Không thể thực hiện thao tác.');
       if (data.progression) setProgression(data.progression);
       if (data.chestReward) setChestReward(data.chestReward);
+      if (data.castleEffect) {
+        setCastleEffect(data.castleEffect);
+        window.setTimeout(() => setCastleEffect(null), data.castleEffect.type === 'siege' ? 2800 : 2200);
+      }
     } catch (error) {
       setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện thao tác.');
     } finally {
@@ -1625,7 +1632,7 @@ export default function Home() {
       </main>
     );
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
@@ -1646,7 +1653,7 @@ export default function Home() {
         <section className="castle-panel">
           <div className="castle-hero">
             <div className="castle-copy"><span className="eyebrow">汉字城 · HÁN TỰ THÀNH</span><h1>{castleTitle}</h1><p>Học Hán tự, thu thập nguyên liệu và xây dựng thành trì của riêng bạn.</p><div className="castle-owner-card"><div className={`header-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0,1).toUpperCase() ?? '汉'}</div><span><small>{authUser?.name ?? 'Người chơi'}</small><b>繁荣度 {prosperity.toLocaleString('vi-VN')}</b></span></div><div className="castle-level"><b>Lv.{castleLevel}</b><span>Điểm phát triển thành</span></div></div>
-            <div className={`castle-scene environment-stage-${environmentStage}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/><div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
+            <div className={`castle-scene environment-stage-${environmentStage} ${castle.shieldActiveUntil > 0 ? 'shield-protected' : ''}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/>{castle.shieldActiveUntil > 0 && <div className="castle-virtual-shield" aria-label="Khiên Thành đang hoạt động"><i>盾</i><span>KHIÊN THÀNH</span></div>}<div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và Jackpot</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-coin"><img src="/items/coin.png" alt="Coin"/><div><small>铜钱 · COIN XÂY DỰNG</small><b>{progression?.coins ?? 0}</b><p>Nhận chủ yếu từ Jackpot Tam Trụ</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
@@ -1762,24 +1769,30 @@ export default function Home() {
                 const owned = isCosmetic ? Boolean(progression?.ownedCosmetics.includes(item.id)) : (progression?.inventory?.[item.id] ?? 0) > 0;
                 const quantity = isCosmetic ? (owned ? 1 : 0) : progression?.inventory?.[item.id] ?? 0;
                 const equipped = isCosmetic && progression?.equipped[item.type] === item.id;
+                const isCastleItem = item.id === 'castle-shield' || item.id === 'siege-ticket';
                 const action = item.type === 'chest'
                   ? () => runProgressionAction('open-chest')
                   : item.type === 'guard'
                     ? () => navigate('shop')
+                    : isCastleItem && owned
+                      ? () => runProgressionAction('use-castle-item', item.id)
                     : isCosmetic && owned
                       ? () => runProgressionAction('equip-item', item.id)
                       : undefined;
                 const label = item.type === 'chest' ? 'Mở rương'
                   : item.type === 'guard' ? 'Mua thêm'
+                    : item.id === 'castle-shield' ? 'Kích hoạt khiên'
+                      : item.id === 'siege-ticket' ? 'Công thành'
                     : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
                       : 'Vật phẩm sưu tầm';
                 return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
                   <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
-                  <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || item.type === 'collectible'}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
+                  <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || (item.type === 'collectible' && !isCastleItem)}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
                 </article>;
               })}
             </div>
+            {castleEffect && <div className={`castle-item-effect ${castleEffect.type}`} role="status"><div className="siege-projectiles"><i/><i/><i/></div><div className="virtual-shield-mark"><b>盾</b></div><section><strong>{castleEffect.type === 'siege' ? '攻城成功' : '城盾展开'}</strong><h2>{castleEffect.type === 'siege' ? 'CÔNG THÀNH!' : 'KHIÊN THÀNH!'}</h2>{castleEffect.rewards && <p>🪙 ×{castleEffect.rewards.coins} · 🪵 ×{castleEffect.rewards.wood} · 🖌 ×{castleEffect.rewards.ink}</p>}{castleEffect.type === 'shield' && <p>Bảo vệ thành trong 24 giờ</p>}</section></div>}
           </>}
         </section>
         {chestReward && <div className="chest-reward-backdrop" onClick={() => setChestReward(null)}><section className="chest-reward" onClick={(event) => event.stopPropagation()}><img src="/items/daily-chest.png" alt="Rương đã mở" /><span>宝箱开启 · RƯƠNG ĐÃ MỞ</span><h2>+{chestReward.jade} 玉片 · +{chestReward.xp} XP</h2>{chestReward.bonus && <p>Bonus hiếm: {shopItems.find((item) => item.id === chestReward.bonus)?.name}</p>}<button onClick={() => setChestReward(null)}>Nhận thưởng</button></section></div>}
