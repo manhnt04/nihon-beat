@@ -1246,7 +1246,7 @@ export default function Home() {
             <div className="match-reward">
               <span>奖励 · PHẦN THƯỞNG</span>
               <b>+{lastReward.xp} XP</b>
-              {lastReward.jade > 0 && <b>+{lastReward.jade} 玉片</b>}
+              {lastReward.jade > 0 && <b className="jade-reward"><img src="/items/jade-fragment.png" alt="" />+{lastReward.jade} 玉片</b>}
             </div>
           )}
           {pvpRoom && (() => {
@@ -1635,7 +1635,7 @@ export default function Home() {
                 <li className={progression.daily.pvpMatches >= 2 ? 'done' : ''}><i /> <span>Chơi PvP</span><b>{Math.min(progression.daily.pvpMatches, 2)}/2</b></li>
               </ul> : <p className="today-login">Đăng nhập để bắt đầu nhiệm vụ và nhận Nhật Ấn.</p>}
               {progression && <div className="daily-limits"><span>OFFLINE 玉片 <b>{progression.daily.offlineJade}/20</b></span><span>PVP THƯỞNG <b>{progression.daily.rewardedPvpMatches}/10</b></span></div>}
-              {progression?.daily.stampEarned && <strong className="stamp-earned">印 Nhật Ấn hôm nay đã nhận</strong>}
+              {progression?.daily.stampEarned && <strong className="stamp-earned"><img src="/items/daily-seal.png" alt="" /> Nhật Ấn hôm nay đã nhận</strong>}
             </section>
           </aside>
           <section className="continue">
@@ -1674,7 +1674,7 @@ export default function Home() {
               <b>{progression?.xp ?? 0}</b>Tổng XP
             </span>
             <span>
-              <Flame />
+              <img className="currency-icon" src="/items/jade-fragment.png" alt="Mảnh Ngọc" />
               <b>{progression?.jade ?? 0}</b>Mảnh Ngọc 玉片
             </span>
           </section>
