@@ -50,10 +50,24 @@ type Progression = {
 };
 
 const castleBuildings = {
-  main: { max: 10, baseWood: 80, baseInk: 25, baseCoin: 300 },
-  library: { max: 10, baseWood: 55, baseInk: 40, baseCoin: 220 },
-  listening: { max: 10, baseWood: 65, baseInk: 35, baseCoin: 250 },
+  main: { max: 10, coinScale: 1, woodScale: 1, inkScale: 1 },
+  library: { max: 10, coinScale: .65, woodScale: .7, inkScale: 1.2 },
+  listening: { max: 10, coinScale: .75, woodScale: .85, inkScale: 1 },
 } as const;
+
+const mainCastleUpgradeCosts = {
+  coin: [0, 0, 5_000, 12_000, 30_000, 70_000, 150_000, 300_000, 550_000, 1_000_000],
+  wood: [0, 0, 120, 250, 500, 900, 1_500, 2_400, 3_600, 5_200],
+  ink: [0, 0, 40, 80, 160, 300, 520, 850, 1_300, 1_900],
+} as const;
+const castleUpgradeCost = (building: typeof castleBuildings[keyof typeof castleBuildings], currentLevel: number) => {
+  const targetLevel = Math.min(10, currentLevel + 1);
+  return {
+    coin: Math.round(mainCastleUpgradeCosts.coin[targetLevel] * building.coinScale),
+    wood: Math.round(mainCastleUpgradeCosts.wood[targetLevel] * building.woodScale),
+    ink: Math.round(mainCastleUpgradeCosts.ink[targetLevel] * building.inkScale),
+  };
+};
 
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
@@ -387,9 +401,7 @@ export default async function handler(request: any, response: any) {
     } else if (currentLevel >= mainLevel) {
       return response.status(409).json({ error: `Hãy nâng Nhà Chính lên Lv.${mainLevel + 1} trước.` });
     }
-    const woodCost = building.baseWood * currentLevel;
-    const inkCost = building.baseInk * currentLevel;
-    const coinCost = Math.round(building.baseCoin * currentLevel ** 1.7);
+    const { wood: woodCost, ink: inkCost, coin: coinCost } = castleUpgradeCost(building, currentLevel);
     if (progression.castle.wood < woodCost || progression.castle.ink < inkCost || progression.coins < coinCost) {
       return response.status(409).json({ error: `Cần ${coinCost} Coin, ${woodCost} Gỗ và ${inkCost} Mực để nâng cấp.` });
     }

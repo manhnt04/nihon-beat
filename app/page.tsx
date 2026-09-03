@@ -241,7 +241,19 @@ const slotSymbols = [
 const slotStrip = Array.from({ length: 8 }, () => slotSymbols).flat();
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
-const castleCoinCost = (baseCoin: number, level: number) => Math.round(baseCoin * level ** 1.7);
+const mainCastleUpgradeCosts = {
+  coin: [0, 0, 5_000, 12_000, 30_000, 70_000, 150_000, 300_000, 550_000, 1_000_000],
+  wood: [0, 0, 120, 250, 500, 900, 1_500, 2_400, 3_600, 5_200],
+  ink: [0, 0, 40, 80, 160, 300, 520, 850, 1_300, 1_900],
+} as const;
+const castleUpgradeCost = (building: { coinScale: number; woodScale: number; inkScale: number }, currentLevel: number) => {
+  const targetLevel = Math.min(10, currentLevel + 1);
+  return {
+    coin: Math.round(mainCastleUpgradeCosts.coin[targetLevel] * building.coinScale),
+    wood: Math.round(mainCastleUpgradeCosts.wood[targetLevel] * building.woodScale),
+    ink: Math.round(mainCastleUpgradeCosts.ink[targetLevel] * building.inkScale),
+  };
+};
 const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
 const CastleMapBuilding = ({ kind, level, label, onSelect }: { kind: CastleBuildingKind; level: number; label: string; onSelect: (kind: CastleBuildingKind) => void }) => {
   const stage = castleVisualStage(level);
@@ -1605,9 +1617,9 @@ export default function Home() {
     const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
     const mainBonusRate = mainCastleJadeBonusRates[castle.buildings.main] ?? 10;
     const buildings = [
-      { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', baseWood: 80, baseInk: 25, baseCoin: 300 },
-      { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', baseWood: 55, baseInk: 40, baseCoin: 220 },
-      { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', baseWood: 65, baseInk: 35, baseCoin: 250 },
+      { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', coinScale: 1, woodScale: 1, inkScale: 1 },
+      { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', coinScale: .65, woodScale: .7, inkScale: 1.2 },
+      { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', coinScale: .75, woodScale: .85, inkScale: 1 },
     ] as const;
     const selectedBuilding = selectedCastleBuilding ? buildings.find((building) => building.id === selectedCastleBuilding) : null;
     return (
@@ -1623,16 +1635,14 @@ export default function Home() {
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và Jackpot</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-coin"><img src="/items/coin.png" alt="Coin"/><div><small>铜钱 · COIN XÂY DỰNG</small><b>{progression?.coins ?? 0}</b><p>Nhận chủ yếu từ Jackpot Tam Trụ</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
-            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const coinCost = castleCoinCost(building.baseCoin, level); const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost && (progression?.coins ?? 0) >= coinCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${coinCost.toLocaleString('vi-VN')} Coin`}</button></article>; })}</div>
+            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const { wood: woodCost, ink: inkCost, coin: coinCost } = castleUpgradeCost(building, level); const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost && (progression?.coins ?? 0) >= coinCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${coinCost.toLocaleString('vi-VN')} Coin`}</button></article>; })}</div>
           </>}
         </section>
         {selectedBuilding && (() => {
           const level = castle.buildings[selectedBuilding.id];
           const visualStage = castleVisualStage(level);
           const assetStage = selectedBuilding.id === 'main' ? visualStage : 1;
-          const woodCost = selectedBuilding.baseWood * level;
-          const inkCost = selectedBuilding.baseInk * level;
-          const coinCost = castleCoinCost(selectedBuilding.baseCoin, level);
+          const { wood: woodCost, ink: inkCost, coin: coinCost } = castleUpgradeCost(selectedBuilding, level);
           const hasWood = castle.wood >= woodCost;
           const hasInk = castle.ink >= inkCost;
           const hasCoin = (progression?.coins ?? 0) >= coinCost;
