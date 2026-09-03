@@ -1381,22 +1381,22 @@ export default function Home() {
           <button className="auth-brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat</b></button>
           {authUser ? (
             <div className="auth-profile">
-              <div className={`profile-avatar ${progression?.equipped.frame ?? ''}`}>{authUser.name.slice(0, 1).toUpperCase()}</div>
-              <span>ĐÃ ĐĂNG NHẬP</span>
-              <h1>{authUser.name}</h1>
-              {progression?.equipped.seal && <strong className="equipped-seal">学者印 · HỌC GIẢ</strong>}
-              <p>{authUser.email}</p>
+              <section className="profile-identity">
+                <div className={`profile-avatar ${progression?.equipped.frame ?? ''}`}>{authUser.name.slice(0, 1).toUpperCase()}</div>
+                <div className="profile-identity-copy"><span>个人主页 · HỒ SƠ NGƯỜI CHƠI</span><h1>{authUser.name}</h1><p>{authUser.email}</p>{progression?.equipped.seal && <strong className="equipped-seal">学者印 · HỌC GIẢ</strong>}</div>
+              </section>
               {progression && <div className="profile-progression">
                 <span><b>Lv.{progression.level}</b>Cấp tài khoản</span>
                 <span><b>{progression.jade}</b>玉片</span>
                 <span><b>{progression.streak}</b>Chuỗi Nhật Ấn</span>
               </div>}
-              <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> Mở Inventory <small>{progression ? `${progression.jade} 玉片 · ${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm tài khoản'}</small></button>
-              <button className="auth-codex" onClick={() => navigate('codex')}><BookOpen /> Hán Tự Đồ Giám <small>{progression ? `${progression.discoveries.length} từ đã khám phá` : 'Bộ sưu tập và hành trình HSK'}</small></button>
-              <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> Cửa hàng cosmetic <small>Dùng Mảnh Ngọc để mở khóa ngoại trang</small></button>
-              <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
-              <button onClick={logout}><LogOut /> Đăng xuất</button>
-              <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
+              <div className="profile-links">
+                <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> <span>Inventory<small>{progression ? `${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm'}</small></span></button>
+                <button className="auth-codex" onClick={() => navigate('codex')}><BookOpen /> <span>Hán Tự Đồ Giám<small>{progression ? `${progression.discoveries.length} từ đã khám phá` : 'Bộ sưu tập HSK'}</small></span></button>
+                <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> <span>Cửa hàng<small>Khung và hiệu ứng</small></span></button>
+                <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> <span>Thư viện nhạc<small>{audioTracks.length} bài đã lưu</small></span></button>
+              </div>
+              <div className="profile-footer-actions"><button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button><button className="profile-logout" onClick={logout}><LogOut /> Đăng xuất</button></div>
             </div>
           ) : <>
             <div className="auth-tabs">
@@ -1649,9 +1649,7 @@ export default function Home() {
           </span>
           <b>
             {authUser ? authUser.name : 'Đăng nhập'}
-            <small>
-              {authUser ? 'Tài khoản & cài đặt' : 'Đăng ký tài khoản'}
-            </small>
+            {!authUser && <small>Đăng ký tài khoản</small>}
           </b>
         </button>
       </header>
