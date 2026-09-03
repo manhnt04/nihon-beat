@@ -350,7 +350,13 @@ export default function Home() {
       if (!response.ok || !data.spinReward) throw new Error(data.error || 'Không thể quay Thiên Cơ Luân.');
       if (data.progression) setProgression(data.progression);
       setSpinReward(data.spinReward);
-      setSpinRotation((current) => current + 1440 + (360 - data.spinReward!.slot * 30));
+      setSpinRotation((current) => {
+        const sliceAngle = 360 / spinWheelSlots.length;
+        const selectedCenterAngle = data.spinReward!.slot * sliceAngle + sliceAngle / 2;
+        const currentNormalized = ((current % 360) + 360) % 360;
+        const correction = (360 - selectedCenterAngle - currentNormalized + 360) % 360;
+        return current + 1440 + correction;
+      });
       await new Promise((resolve) => window.setTimeout(resolve, 1050));
       if (spinHoldRef.current && (data.progression?.spins.balance ?? 0) > 0) {
         spinBusyRef.current = false;
@@ -378,7 +384,15 @@ export default function Home() {
         <button className="spin-modal-close" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <header><small>天机轮 · THIÊN CƠ LUÂN</small><h2>Vòng quay vận may</h2><p>Giữ nút để quay liên tục đến khi hết lượt.</p></header>
         <div className="spin-balance"><img src="/items/celestial-wheel-icon.png" alt=""/><span><small>LƯỢT HIỆN CÓ</small><b>{progression?.spins.balance ?? 0} Spin</b></span><em>+1 mỗi giờ · kho hồi 24</em></div>
-        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map((slot, index) => <span key={slot.id} style={{ '--slot': index } as CSSProperties}><img src={slot.image} alt=""/><small>{slot.label}</small></span>)}<strong>运</strong></div></div>
+        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map((slot, index) => {
+          const sliceAngle = 360 / spinWheelSlots.length;
+          const centerAngle = index * sliceAngle + sliceAngle / 2;
+          const radians = (centerAngle - 90) * Math.PI / 180;
+          const placementRadius = 34;
+          const x = 50 + placementRadius * Math.cos(radians);
+          const y = 50 + placementRadius * Math.sin(radians);
+          return <span key={slot.id} style={{ '--item-x': `${x}%`, '--item-y': `${y}%`, '--item-angle': `${centerAngle}deg` } as CSSProperties}><img src={slot.image} alt=""/><small>{slot.label}</small></span>;
+        })}<strong>运</strong></div></div>
         <div className={`spin-result ${spinReward ? 'show' : ''}`}><img src={spinRewardImage(spinReward?.id)} alt=""/><div><small>{spinReward ? 'ĐÃ NHẬN' : 'PHẦN THƯỞNG'}</small><b>{spinReward ? `${spinReward.label} ×${spinReward.amount}` : 'Chạm để thử vận may'}</b></div></div>
         {spinError && <p className="spin-error">{spinError}</p>}
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''}`} disabled={!authUser || (progression?.spins.balance ?? 0) < 1} onPointerDown={() => { spinHoldRef.current = true; void spinOnce(); }} onPointerUp={stopHoldingSpin} onPointerCancel={stopHoldingSpin} onPointerLeave={stopHoldingSpin} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { spinHoldRef.current = true; void spinOnce(); } }} onKeyUp={stopHoldingSpin}>{spinBusy ? 'ĐANG QUAY…' : (progression?.spins.balance ?? 0) > 0 ? 'GIỮ ĐỂ QUAY' : 'ĐÃ HẾT LƯỢT'}<small>Thả nút để dừng sau lượt hiện tại</small></button>
