@@ -47,6 +47,10 @@ type Progression = {
     shieldActiveUntil: number;
     likes: number;
     theme: string;
+    attackEnergy: number;
+    attackUpdatedAt: number;
+    peaceUntil: number;
+    newbieUntil: number;
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
@@ -196,7 +200,7 @@ const loadProgression = async (uid: string, name: string) => {
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
-    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } },
+    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -210,7 +214,7 @@ const loadProgression = async (uid: string, name: string) => {
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
@@ -218,6 +222,15 @@ const loadProgression = async (uid: string, name: string) => {
   if (progression.castle.shieldActiveUntil <= Date.now()) progression.castle.shieldActiveUntil = 0;
   progression.castle.likes = Math.max(0, Number(progression.castle.likes ?? 0));
   progression.castle.theme = String(progression.castle.theme ?? 'classic');
+  progression.castle.attackEnergy = Math.max(0, Math.min(5, Number(progression.castle.attackEnergy ?? 5)));
+  progression.castle.attackUpdatedAt = Number(progression.castle.attackUpdatedAt ?? Date.now());
+  const recoveredEnergy = Math.floor((Date.now() - progression.castle.attackUpdatedAt) / 7_200_000);
+  if (recoveredEnergy > 0 && progression.castle.attackEnergy < 5) {
+    progression.castle.attackEnergy = Math.min(5, progression.castle.attackEnergy + recoveredEnergy);
+    progression.castle.attackUpdatedAt += recoveredEnergy * 7_200_000;
+  }
+  progression.castle.peaceUntil = Number(progression.castle.peaceUntil ?? 0);
+  progression.castle.newbieUntil = Number(progression.castle.newbieUntil ?? 0);
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
@@ -275,6 +288,54 @@ export default async function handler(request: any, response: any) {
   }
 
   const action = String(request.body?.action ?? '');
+  if (action === 'castle-combat') {
+    const operation = String(request.body?.operation ?? 'logs');
+    if (operation === 'peace') {
+      progression.castle.peaceUntil = progression.castle.peaceUntil > Date.now() ? 0 : Date.now() + 8 * 3_600_000;
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+      return response.status(200).json({ progression: publicProgression(progression), combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
+    }
+    if (operation === 'start') {
+      const targetId = String(request.body?.targetId ?? '');
+      if (!targetId || targetId === user.localId) return response.status(400).json({ error: 'Đối thủ không hợp lệ.' });
+      if (progression.castle.attackEnergy < 1) return response.status(409).json({ error: 'Bạn đã hết Attack Energy.' });
+      if (progression.castle.peaceUntil > Date.now()) return response.status(409).json({ error: 'Hãy tắt Peace Mode trước khi Công Thành.' });
+      const target = await redis.get<Progression>(`hanzibeat:progression:${targetId}`);
+      if (!target) return response.status(404).json({ error: 'Không tìm thấy thành đối thủ.' });
+      if (Number(target.castle?.newbieUntil ?? 0) > Date.now()) return response.status(409).json({ error: 'Đối thủ đang được Newbie Protection.' });
+      if (Number(target.castle?.peaceUntil ?? 0) > Date.now()) return response.status(409).json({ error: 'Đối thủ đang bật Peace Mode.' });
+      const pairKey = `hanzibeat:castle-pair:${bangkokDate()}:${[user.localId,targetId].sort().join(':')}`;
+      const pairCount = Number(await redis.get(pairKey) ?? 0);
+      if (pairCount >= 3) return response.status(429).json({ error: 'Đã đạt giới hạn 3 trận với đối thủ này hôm nay.' });
+      progression.castle.attackEnergy -= 1;
+      progression.castle.attackUpdatedAt = Date.now();
+      const combatId = crypto.randomUUID();
+      await redis.set(`hanzibeat:castle-combat:${combatId}`, { attackerId: user.localId, targetId, pairKey, startedAt: Date.now() }, { ex: 600 });
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+      return response.status(201).json({ progression: publicProgression(progression), combatSession: { id: combatId, targetId, targetName: target.name } });
+    }
+    if (operation === 'finish') {
+      const combatId = String(request.body?.combatId ?? '');
+      const session = await redis.get<any>(`hanzibeat:castle-combat:${combatId}`);
+      if (!session || session.attackerId !== user.localId) return response.status(404).json({ error: 'Trận Công Thành đã hết hạn.' });
+      await redis.del(`hanzibeat:castle-combat:${combatId}`);
+      const correct = Math.max(0, Math.min(10, Number(request.body?.correct ?? 0)));
+      const target = await redis.get<Progression>(`hanzibeat:progression:${session.targetId}`);
+      if (!target) return response.status(404).json({ error: 'Thành đối thủ không còn tồn tại.' });
+      const shielded = Number(target.castle.shieldActiveUntil ?? 0) > Date.now();
+      const won = correct >= 7 && !shielded;
+      const reward = won ? { coins: Math.min(10_000, Math.max(1_000, Math.floor(target.coins * .01))), wood: 80, ink: 35 } : { coins: 0, wood: 0, ink: 0 };
+      if (won) { progression.coins += reward.coins; progression.castle.wood += reward.wood; progression.castle.ink += reward.ink; }
+      if (shielded) target.castle.shieldActiveUntil = 0;
+      const log = { id: combatId, attackerId: user.localId, attackerName: progression.name, defenderId: session.targetId, defenderName: target.name, correct, won, shielded, reward, createdAt: Date.now() };
+      await redis.incr(session.pairKey); await redis.expire(session.pairKey, 172_800);
+      await redis.lpush(`hanzibeat:castle-combat-log:${user.localId}`, log); await redis.ltrim(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19);
+      await redis.lpush(`hanzibeat:castle-combat-log:${session.targetId}`, log); await redis.ltrim(`hanzibeat:castle-combat-log:${session.targetId}`, 0, 19);
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression); await redis.set(`hanzibeat:progression:${session.targetId}`, target);
+      return response.status(200).json({ progression: publicProgression(progression), combatResult: log, combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
+    }
+    return response.status(200).json({ progression: publicProgression(progression), combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
+  }
   if (action === 'castle-social') {
     const season = new Date().toISOString().slice(0, 7);
     const score = Object.values(progression.castle.buildings).reduce((sum, level) => sum + level, 0) * 1_000

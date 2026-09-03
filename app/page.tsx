@@ -112,6 +112,10 @@ type Progression = {
     shieldActiveUntil: number;
     likes: number;
     theme: string;
+    attackEnergy: number;
+    attackUpdatedAt: number;
+    peaceUntil: number;
+    newbieUntil: number;
     buildings: { main: number; library: number; listening: number };
   };
   completedTasks: number;
@@ -231,6 +235,7 @@ type SlotRewards = { coins: number; spins: number; wood: number; ink: number; ja
 type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean };
 type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; buildings: { main: number; library: number; listening: number } };
 type CastleVisitor = { uid: string; name: string; visitedAt: number };
+type CombatLog = { id: string; attackerId: string; attackerName: string; defenderId: string; defenderName: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
 const slotSymbols = [
   { id: 'coin', label: 'Coin', image: '/items/coin.png' },
   { id: 'spin', label: 'Spin', image: '/items/spin-refund.png' },
@@ -322,6 +327,9 @@ export default function Home() {
   const [castleEffect, setCastleEffect] = useState<{ type: 'siege' | 'shield'; rewards?: { coins: number; wood: number; ink: number } } | null>(null);
   const [castleSocial, setCastleSocial] = useState<{ season: string; castles: PublicCastle[]; visitors: CastleVisitor[] } | null>(null);
   const [visitedCastle, setVisitedCastle] = useState<PublicCastle | null>(null);
+  const [combatLogs, setCombatLogs] = useState<CombatLog[]>([]);
+  const [combatQuiz, setCombatQuiz] = useState<{ id: string; targetId: string; targetName: string; questions: VocabularyEntry[]; index: number; correct: number } | null>(null);
+  const [combatResult, setCombatResult] = useState<CombatLog | null>(null);
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -749,9 +757,34 @@ export default function Home() {
       setRewardActionError(error instanceof Error ? error.message : 'Không thể kết nối Hán Tự Thành.');
     }
   }, []);
+  const runCastleCombat = useCallback(async (operation: 'logs' | 'peace' | 'start' | 'finish', payload: { targetId?: string; combatId?: string; correct?: number } = {}) => {
+    const user = firebaseAuth.currentUser;
+    if (!user) return;
+    setRewardActionError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-combat', operation, ...payload }) });
+      const data = await response.json() as { progression?: Progression; combatLogs?: CombatLog[]; combatSession?: { id: string; targetId: string; targetName: string }; combatResult?: CombatLog; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Không thể thực hiện Công Thành.');
+      if (data.progression) setProgression(data.progression);
+      if (data.combatLogs) setCombatLogs(data.combatLogs);
+      if (data.combatResult) { setCombatResult(data.combatResult); setCombatQuiz(null); }
+      if (data.combatSession) {
+        const questions = [...allVocabulary].sort(() => Math.random() - .5).slice(0, 10);
+        setCombatQuiz({ ...data.combatSession, questions, index: 0, correct: 0 });
+      }
+    } catch (error) { setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện Công Thành.'); }
+  }, []);
+  const answerCombatQuestion = (answer: string) => {
+    if (!combatQuiz) return;
+    const isCorrect = answer === combatQuiz.questions[combatQuiz.index][3];
+    const nextCorrect = combatQuiz.correct + (isCorrect ? 1 : 0);
+    if (combatQuiz.index >= 9) { void runCastleCombat('finish', { combatId: combatQuiz.id, correct: nextCorrect }); return; }
+    setCombatQuiz({ ...combatQuiz, index: combatQuiz.index + 1, correct: nextCorrect });
+  };
   useEffect(() => {
-    if (screen === 'castle' && authUser) void runCastleSocial();
-  }, [screen, authUser, runCastleSocial]);
+    if (screen === 'castle' && authUser) { void runCastleSocial(); void runCastleCombat('logs'); }
+  }, [screen, authUser, runCastleSocial, runCastleCombat]);
   const openPvp = () => {
     setPvpRoom(null);
     setPvpWaiting(false);
@@ -1658,7 +1691,7 @@ export default function Home() {
       </main>
     );
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
@@ -1685,10 +1718,13 @@ export default function Home() {
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và Jackpot</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-coin"><img src="/items/coin.png" alt="Coin"/><div><small>铜钱 · COIN XÂY DỰNG</small><b>{progression?.coins ?? 0}</b><p>Nhận chủ yếu từ Jackpot Tam Trụ</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <button className="castle-shop-trigger" onClick={() => setCastleShopOpen(true)}><span>建设商店</span><b>CỬA HÀNG THÀNH</b><small>Nâng cấp công trình</small></button>
-            <section className="castle-social-panel"><header><div><span>社交 · XÃ HỘI</span><h2>Castle Rank · {castleSocial?.season ?? 'Mùa hiện tại'}</h2></div><b>♥ {castle.likes}</b></header><div className="castle-theme-picker">{[{id:'classic',name:'Cổ Điển',level:1},{id:'moon',name:'Nguyệt Dạ',level:4},{id:'crimson',name:'Xích Hà',level:7}].map((theme) => <button key={theme.id} className={castle.theme === theme.id ? 'on' : ''} disabled={castle.buildings.main < theme.level} onClick={() => void runCastleSocial('theme', undefined, theme.id)}>{theme.name}<small>Lv.{theme.level}</small></button>)}</div><div className="castle-rank-list">{castleSocial?.castles.map((entry,index) => { const rival = entry.uid !== authUser?.id && !castleSocial.castles.slice(0,index).some((item) => item.uid !== authUser?.id); return <article key={entry.uid} className={rival ? 'rival' : ''}><b>#{index+1}</b><i>{entry.name.slice(0,1).toUpperCase()}</i><span><strong>{entry.name}</strong><small>主城 Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><em>♥ {entry.likes}</em>{entry.uid !== authUser?.id && <div><button onClick={() => void runCastleSocial('visit',entry.uid)}>Ghé thăm</button><button onClick={() => void runCastleSocial('like',entry.uid)}>Like</button></div>}{rival && <mark>RIVAL</mark>}</article>; })}</div><div className="castle-visitors"><h3>Nhật ký khách ghé thăm</h3>{castleSocial?.visitors.length ? castleSocial.visitors.map((visitor) => <p key={`${visitor.uid}-${visitor.visitedAt}`}><b>{visitor.name}</b><span>{new Date(visitor.visitedAt).toLocaleString('vi-VN')}</span></p>) : <small>Chưa có khách ghé thăm.</small>}</div></section>
+            <section className="castle-social-panel"><header><div><span>社交 · XÃ HỘI</span><h2>Castle Rank · {castleSocial?.season ?? 'Mùa hiện tại'}</h2></div><b>♥ {castle.likes}</b></header><div className="castle-theme-picker">{[{id:'classic',name:'Cổ Điển',level:1},{id:'moon',name:'Nguyệt Dạ',level:4},{id:'crimson',name:'Xích Hà',level:7}].map((theme) => <button key={theme.id} className={castle.theme === theme.id ? 'on' : ''} disabled={castle.buildings.main < theme.level} onClick={() => void runCastleSocial('theme', undefined, theme.id)}>{theme.name}<small>Lv.{theme.level}</small></button>)}</div><div className="castle-rank-list">{castleSocial?.castles.map((entry,index) => { const rival = entry.uid !== authUser?.id && !castleSocial.castles.slice(0,index).some((item) => item.uid !== authUser?.id); return <article key={entry.uid} className={rival ? 'rival' : ''}><b>#{index+1}</b><i>{entry.name.slice(0,1).toUpperCase()}</i><span><strong>{entry.name}</strong><small>主城 Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><em>♥ {entry.likes}</em>{entry.uid !== authUser?.id && <div><button onClick={() => void runCastleSocial('visit',entry.uid)}>Ghé thăm</button><button onClick={() => void runCastleSocial('like',entry.uid)}>Like</button><button className="attack" onClick={() => void runCastleCombat('start',{targetId:entry.uid})}>Công thành</button></div>}{rival && <mark>RIVAL</mark>}</article>; })}</div><div className="castle-visitors"><h3>Nhật ký khách ghé thăm</h3>{castleSocial?.visitors.length ? castleSocial.visitors.map((visitor) => <p key={`${visitor.uid}-${visitor.visitedAt}`}><b>{visitor.name}</b><span>{new Date(visitor.visitedAt).toLocaleString('vi-VN')}</span></p>) : <small>Chưa có khách ghé thăm.</small>}</div></section>
+            <section className="castle-combat-panel"><header><div><span>攻城 · CÔNG THÀNH</span><h2>Attack Energy</h2></div><b>⚡ {castle.attackEnergy}/5</b><button className={castle.peaceUntil > Date.now() ? 'on' : ''} onClick={() => void runCastleCombat('peace')}>{castle.peaceUntil > Date.now() ? 'Tắt Peace Mode' : 'Bật Peace Mode 8h'}</button></header><p>Hồi 1 năng lượng mỗi 2 giờ · thắng khi đúng ít nhất 7/10 câu · tối đa 3 trận/cặp mỗi ngày.</p><div className="combat-protection"><span>🛡 Hộ Thành Phù: {castle.shieldActiveUntil > Date.now() ? 'Đang bảo vệ' : 'Không hoạt động'}</span><span>🌱 Newbie Protection: {castle.newbieUntil > Date.now() ? 'Đang bảo vệ' : 'Đã kết thúc'}</span></div><h3>Nhật ký chiến đấu</h3><div className="combat-log-list">{combatLogs.length ? combatLogs.map((log) => { const defending = log.defenderId === authUser?.id; const rivalId = defending ? log.attackerId : log.defenderId; return <article key={log.id}><b className={log.won ? 'win' : 'lose'}>{log.shielded ? 'ĐÃ CHẶN' : log.won ? 'THẮNG' : 'THUA'}</b><span><strong>{log.attackerName} → {log.defenderName}</strong><small>{log.correct}/10 câu · {new Date(log.createdAt).toLocaleString('vi-VN')}</small></span>{defending && <button onClick={() => void runCastleCombat('start',{targetId:rivalId})}>Trả đũa</button>}</article>; }) : <small>Chưa có trận Công Thành.</small>}</div></section>
           </>}
         </section>
         {castleShopOpen && <div className="castle-shop-backdrop" onClick={() => setCastleShopOpen(false)}><section className="castle-shop-modal" role="dialog" aria-modal="true" aria-label="Cửa hàng Thành" onClick={(event) => event.stopPropagation()}><header><small>建设商店</small><h2>Cửa hàng Thành</h2><button onClick={() => setCastleShopOpen(false)}>×</button></header><div className="castle-shop-list">{buildings.map((building) => { const level = castle.buildings[building.id]; const maxed = level >= 10; const stage = castleVisualStage(level); const nextStage = castleVisualStage(Math.min(10, level + 1)); const currentAsset = building.id === 'main' ? stage : 1; const nextAsset = building.id === 'main' ? nextStage : 1; const cost = castleUpgradeCost(building, level); const enough = castle.wood >= cost.wood && castle.ink >= cost.ink && (progression?.coins ?? 0) >= cost.coin; const supportReady = building.id !== 'main' || Math.min(castle.buildings.library, castle.buildings.listening) >= level; const playerReady = building.id !== 'main' || (progression?.level ?? 1) >= (mainCastleLevelRequirements[level + 1] ?? 100); const mainReady = building.id === 'main' || level < castle.buildings.main; const canBuy = !maxed && enough && supportReady && playerReady && mainReady; return <article key={building.id}><div className="castle-shop-art"><img src={`/castle/buildings/${building.id}/stage-${currentAsset}.webp`} alt=""/>{!maxed && <><i>›</i><img src={`/castle/buildings/${building.id}/stage-${nextAsset}.webp`} alt=""/></>}</div><div className="castle-shop-info"><span>{building.hanzi}</span><h3>{building.name}</h3><div className="castle-shop-stars">{Array.from({length:10},(_,index)=><i key={index} className={index < level ? 'on' : ''}>★</i>)}</div><small>Lv.{level}/10 · 🪵 {cost.wood} · 🖌 {cost.ink}</small></div>{maxed ? <strong>HOÀN TẤT!</strong> : <div className="castle-shop-buy"><b>🪙 {cost.coin.toLocaleString('vi-VN')}</b><button disabled={rewardActionStatus === 'loading' || !canBuy} onClick={() => void runProgressionAction('upgrade-castle', building.id)}>NÂNG CẤP</button></div>}</article>; })}</div></section></div>}
+        {combatQuiz && (() => { const question = combatQuiz.questions[combatQuiz.index]; const options = [question[3], ...allVocabulary.filter((entry) => entry[3] !== question[3]).slice(combatQuiz.index * 3, combatQuiz.index * 3 + 3).map((entry) => entry[3])].sort((a,b)=>a.localeCompare(b)); return <div className="combat-quiz-backdrop"><section className="combat-quiz"><span>攻城挑战 · {combatQuiz.index + 1}/10</span><h2>{combatQuiz.targetName}</h2><div className="combat-quiz-progress"><i style={{width:`${combatQuiz.index * 10}%`}}/></div><strong>{question[0]}</strong><small>{question[1]}</small><div>{options.map((option)=><button key={option} onClick={() => answerCombatQuestion(option)}>{option}</button>)}</div><p>Đúng {combatQuiz.correct} · Cần ít nhất 7 câu</p></section></div>; })()}
+        {combatResult && <div className="combat-result-backdrop" onClick={() => setCombatResult(null)}><section><b>{combatResult.shielded ? '🛡' : combatResult.won ? '🏆' : '⚔️'}</b><span>攻城结果</span><h2>{combatResult.shielded ? 'BỊ HỘ THÀNH PHÙ CHẶN' : combatResult.won ? 'CÔNG THÀNH THẮNG LỢI' : 'CÔNG THÀNH THẤT BẠI'}</h2><p>{combatResult.correct}/10 câu đúng</p>{combatResult.won && <strong>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</strong>}<button onClick={() => setCombatResult(null)}>Đóng</button></section></div>}
         {visitedCastle && <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}><section className={`castle-visit-card castle-theme-${visitedCastle.theme}`} onClick={(event) => event.stopPropagation()}><button onClick={() => setVisitedCastle(null)}>×</button><span>拜访 · GHÉ THĂM</span><h2>Thành của {visitedCastle.name}</h2><div><img src="/castle/map-empty.webp" alt="Thành của người chơi"/><b>主城 Lv.{visitedCastle.buildings.main}</b></div><p>繁荣度 {visitedCastle.score.toLocaleString('vi-VN')} · ♥ {visitedCastle.likes}</p><button onClick={() => void runCastleSocial('like',visitedCastle.uid)}>♥ Like thành</button></section></div>}
         {selectedBuilding && (() => {
           const level = castle.buildings[selectedBuilding.id];
