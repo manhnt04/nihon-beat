@@ -664,8 +664,20 @@ export default function Home() {
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
     setTypingLocked(true);
-    const target = vocab[word][round % 2 === 0 ? 2 : 3];
-    if (normalizeAnswer(typingInput) === normalizeAnswer(target)) {
+    const typingToHanzi = round % 2 === 0;
+    const target = vocab[word][typingToHanzi ? 0 : 3];
+    const normalizedInput = normalizeAnswer(typingInput);
+    const acceptedAnswers = typingToHanzi
+      ? [normalizeAnswer(target)]
+      : target
+          .replace(/\([^)]*\)/g, '')
+          .split(/[,;/]/)
+          .map(normalizeAnswer)
+          .filter(Boolean);
+    const isCorrect =
+      normalizedInput === normalizeAnswer(target) ||
+      acceptedAnswers.includes(normalizedInput);
+    if (isCorrect) {
       playAnswerSound('correct');
       const nextCombo = combo + 1;
       const speedBonus = typingTime * 70;
@@ -945,13 +957,13 @@ export default function Home() {
           </div>
           <article className={`typing-card ${typingLocked ? 'locked' : ''}`}>
             <span className="typing-label">
-              {round % 2 === 0 ? 'NHẬP PINYIN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
+              {round % 2 === 0 ? 'NHẬP CHỮ HÁN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
             </span>
-            <button className="pronounce" onClick={() => speak(vocab[word][1])}>
+            <button className="pronounce" onClick={() => speak(vocab[word][0])}>
               <Volume2 /> Nghe phát âm
             </button>
-            <h1>{vocab[word][0]}</h1>
-            <p>{vocab[word][1]}</p>
+            <h1>{round % 2 === 0 ? vocab[word][3] : vocab[word][0]}</h1>
+            <p>{round % 2 === 0 ? 'Dịch sang tiếng Trung' : vocab[word][1]}</p>
             <div
               className="time-ring"
               style={
@@ -967,7 +979,7 @@ export default function Home() {
                 value={typingInput}
                 onChange={(event) => setTypingInput(event.target.value)}
                 placeholder={
-                  round % 2 === 0 ? 'Ví dụ: ni hao' : 'Ví dụ: xin chào'
+                  round % 2 === 0 ? 'Ví dụ: 你好' : 'Ví dụ: xin chào'
                 }
                 disabled={typingLocked}
                 autoComplete="off"
@@ -1207,7 +1219,7 @@ export default function Home() {
             <label className="pvp-name">Tên người chơi<input value={pvpName} maxLength={20} onChange={(event) => setPvpName(event.target.value)} placeholder="Nhập tên của bạn" /></label>
             <div className="pvp-mode-picker">
               <button className={pvpGameMode === 'audition' ? 'on' : ''} onClick={() => setPvpGameMode('audition')}><b>Rhythm Quiz</b><small>Chọn nghĩa tiếng Việt hoặc chữ Hán</small></button>
-              <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><b>Typing Battle</b><small>Nhập đáp án bằng bàn phím</small></button>
+              <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><b>Typing Battle</b><small>Gõ nghĩa tiếng Việt hoặc chữ Hán</small></button>
             </div>
             <div className="pvp-choices">
               <article><span>⚔</span><h2>Ghép trận</h2><p>Tìm một đối thủ đang chờ trên toàn hệ thống.</p><button onClick={() => pvpAction('match')}>Tìm đối thủ</button></article>
@@ -1557,9 +1569,9 @@ export default function Home() {
               className={mode === 'typing' ? 'active typing' : ''}
               onClick={() => setMode('typing')}
             >
-              <span>汉 → pinyin</span>
+              <span>汉 ⇄ Việt</span>
               <b>Typing Battle</b>
-              <small>Gõ đáp án thật nhanh để tạo chuỗi Perfect</small>
+              <small>Luân phiên dịch chữ Hán và nghĩa tiếng Việt</small>
             </button>
           </div>
           <div className="filters">
