@@ -235,6 +235,7 @@ export default function Home() {
   const [directionCountdown, setDirectionCountdown] = useState(0);
   const [directionBreakDone, setDirectionBreakDone] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
+  const [playModeOpen, setPlayModeOpen] = useState(false);
   const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [selectedHskFolder, setSelectedHskFolder] = useState<number | null>(null);
   const [playerName, setPlayerName] = useState('');
@@ -775,6 +776,12 @@ export default function Home() {
     window.addEventListener('popstate', handleHistory);
     return () => window.removeEventListener('popstate', handleHistory);
   }, [animateScreenChange]);
+  useEffect(() => {
+    if (!playModeOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setPlayModeOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [playModeOpen]);
   useEffect(() => {
     if (screen === 'leaderboard') void loadLeaderboard();
   }, [screen, loadLeaderboard]);
@@ -1697,6 +1704,7 @@ export default function Home() {
           </b>
         </button>
       </header>
+      {playModeOpen && <div className="play-mode-backdrop" onMouseDown={() => setPlayModeOpen(false)}><section className="play-mode-modal" role="dialog" aria-modal="true" aria-labelledby="play-mode-title" onMouseDown={(event) => event.stopPropagation()}><button className="play-mode-close" onClick={() => setPlayModeOpen(false)} aria-label="Đóng">×</button><div className="play-mode-heading"><span>选择模式 · CHỌN CHẾ ĐỘ</span><h2 id="play-mode-title">Bạn muốn chơi theo cách nào?</h2><p>Mỗi hành trình đều giúp mở khóa Hán tự và phần thưởng tài khoản.</p></div><div className="play-mode-options"><button onClick={() => { setPlayModeOpen(false); navigate('songs'); }}><i>单</i><span><small>SOLO JOURNEY</small><b>Chơi đơn</b><p>Chọn bài học HSK và luyện tập theo nhịp của riêng bạn.</p><em>Vào Bài học →</em></span></button><button className="pvp-option" onClick={() => { setPlayModeOpen(false); openPvp(); }}><i>战</i><span><small>ONLINE ARENA</small><b>PvP Online</b><p>Ghép trận hoặc tạo phòng, thi đấu Rank cùng người chơi khác.</p><em>Vào Đấu trường →</em></span></button></div><footer><span>汉</span> Học một mình · Tiến bộ cùng nhau</footer></section></div>}
       {audioOpen && (
         <div
           className="audio-modal-backdrop"
@@ -1822,7 +1830,7 @@ export default function Home() {
                 qua giai điệu, pinyin và phản xạ thật tự nhiên.
               </p>
               <div className="actions">
-                <button onClick={() => navigate('songs')}>
+                <button onClick={() => setPlayModeOpen(true)}>
                   <Play /> Chơi ngay
                 </button>
                 <button onClick={() => navigate('dictionary')}>
