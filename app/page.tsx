@@ -33,7 +33,7 @@ import {
 import { defaultAudioTracks } from '@/lib/default-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
-import { firebaseAuth } from '@/lib/firebase';
+import { firebaseAuth, firebaseDb } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -41,6 +41,15 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
 
 type Screen =
   | 'home'
@@ -180,6 +189,7 @@ export default function Home() {
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
+  const cloudMatchSaved = useRef(false);
   const animateScreenChange = useCallback((change: () => void) => {
     const transitionDocument = document as Document & {
       startViewTransition?: (callback: () => void) => void;
@@ -326,6 +336,7 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setScoreStatus('idle');
+    cloudMatchSaved.current = false;
     navigate('game');
     playDefaultTrack();
   };
@@ -477,9 +488,65 @@ export default function Home() {
       setAuthUser({ id: firebaseUser.uid, name, email: firebaseUser.email || '' });
       setPlayerName(name);
       setPvpName(name);
+      const userRef = doc(firebaseDb, 'users', firebaseUser.uid);
+      void getDoc(userRef).then((snapshot) => {
+        const data = snapshot.data();
+        if (typeof data?.volume === 'number') setVolume(data.volume);
+        if (data?.preferredMode === 'audition' || data?.preferredMode === 'typing') {
+          setMode(data.preferredMode);
+        }
+      }).catch(() => undefined);
+      void setDoc(userRef, {
+        name,
+        email: firebaseUser.email || '',
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => undefined);
     });
     return unsubscribe;
   }, []);
+  useEffect(() => {
+    if (!authUser) return;
+    const timer = window.setTimeout(() => {
+      void setDoc(doc(firebaseDb, 'users', authUser.id), {
+        volume,
+        preferredMode: mode,
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => undefined);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [authUser?.id, volume, mode]);
+  useEffect(() => {
+    if (screen !== 'result' || !authUser || cloudMatchSaved.current) return;
+    cloudMatchSaved.current = true;
+    const match = {
+      score,
+      correct,
+      totalWords: vocab.length,
+      mode,
+      hskLevel: selected + 1,
+      dailyChallenge,
+      pvp: Boolean(pvpRoom),
+      roomCode: pvpRoom?.code ?? null,
+      createdAt: serverTimestamp(),
+    };
+    const userRef = doc(firebaseDb, 'users', authUser.id);
+    void addDoc(collection(userRef, 'matches'), match).catch(() => undefined);
+    void runTransaction(firebaseDb, async (transaction) => {
+      const snapshot = await transaction.get(userRef);
+      const current = snapshot.data() ?? {};
+      const bestScores = { ...(current.bestScores ?? {}) } as Record<string, number>;
+      const scoreKey = dailyChallenge ? `daily-${mode}` : `hsk${selected + 1}-${mode}`;
+      bestScores[scoreKey] = Math.max(Number(bestScores[scoreKey] ?? 0), score);
+      transaction.set(userRef, {
+        name: authUser.name,
+        email: authUser.email,
+        totalMatches: Number(current.totalMatches ?? 0) + 1,
+        totalCorrect: Number(current.totalCorrect ?? 0) + correct,
+        bestScores,
+        lastPlayedAt: serverTimestamp(),
+      }, { merge: true });
+    }).catch(() => undefined);
+  }, [screen, authUser?.id, score, correct, mode, selected, dailyChallenge, pvpRoom?.code, vocab.length]);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
     const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'auth'];
