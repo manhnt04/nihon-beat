@@ -332,30 +332,23 @@ export default async function handler(request: any, response: any) {
     const reels = [rollSlotSymbol(), rollSlotSymbol(), rollSlotSymbol()];
     const triple = reels.every((symbol) => symbol.id === reels[0].id);
     const rewards = { coins: 0, spins: 0, wood: 0, ink: 0, jade: 0, chests: 0, shields: 0, tickets: 0, fragments: 0, jackpots: 0 };
-    for (const symbol of reels) {
-      if (symbol.id === 'coin') rewards.coins += 6 + Math.floor(randomUnit() * 7);
-      else if (symbol.id === 'spin') rewards.spins += 1;
-      else if (symbol.id === 'wood') rewards.wood += 12;
-      else if (symbol.id === 'ink') rewards.ink += 7;
-      else if (symbol.id === 'jade') rewards.jade += 1;
-      else if (symbol.id === 'chest') rewards.chests += 1;
-      else if (symbol.id === 'shield') rewards.shields += 1;
-      else if (symbol.id === 'ticket') rewards.tickets += 1;
-      else if (symbol.id === 'rare') rewards.fragments += 1;
-      else if (symbol.id === 'jackpot') rewards.coins += 250;
+    const coinCount = reels.filter((symbol) => symbol.id === 'coin').length;
+    if (coinCount > 0) {
+      const smallCoinBag = 8 + Math.floor(randomUnit() * 5);
+      const coinBagMultiplier = [0, 1, 3, 4][coinCount];
+      rewards.coins = smallCoinBag * coinBagMultiplier;
     }
     if (triple) {
       const id = reels[0].id;
-      if (id === 'coin') rewards.coins += 80;
-      else if (id === 'spin') rewards.spins += 3;
-      else if (id === 'wood') rewards.wood += 80;
-      else if (id === 'ink') rewards.ink += 50;
-      else if (id === 'jade') rewards.jade += 6;
-      else if (id === 'chest') rewards.chests += 2;
-      else if (id === 'shield') rewards.shields += 2;
-      else if (id === 'ticket') rewards.tickets += 3;
-      else if (id === 'rare') rewards.fragments += 5;
-      else if (id === 'jackpot') { rewards.coins += 2_000; rewards.jade += 25; rewards.jackpots += 1; }
+      if (id === 'spin') rewards.spins = 36;
+      else if (id === 'wood') rewards.wood = 120;
+      else if (id === 'ink') rewards.ink = 80;
+      else if (id === 'jade') rewards.jade = 12;
+      else if (id === 'chest') rewards.chests = 3;
+      else if (id === 'shield') rewards.shields = 3;
+      else if (id === 'ticket') rewards.tickets = 4;
+      else if (id === 'rare') rewards.fragments = 6;
+      else if (id === 'jackpot') { rewards.coins = 2_500; rewards.jade = 25; rewards.jackpots = 1; }
     }
     progression.coins += rewards.coins;
     progression.spins.balance = Math.min(200, progression.spins.balance + rewards.spins);
