@@ -20,16 +20,21 @@ import {
   saveAudioFiles,
   type AudioTrack,
 } from '@/lib/audio-library';
+import {
+  hsk2Vocabulary,
+  type VocabularyEntry,
+} from '@/lib/hsk2-vocabulary';
 
 type Screen = 'home' | 'songs' | 'game' | 'result' | 'dictionary';
-const vocab = [
-  ['你好', 'nǐ hǎo', 'ni hao', 'xin chào'],
-  ['朋友', 'péng you', 'peng you', 'bạn bè'],
-  ['学校', 'xué xiào', 'xue xiao', 'trường học'],
-  ['音乐', 'yīn yuè', 'yin yue', 'âm nhạc'],
-  ['喜欢', 'xǐ huan', 'xi huan', 'yêu thích'],
-  ['早上好', 'zǎo shang hǎo', 'zao shang hao', 'chào buổi sáng'],
+const baseVocabulary: VocabularyEntry[] = [
+  ['你好', 'nǐ hǎo', 'ni hao', 'xin chào', 'HSK 1'],
+  ['朋友', 'péng you', 'peng you', 'bạn bè', 'HSK 1'],
+  ['学校', 'xué xiào', 'xue xiao', 'trường học', 'HSK 1'],
+  ['音乐', 'yīn yuè', 'yin yue', 'âm nhạc', 'HSK 1'],
+  ['喜欢', 'xǐ huan', 'xi huan', 'yêu thích', 'HSK 1'],
+  ['早上好', 'zǎo shang hǎo', 'zao shang hao', 'chào buổi sáng', 'HSK 1'],
 ];
+const allVocabulary = [...baseVocabulary, ...hsk2Vocabulary];
 const songs = [
   ['早安节拍', 'Morning Pulse', '128', 'HSK 1', 'Dễ', '#ff5f91'],
   ['星河漫游', 'Starlight Ride', '154', 'HSK 2', 'Vừa', '#7857ff'],
@@ -37,6 +42,13 @@ const songs = [
 ];
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
+const normalizeAnswer = (value: string) =>
+  value
+    .trim()
+    .toLocaleLowerCase('vi')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('home');
@@ -60,12 +72,21 @@ export default function Home() {
   const [typingFeedback, setTypingFeedback] = useState('NHẬP ĐÁP ÁN');
   const [typingLocked, setTypingLocked] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
+  const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [volume, setVolume] = useState(0.65);
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const typingInputRef = useRef<HTMLInputElement | null>(null);
+  const vocab = selected === 1 ? hsk2Vocabulary : baseVocabulary;
+  const filteredVocabulary = useMemo(() => {
+    const query = normalizeAnswer(dictionaryQuery);
+    if (!query) return allVocabulary;
+    return allVocabulary.filter((entry) =>
+      entry.some((value) => normalizeAnswer(value).includes(query)),
+    );
+  }, [dictionaryQuery]);
   const options = useMemo(() => {
     const column = round % 3 === 0 ? 2 : 3;
     return [
@@ -73,7 +94,7 @@ export default function Home() {
       vocab[(word + 2) % vocab.length][column],
       vocab[(word + 4) % vocab.length][column],
     ].sort(() => 0.5 - Math.random());
-  }, [word, round]);
+  }, [word, round, selected]);
   const makeRound = useCallback(() => {
     setWord((w) => (w + 1) % vocab.length);
     setRound((r) => r + 1);
@@ -87,7 +108,7 @@ export default function Home() {
         (_, i) => (round * 3 + i * 2) % 4,
       ),
     );
-  }, [round]);
+  }, [round, selected]);
   const start = () => {
     setScore(0);
     setCombo(0);
@@ -120,13 +141,6 @@ export default function Home() {
       setCurrentTrackName('Chưa tải nhạc');
     }
   };
-  const normalizeAnswer = (value: string) =>
-    value
-      .trim()
-      .toLocaleLowerCase('vi')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd');
   const nextTypingWord = useCallback(() => {
     setWord((w) => (w + 1) % vocab.length);
     setRound((r) => r + 1);
@@ -134,7 +148,7 @@ export default function Home() {
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
-  }, []);
+  }, [selected]);
   const submitTyping = (event: FormEvent) => {
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
@@ -171,7 +185,7 @@ export default function Home() {
         setTimeout(() => setPhase('sequence'), 450);
       }
     },
-    [phase, word, round],
+    [phase, word, round, selected],
   );
   const pressArrow = useCallback(
     (lane: number) => {
@@ -921,7 +935,7 @@ export default function Home() {
                 <strong>
                   {s[4]}
                   <small>
-                    {s[2]} BPM · {12 + i * 6} từ
+                    {s[2]} BPM · {i === 1 ? hsk2Vocabulary.length : 12 + i * 6} từ
                   </small>
                 </strong>
                 <button
@@ -942,18 +956,23 @@ export default function Home() {
           <div className="title">
             <span className="eyebrow">MY VOCABULARY</span>
             <h1>Từ điển của tôi</h1>
-            <p>Những từ bạn đã gặp trên hành trình âm nhạc.</p>
+            <p>{allVocabulary.length} từ HSK 1–2 đã sẵn sàng để luyện tập.</p>
+          </div>
+          <div className="dictionary-tools">
+            <input
+              value={dictionaryQuery}
+              onChange={(event) => setDictionaryQuery(event.target.value)}
+              placeholder="Tìm chữ Hán, pinyin hoặc nghĩa tiếng Việt…"
+              aria-label="Tìm từ vựng"
+            />
+            <span>{filteredVocabulary.length} từ</span>
           </div>
           <div className="words">
-            {vocab.map((w, i) => (
-              <article key={w[2]}>
+            {filteredVocabulary.map((w, i) => (
+              <article key={`${w[0]}-${w[2]}`}>
                 <div>
-                  <span className={`master m${i % 3}`}>
-                    {i % 3 === 0
-                      ? 'Đã thuộc'
-                      : i % 3 === 1
-                        ? 'Đang học'
-                        : 'Cần ôn'}
+                  <span className={`master ${w[4] === 'HSK 2' ? 'hsk2' : ''}`}>
+                    {w[4]}
                   </span>
                   <h2>{w[0]}</h2>
                   <p>
