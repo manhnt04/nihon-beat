@@ -1508,6 +1508,9 @@ export default function Home() {
   if (screen === 'castle') {
     const castle = progression?.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
+    const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
+    const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
+    const environmentNames = ['桃源春岛 · Đào Nguyên', '月莲水境 · Nguyệt Liên', '丹霞秋谷 · Đan Hà', '冰川天境 · Băng Thiên', '紫晶神域 · Tử Tinh'];
     const prosperity = castleLevel * 250 + (progression?.discoveries.length ?? 0) * 5 + (progression?.streak ?? 0) * 20;
     const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
     const buildings = [
@@ -1522,7 +1525,7 @@ export default function Home() {
         <section className="castle-panel">
           <div className="castle-hero">
             <div className="castle-copy"><span className="eyebrow">汉字城 · HÁN TỰ THÀNH</span><h1>{castleTitle}</h1><p>Học Hán tự, thu thập nguyên liệu và xây dựng thành trì của riêng bạn.</p><div className="castle-owner-card"><div className={`header-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0,1).toUpperCase() ?? '汉'}</div><span><small>{authUser?.name ?? 'Người chơi'}</small><b>繁荣度 {prosperity.toLocaleString('vi-VN')}</b></span></div><div className="castle-level"><b>Lv.{castleLevel}</b><span>Điểm phát triển thành</span></div></div>
-            <div className="castle-scene" aria-label={castleTitle}><img className="castle-map-base" src="/castle/map-empty.webp" alt="Bản đồ xây dựng Hán Tự Thành nhìn isometric"/><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城"/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁"/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁"/></div>
+            <div className={`castle-scene environment-stage-${environmentStage}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/><div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城"/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁"/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁"/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article></div>
