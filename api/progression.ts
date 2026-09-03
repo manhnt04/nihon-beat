@@ -31,6 +31,14 @@ type Progression = {
   lastGuardUseDate: string | null;
   discoveries: string[];
   jadeRelics: string[];
+  spins: {
+    balance: number;
+    recoveryUpdatedAt: number;
+    dailyDate: string;
+    offlineEarned: number;
+    pvpEarned: number;
+    dailyClaimed: boolean;
+  };
   castle: {
     wood: number;
     ink: number;
@@ -48,6 +56,8 @@ const castleBuildings = {
 
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
+const SPIN_RECOVERY_CAP = 24;
+const SPIN_RECOVERY_MS = 60 * 60 * 1000;
 const castleJadeBonusRate = (mainLevel: number) => mainCastleJadeBonusRates[Math.max(1, Math.min(10, mainLevel))] ?? 0;
 const applyCastleJadeBonus = (progression: Progression, baseJade: number) => {
   const rate = castleJadeBonusRate(Number(progression.castle.buildings.main ?? 1));
@@ -55,6 +65,55 @@ const applyCastleJadeBonus = (progression: Progression, baseJade: number) => {
   const bonus = Math.floor(accumulated + 1e-9);
   progression.castle.jadeBonusCarry = Number((accumulated - bonus).toFixed(4));
   return { bonus, rate };
+};
+
+const normalizeSpins = (progression: Progression, date: string) => {
+  const now = Date.now();
+  progression.spins = progression.spins ?? {
+    balance: 24, recoveryUpdatedAt: now, dailyDate: date,
+    offlineEarned: 0, pvpEarned: 0, dailyClaimed: false,
+  };
+  progression.spins.balance = Math.max(0, Math.floor(Number(progression.spins.balance ?? 0)));
+  progression.spins.recoveryUpdatedAt = Number(progression.spins.recoveryUpdatedAt ?? now);
+  if (progression.spins.dailyDate !== date) {
+    progression.spins.dailyDate = date;
+    progression.spins.offlineEarned = 0;
+    progression.spins.pvpEarned = 0;
+    progression.spins.dailyClaimed = false;
+    progression.spins.balance = Math.min(200, progression.spins.balance + 3);
+  }
+  if (progression.spins.balance < SPIN_RECOVERY_CAP) {
+    const recovered = Math.floor((now - progression.spins.recoveryUpdatedAt) / SPIN_RECOVERY_MS);
+    if (recovered > 0) {
+      progression.spins.balance = Math.min(SPIN_RECOVERY_CAP, progression.spins.balance + recovered);
+      progression.spins.recoveryUpdatedAt += recovered * SPIN_RECOVERY_MS;
+    }
+  } else {
+    progression.spins.recoveryUpdatedAt = now;
+  }
+};
+
+const spinRewards = [
+  { id: 'wood-small', label: 'Gỗ', icon: '🪵', weight: 28, min: 15, max: 30 },
+  { id: 'wood-medium', label: 'Gỗ lớn', icon: '🪵', weight: 15, min: 40, max: 70 },
+  { id: 'ink-small', label: 'Mực', icon: '🖌️', weight: 23, min: 8, max: 18 },
+  { id: 'ink-medium', label: 'Mực lớn', icon: '🖌️', weight: 12, min: 25, max: 45 },
+  { id: 'jade', label: 'Mảnh Ngọc', icon: '玉', weight: 8, min: 1, max: 3 },
+  { id: 'shield', label: 'Khiên Thành', icon: '🛡️', weight: 4, min: 1, max: 1 },
+  { id: 'siege-ticket', label: 'Vé Công Thành', icon: '🎟️', weight: 4, min: 1, max: 1 },
+  { id: 'resource-chest', label: 'Rương tài nguyên', icon: '🎁', weight: 3, min: 1, max: 1 },
+  { id: 'spin-refund', label: 'Hoàn lượt', icon: '🔄', weight: 2, min: 1, max: 3 },
+  { id: 'rare-fragment', label: 'Mảnh Thiên Mệnh', icon: '✨', weight: .75, min: 1, max: 1 },
+  { id: 'rare-cosmetic', label: 'Cosmetic hiếm', icon: '🌟', weight: .2, min: 1, max: 1 },
+  { id: 'jackpot', label: 'Thiên Mệnh Jackpot', icon: '🐉', weight: .05, min: 1, max: 1 },
+] as const;
+
+const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4_294_967_296;
+const rollSpinReward = () => {
+  let roll = randomUnit() * 100;
+  const reward = spinRewards.find((entry) => ((roll -= entry.weight) < 0)) ?? spinRewards[0];
+  const amount = reward.min + Math.floor(randomUnit() * (reward.max - reward.min + 1));
+  return { ...reward, amount, slot: spinRewards.indexOf(reward) };
 };
 
 const shopCatalog = {
@@ -122,6 +181,7 @@ const loadProgression = async (uid: string, name: string) => {
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
+    spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
     castle: { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
@@ -134,6 +194,7 @@ const loadProgression = async (uid: string, name: string) => {
   progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
+  normalizeSpins(progression, date);
   progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
@@ -256,6 +317,38 @@ export default async function handler(request: any, response: any) {
     });
   }
 
+  if (action === 'spin-wheel') {
+    normalizeSpins(progression, bangkokDate());
+    if (progression.spins.balance < 1) return response.status(409).json({ error: 'Bạn đã hết lượt quay.' });
+    const spinLockKey = `hanzibeat:spin-lock:${user.localId}`;
+    const spinLock = await redis.set(spinLockKey, '1', { nx: true, ex: 5 });
+    if (!spinLock) return response.status(429).json({ error: 'Vòng quay đang xử lý lượt trước.' });
+    progression.spins.balance -= 1;
+    const reward = rollSpinReward();
+    if (reward.id === 'wood-small' || reward.id === 'wood-medium') progression.castle.wood += reward.amount;
+    else if (reward.id === 'ink-small' || reward.id === 'ink-medium') progression.castle.ink += reward.amount;
+    else if (reward.id === 'jade') progression.jade += reward.amount;
+    else if (reward.id === 'shield') progression.inventory['castle-shield'] = Math.min(5, Number(progression.inventory['castle-shield'] ?? 0) + reward.amount);
+    else if (reward.id === 'siege-ticket') progression.inventory['siege-ticket'] = Math.min(20, Number(progression.inventory['siege-ticket'] ?? 0) + reward.amount);
+    else if (reward.id === 'resource-chest') {
+      progression.castle.wood += 80;
+      progression.castle.ink += 40;
+    } else if (reward.id === 'spin-refund') progression.spins.balance = Math.min(200, progression.spins.balance + reward.amount);
+    else if (reward.id === 'rare-fragment') progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + 1;
+    else if (reward.id === 'rare-cosmetic') {
+      const candidates = ['effect-jade', 'seal-scholar', 'frame-cinnabar'].filter((id) => !progression.ownedCosmetics.includes(id));
+      const cosmetic = candidates[Math.floor(randomUnit() * candidates.length)];
+      if (cosmetic) progression.ownedCosmetics.push(cosmetic);
+      else progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + 5;
+    } else if (reward.id === 'jackpot') {
+      progression.inventory['celestial-jackpot'] = Number(progression.inventory['celestial-jackpot'] ?? 0) + 1;
+      progression.jade += 25;
+    }
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    await redis.del(spinLockKey);
+    return response.status(200).json({ progression: publicProgression(progression), spinReward: reward });
+  }
+
   if (action === 'upgrade-castle') {
     const buildingId = String(request.body?.itemId ?? '') as keyof typeof castleBuildings;
     const building = castleBuildings[buildingId];
@@ -331,6 +424,16 @@ export default async function handler(request: any, response: any) {
       jadeEarned = Math.min(2, Math.max(0, 20 - daily.offlineJade));
       daily.offlineJade += jadeEarned;
     }
+    let spinEarned = 0;
+    if (session.kind === 'daily' && !progression.spins.dailyClaimed) {
+      spinEarned = 5 + (correct >= 15 ? 2 : 0) + (correct === 20 ? 1 : 0);
+      progression.spins.dailyClaimed = true;
+    } else if (session.kind === 'offline') {
+      const requestedSpins = 1 + (correct >= 15 ? 1 : 0) + (correct === 20 ? 1 : 0);
+      spinEarned = Math.min(requestedSpins, Math.max(0, 20 - progression.spins.offlineEarned));
+      progression.spins.offlineEarned += spinEarned;
+    }
+    progression.spins.balance = Math.min(200, progression.spins.balance + spinEarned);
     const bonusXp = Math.min(requestedBonusXp, Math.max(0, 150 - daily.matchXp));
     daily.matchXp += bonusXp;
     progression.xp += questionXp + bonusXp;
@@ -374,6 +477,7 @@ export default async function handler(request: any, response: any) {
         baseJade: jadeEarned,
         castleBonusJade: castleJadeBonus.bonus,
         castleBonusRate: castleJadeBonus.rate,
+        spins: spinEarned,
         wood: castleWood,
         ink: castleInk,
       },

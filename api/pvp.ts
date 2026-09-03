@@ -118,6 +118,14 @@ export default async function handler(request: any, response: any) {
             const castleBonus = Math.floor(accumulatedBonus + 1e-9);
             progression.castle = progression.castle ?? { wood: 0, ink: 0, buildings: { main: 1, library: 1, listening: 1 } };
             progression.castle.jadeBonusCarry = Number((accumulatedBonus - castleBonus).toFixed(4));
+            progression.spins = progression.spins ?? { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: bangkokDate(), offlineEarned: 0, pvpEarned: 0, dailyClaimed: false };
+            if (progression.spins.dailyDate !== bangkokDate()) {
+              progression.spins.dailyDate = bangkokDate(); progression.spins.offlineEarned = 0; progression.spins.pvpEarned = 0; progression.spins.dailyClaimed = false;
+            }
+            const isWinner = room.host.score === guest.score ? false : (uid === room.host.id ? room.host.score! > guest.score! : guest.score! > room.host.score!);
+            const spinEarned = Math.min(isWinner ? 2 : 1, Math.max(0, 10 - Number(progression.spins.pvpEarned ?? 0)));
+            progression.spins.pvpEarned = Number(progression.spins.pvpEarned ?? 0) + spinEarned;
+            progression.spins.balance = Math.min(200, Number(progression.spins.balance ?? 0) + spinEarned);
             progression.jade = Number(progression.jade ?? 0) + 3 + castleBonus; progression.xp = Number(progression.xp ?? 0) + 8; progression.level = levelFromXp(progression.xp);
             await redis.set(progressionKey, progression);
           }

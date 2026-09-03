@@ -1,6 +1,7 @@
 'use client';
 
 import './castle.css';
+import './spin.css';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
@@ -102,6 +103,7 @@ type Progression = {
   lastGuardUseDate: string | null;
   discoveries: string[];
   jadeRelics: string[];
+  spins: { balance: number; recoveryUpdatedAt: number; dailyDate: string; offlineEarned: number; pvpEarned: number; dailyClaimed: boolean };
   castle: {
     wood: number;
     ink: number;
@@ -221,6 +223,12 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 };
 
 type CastleBuildingKind = 'main' | 'library' | 'listening';
+type SpinReward = { id: string; label: string; icon: string; amount: number; slot: number };
+const spinWheelSlots = [
+  ['🪵', 'Gỗ'], ['🪵', 'Gỗ lớn'], ['🖌️', 'Mực'], ['🖌️', 'Mực lớn'],
+  ['玉', 'Ngọc'], ['🛡️', 'Khiên'], ['🎟️', 'Vé'], ['🎁', 'Rương'],
+  ['🔄', 'Spin'], ['✨', 'Mảnh hiếm'], ['🌟', 'Hiếm'], ['🐉', 'Jackpot'],
+] as const;
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
 const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
@@ -279,7 +287,7 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [authError, setAuthError] = useState('');
   const [progression, setProgression] = useState<Progression | null>(null);
-  const [lastReward, setLastReward] = useState<{ xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; wood?: number; ink?: number } | null>(null);
+  const [lastReward, setLastReward] = useState<{ xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; spins?: number; wood?: number; ink?: number } | null>(null);
   const [rewardActionStatus, setRewardActionStatus] = useState<'idle' | 'loading'>('idle');
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
@@ -287,6 +295,13 @@ export default function Home() {
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
   const [selectedCastleBuilding, setSelectedCastleBuilding] = useState<CastleBuildingKind | null>(null);
+  const [spinOpen, setSpinOpen] = useState(false);
+  const [spinReward, setSpinReward] = useState<SpinReward | null>(null);
+  const [spinRotation, setSpinRotation] = useState(0);
+  const [spinError, setSpinError] = useState('');
+  const [spinBusy, setSpinBusy] = useState(false);
+  const spinHoldRef = useRef(false);
+  const spinBusyRef = useRef(false);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
@@ -308,11 +323,58 @@ export default function Home() {
     window.history.pushState({ hanzibeatScreen: nextScreen }, '', screenPaths[nextScreen]);
     animateScreenChange(() => setScreen(nextScreen));
   }, [screen, animateScreenChange]);
+  async function spinOnce() {
+    const user = firebaseAuth.currentUser;
+    if (!user || spinBusyRef.current) return;
+    spinBusyRef.current = true;
+    setSpinBusy(true);
+    setSpinError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'spin-wheel' }),
+      });
+      const data = await response.json() as { progression?: Progression; spinReward?: SpinReward; error?: string };
+      if (!response.ok || !data.spinReward) throw new Error(data.error || 'Không thể quay Thiên Cơ Luân.');
+      if (data.progression) setProgression(data.progression);
+      setSpinReward(data.spinReward);
+      setSpinRotation((current) => current + 1440 + (360 - data.spinReward!.slot * 30));
+      await new Promise((resolve) => window.setTimeout(resolve, 1050));
+      if (spinHoldRef.current && (data.progression?.spins.balance ?? 0) > 0) {
+        spinBusyRef.current = false;
+        setSpinBusy(false);
+        window.setTimeout(() => void spinOnce(), 90);
+        return;
+      }
+    } catch (error) {
+      setSpinError(error instanceof Error ? error.message : 'Không thể quay Thiên Cơ Luân.');
+      spinHoldRef.current = false;
+    } finally {
+      spinBusyRef.current = false;
+      setSpinBusy(false);
+    }
+  }
+  const stopHoldingSpin = () => { spinHoldRef.current = false; };
   const historyControls = (
-    <div className="history-controls" aria-label="Điều hướng trang">
-      <button onClick={() => window.history.back()} aria-label="Quay lại trang trước" title="Trang trước"><ChevronLeft /></button>
-      <button onClick={() => window.history.forward()} aria-label="Đi tới trang sau" title="Trang sau"><ChevronRight /></button>
-    </div>
+    <>
+      <div className="history-controls" aria-label="Điều hướng trang">
+        <button onClick={() => window.history.back()} aria-label="Quay lại trang trước" title="Trang trước"><ChevronLeft /></button>
+        <button onClick={() => window.history.forward()} aria-label="Đi tới trang sau" title="Trang sau"><ChevronRight /></button>
+      </div>
+      <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
+      {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }}><section className="spin-modal" role="dialog" aria-modal="true" aria-label="Thiên Cơ Luân" onClick={(event) => event.stopPropagation()}>
+        <button className="spin-modal-close" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
+        <header><small>天机轮 · THIÊN CƠ LUÂN</small><h2>Vòng quay vận may</h2><p>Giữ nút để quay liên tục đến khi hết lượt.</p></header>
+        <div className="spin-balance"><img src="/items/celestial-wheel-icon.png" alt=""/><span><small>LƯỢT HIỆN CÓ</small><b>{progression?.spins.balance ?? 0} Spin</b></span><em>+1 mỗi giờ · kho hồi 24</em></div>
+        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map(([icon, label], index) => <span key={label} style={{ '--slot': index } as CSSProperties}><i>{icon}</i><small>{label}</small></span>)}<strong>运</strong></div></div>
+        <div className={`spin-result ${spinReward ? 'show' : ''}`}><span>{spinReward?.icon ?? '✦'}</span><div><small>{spinReward ? 'ĐÃ NHẬN' : 'PHẦN THƯỞNG'}</small><b>{spinReward ? `${spinReward.label} ×${spinReward.amount}` : 'Chạm để thử vận may'}</b></div></div>
+        {spinError && <p className="spin-error">{spinError}</p>}
+        <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''}`} disabled={!authUser || (progression?.spins.balance ?? 0) < 1} onPointerDown={() => { spinHoldRef.current = true; void spinOnce(); }} onPointerUp={stopHoldingSpin} onPointerCancel={stopHoldingSpin} onPointerLeave={stopHoldingSpin} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { spinHoldRef.current = true; void spinOnce(); } }} onKeyUp={stopHoldingSpin}>{spinBusy ? 'ĐANG QUAY…' : (progression?.spins.balance ?? 0) > 0 ? 'GIỮ ĐỂ QUAY' : 'ĐÃ HẾT LƯỢT'}<small>Thả nút để dừng sau lượt hiện tại</small></button>
+        <footer><span>78% Gỗ/Mực</span><span>Đồ hiếm 0,20%</span><span>Jackpot 0,05%</span></footer>
+      </section></div>}
+    </>
   );
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
@@ -770,7 +832,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'finish-match', sessionId, correct, score, encountered: vocab.map((entry) => entry[0]) }),
     })).then(async (response) => response.ok
-      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; wood: number; ink: number } }
+      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number; baseJade?: number; castleBonusJade?: number; castleBonusRate?: number; spins?: number; wood: number; ink: number } }
       : null)
       .then((data) => {
         if (data?.progression) setProgression(data.progression);
@@ -1421,6 +1483,7 @@ export default function Home() {
               {lastReward.jade > 0 && <b className="jade-reward"><img src="/items/jade-fragment.png" alt="" />+{lastReward.jade} 玉片</b>}
               {(lastReward.castleBonusRate ?? 0) > 0 && <small className="castle-reward-breakdown">Nhà Chính Lv.{progression?.castle.buildings.main ?? 1}: +{lastReward.castleBonusRate}%{(lastReward.castleBonusJade ?? 0) > 0 ? ` · +${lastReward.castleBonusJade} 玉片 trận này` : ' · đang tích lũy bonus'}</small>}
               <b className="castle-material-reward">+{lastReward.wood ?? 0} 木材 · +{lastReward.ink ?? 0} 墨</b>
+              {(lastReward.spins ?? 0) > 0 && <b className="spin-match-reward">+{lastReward.spins} Spin · 天机轮</b>}
             </div>
           )}
           {pvpRoom && (() => {
@@ -1615,6 +1678,10 @@ export default function Home() {
       { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
       { id: 'daily-chest', type: 'chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Mở để nhận 5–8 Mảnh Ngọc, 30 XP và cơ hội nhận cosmetic.' },
       { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/shop-streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
+      { id: 'castle-shield', type: 'collectible', name: 'Khiên Thành', hanzi: '城盾', image: '/items/shop-streak-guard.png', rarity: 'Thường', description: 'Bảo vệ Hán Tự Thành trong một lượt Công Thành. Tối đa 5.' },
+      { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/daily-seal.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
+      { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/celestial-wheel-icon.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
+      { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/celestial-wheel-icon.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
       ...shopItems.filter((item) => item.type !== 'consumable'),
     ] as const;
     const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
@@ -1633,6 +1700,7 @@ export default function Home() {
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
+              <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div><b>{totalItems} vật phẩm</b></div>
