@@ -413,15 +413,22 @@ export default function Home() {
     setLeaderboardMode(mode);
     navigate('leaderboard');
   };
-  const submitScore = async () => {
-    const cleanName = playerName.trim();
+  const submitScore = useCallback(async () => {
+    const cleanName = (authUser?.name || playerName).trim();
     if (cleanName.length < 2 || scoreStatus === 'saving' || scoreStatus === 'saved') return;
     setScoreStatus('saving');
     try {
       const response = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cleanName, level: selected, mode, score, correct }),
+        body: JSON.stringify({
+          name: cleanName,
+          playerId: authUser?.id,
+          level: selected,
+          mode,
+          score,
+          correct,
+        }),
       });
       if (!response.ok) throw new Error('Không lưu được điểm');
       localStorage.setItem('hanzibeat-player-name', cleanName);
@@ -429,7 +436,7 @@ export default function Home() {
     } catch {
       setScoreStatus('error');
     }
-  };
+  }, [authUser?.id, authUser?.name, playerName, scoreStatus, selected, mode, score, correct]);
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
     if (authStatus === 'loading') return;
@@ -547,6 +554,17 @@ export default function Home() {
       }, { merge: true });
     }).catch(() => undefined);
   }, [screen, authUser?.id, score, correct, mode, selected, dailyChallenge, pvpRoom?.code, vocab.length]);
+  useEffect(() => {
+    if (
+      screen === 'result' &&
+      authUser &&
+      !pvpRoom &&
+      !dailyChallenge &&
+      scoreStatus === 'idle'
+    ) {
+      void submitScore();
+    }
+  }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
     const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'auth'];
@@ -1240,7 +1258,7 @@ export default function Home() {
             className={screen === 'songs' ? 'on' : ''}
             onClick={() => navigate('songs')}
           >
-            Bài hát
+            Bài học
           </button>
           <button
             className={screen === 'dictionary' ? 'on' : ''}
@@ -1484,8 +1502,8 @@ export default function Home() {
         <section className="page">
           <div className="title">
             <span className="eyebrow">FREE PLAY</span>
-            <h1>Chọn giai điệu của bạn</h1>
-            <p>Mỗi bài hát là một chủ đề từ vựng mới.</p>
+            <h1>Chọn kho từ vựng</h1>
+            <p>Mỗi cấp HSK dùng trực tiếp từ vựng đang có trong từ điển.</p>
           </div>
           <div className="mode-picker">
             <button
@@ -1506,10 +1524,15 @@ export default function Home() {
             </button>
           </div>
           <div className="filters">
-            <button>Tất cả</button>
-            <button>HSK 1</button>
-            <button>HSK 2</button>
-            <button>HSK 3</button>
+            {songs.map((song, index) => (
+              <button
+                key={song[3]}
+                className={selected === index ? 'on' : ''}
+                onClick={() => setSelected(index)}
+              >
+                {song[3]} · {allVocabulary.filter((entry) => entry[4] === song[3]).length} từ
+              </button>
+            ))}
           </div>
           <div className="songs">
             {songs.map((s, i) => (
@@ -1530,7 +1553,7 @@ export default function Home() {
                 <strong>
                   {s[4]}
                   <small>
-                    {s[2]} BPM · {i === 1 ? hsk2Vocabulary.length : 12 + i * 6} từ
+                    {s[2]} BPM · {allVocabulary.filter((entry) => entry[4] === s[3]).length} từ
                   </small>
                 </strong>
                 <button

@@ -36,6 +36,7 @@ export default async function handler(request: any, response: any) {
 
   if (request.method === 'POST') {
     const name = String(request.body?.name ?? '').trim().slice(0, 20);
+    const playerId = String(request.body?.playerId ?? '').trim().slice(0, 128);
     const level = String(request.body?.level ?? '');
     const mode = String(request.body?.mode ?? '');
     const score = Math.floor(Number(request.body?.score));
@@ -64,13 +65,35 @@ export default async function handler(request: any, response: any) {
       return response.status(429).json({ error: 'Bạn gửi điểm quá nhanh.' });
     }
 
+    const safePlayerId = playerId.replace(/[^a-zA-Z0-9_-]/g, '');
     const member = JSON.stringify({
-      id: crypto.randomUUID(),
+      id: safePlayerId || crypto.randomUUID(),
       name: name.replace(/[<>]/g, ''),
       correct,
       createdAt: new Date().toISOString(),
     });
     const key = boardKey(level, mode);
+    if (safePlayerId) {
+      const existing = (await redis.zrange(key, 0, -1, {
+        withScores: true,
+      })) as Array<unknown>;
+      const previousMembers: unknown[] = [];
+      let previousBest = -1;
+      for (let index = 0; index < existing.length; index += 2) {
+        const item = existing[index];
+        try {
+          const player = typeof item === 'string' ? JSON.parse(item) : item;
+          if ((player as { id?: string })?.id === safePlayerId) {
+            previousMembers.push(item);
+            previousBest = Math.max(previousBest, Number(existing[index + 1]));
+          }
+        } catch {
+          // Ignore malformed legacy entries.
+        }
+      }
+      if (previousBest > score) return response.status(200).json({ ok: true, retainedBest: true });
+      if (previousMembers.length) await redis.zrem(key, ...previousMembers);
+    }
     await redis.zadd(key, { score, member });
     await redis.zremrangebyrank(key, 0, -101);
     return response.status(201).json({ ok: true });
