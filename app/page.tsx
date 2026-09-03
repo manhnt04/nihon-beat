@@ -7,6 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Folder,
+  FolderOpen,
   Music2,
   Play,
   Settings,
@@ -144,6 +146,7 @@ export default function Home() {
   const [typingLocked, setTypingLocked] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
   const [dictionaryQuery, setDictionaryQuery] = useState('');
+  const [selectedHskFolder, setSelectedHskFolder] = useState<number | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [scoreStatus, setScoreStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [leaderboardLevel, setLeaderboardLevel] = useState(0);
@@ -195,11 +198,14 @@ export default function Home() {
   const vocab = matchVocabulary;
   const filteredVocabulary = useMemo(() => {
     const query = normalizeAnswer(dictionaryQuery);
-    if (!query) return allVocabulary;
-    return allVocabulary.filter((entry) =>
+    const folderVocabulary = selectedHskFolder
+      ? allVocabulary.filter((entry) => entry[4] === `HSK ${selectedHskFolder}`)
+      : allVocabulary;
+    if (!query) return folderVocabulary;
+    return folderVocabulary.filter((entry) =>
       entry.some((value) => normalizeAnswer(value).includes(query)),
     );
-  }, [dictionaryQuery]);
+  }, [dictionaryQuery, selectedHskFolder]);
   const options = useMemo(() => {
     const column = round % 3 === 0 ? 2 : 3;
     return [
@@ -1410,8 +1416,33 @@ export default function Home() {
         <section className="page">
           <div className="title">
             <span className="eyebrow">MY VOCABULARY</span>
-            <h1>Từ điển của tôi</h1>
-            <p>{allVocabulary.length} từ HSK 1–2 đã sẵn sàng để luyện tập.</p>
+            <h1>{selectedHskFolder ? `Từ vựng HSK ${selectedHskFolder}` : 'Thư mục từ vựng'}</h1>
+            <p>{selectedHskFolder ? `${filteredVocabulary.length} từ trong thư mục HSK ${selectedHskFolder}.` : `${allVocabulary.length} từ được sắp xếp theo từng cấp độ HSK.`}</p>
+          </div>
+          {selectedHskFolder === null ? (
+            <div className="hsk-folders">
+              {Array.from({ length: 9 }, (_, index) => index + 1).map((level) => {
+                const count = allVocabulary.filter((entry) => entry[4] === `HSK ${level}`).length;
+                return (
+                  <button
+                    key={level}
+                    className={count === 0 ? 'empty' : ''}
+                    onClick={() => {
+                      setSelectedHskFolder(level);
+                      setDictionaryQuery('');
+                    }}
+                  >
+                    <Folder />
+                    <span><b>HSK {level}</b><small>{count > 0 ? `${count} từ vựng` : 'Chưa có dữ liệu'}</small></span>
+                    <ChevronRight />
+                  </button>
+                );
+              })}
+            </div>
+          ) : <>
+          <div className="dictionary-folder-bar">
+            <button onClick={() => { setSelectedHskFolder(null); setDictionaryQuery(''); }}><ChevronLeft /> Tất cả thư mục</button>
+            <span><FolderOpen /> HSK {selectedHskFolder}</span>
           </div>
           <div className="dictionary-tools">
             <input
@@ -1440,7 +1471,9 @@ export default function Home() {
                 </button>
               </article>
             ))}
+            {filteredVocabulary.length === 0 && <div className="empty-folder"><FolderOpen /><h2>Thư mục chưa có từ vựng</h2><p>Dữ liệu HSK {selectedHskFolder} sẽ xuất hiện tại đây khi được bổ sung.</p></div>}
           </div>
+          </>}
         </section>
       )}
     </main>
