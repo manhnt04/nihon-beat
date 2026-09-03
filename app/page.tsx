@@ -23,17 +23,17 @@ import {
 
 type Screen = 'home' | 'songs' | 'game' | 'result' | 'dictionary';
 const vocab = [
-  ['食べ物', 'たべもの', 'tabemono', 'đồ ăn'],
-  ['友達', 'ともだち', 'tomodachi', 'bạn bè'],
-  ['学校', 'がっこう', 'gakkou', 'trường học'],
-  ['音楽', 'おんがく', 'ongaku', 'âm nhạc'],
-  ['大好き', 'だいすき', 'daisuki', 'rất thích'],
-  ['おはよう', 'おはよう', 'ohayou', 'chào buổi sáng'],
+  ['你好', 'nǐ hǎo', 'ni hao', 'xin chào'],
+  ['朋友', 'péng you', 'peng you', 'bạn bè'],
+  ['学校', 'xué xiào', 'xue xiao', 'trường học'],
+  ['音乐', 'yīn yuè', 'yin yue', 'âm nhạc'],
+  ['喜欢', 'xǐ huan', 'xi huan', 'yêu thích'],
+  ['早上好', 'zǎo shang hǎo', 'zao shang hao', 'chào buổi sáng'],
 ];
 const songs = [
-  ['桜ステップ', 'Sakura Step', '128', 'N5', 'Easy', '#ff5f91'],
-  ['星空ドライブ', 'Hoshizora Drive', '154', 'N4', 'Normal', '#7857ff'],
-  ['東京ネオン', 'Tokyo Neon', '178', 'N3', 'Hard', '#19c6d3'],
+  ['早安节拍', 'Morning Pulse', '128', 'HSK 1', 'Dễ', '#ff5f91'],
+  ['星河漫游', 'Starlight Ride', '154', 'HSK 2', 'Vừa', '#7857ff'],
+  ['上海霓虹', 'Shanghai Neon', '178', 'HSK 3', 'Khó', '#19c6d3'],
 ];
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
@@ -292,7 +292,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     void refreshAudioTracks();
-    const savedVolume = Number(localStorage.getItem('nihon-beat-volume'));
+    const savedVolume = Number(localStorage.getItem('hanzi-beat-volume'));
     if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1)
       setVolume(savedVolume);
     return () => {
@@ -302,7 +302,7 @@ export default function Home() {
   }, [refreshAudioTracks]);
   useEffect(() => {
     if (audioPlayer.current) audioPlayer.current.volume = volume;
-    localStorage.setItem('nihon-beat-volume', String(volume));
+    localStorage.setItem('hanzi-beat-volume', String(volume));
   }, [volume]);
   useEffect(() => {
     if (screen !== 'game') audioPlayer.current?.pause();
@@ -346,7 +346,7 @@ export default function Home() {
         {
           name: 'start_rhythm_song',
           title: 'Bắt đầu bài hát',
-          description: 'Chọn và bắt đầu một bài hát trong Nihon Beat.',
+          description: 'Chọn và bắt đầu một bài hát trong Hanzi Beat.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -375,8 +375,12 @@ export default function Home() {
     }
     return () => controller.abort();
   }, []);
-  const speak = (text: string) =>
-    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  const speak = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN';
+    utterance.rate = 0.82;
+    speechSynthesis.speak(utterance);
+  };
 
   if (screen === 'game' && mode === 'typing')
     return (
@@ -400,9 +404,9 @@ export default function Home() {
           <i style={{ width: `${progress}%` }} />
         </div>
         <div className="typing-bg">
-          <span>あ</span>
-          <span>日</span>
-          <span>語</span>
+          <span>你</span>
+          <span>汉</span>
+          <span>语</span>
           <span>♪</span>
         </div>
         <section className="typing-stage">
@@ -412,7 +416,7 @@ export default function Home() {
           </div>
           <article className={`typing-card ${typingLocked ? 'locked' : ''}`}>
             <span className="typing-label">
-              {round % 2 === 0 ? 'NHẬP ROMAJI' : 'NHẬP NGHĨA TIẾNG VIỆT'}
+              {round % 2 === 0 ? 'NHẬP PINYIN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
             </span>
             <button className="pronounce" onClick={() => speak(vocab[word][1])}>
               <Volume2 /> Nghe phát âm
@@ -434,7 +438,7 @@ export default function Home() {
                 value={typingInput}
                 onChange={(event) => setTypingInput(event.target.value)}
                 placeholder={
-                  round % 2 === 0 ? 'Ví dụ: tabemono' : 'Ví dụ: đồ ăn'
+                  round % 2 === 0 ? 'Ví dụ: ni hao' : 'Ví dụ: xin chào'
                 }
                 disabled={typingLocked}
                 autoComplete="off"
@@ -512,7 +516,7 @@ export default function Home() {
           </div>
           <article className="quiz-card">
             <span>
-              {round % 3 === 0 ? 'DỊCH SANG ROMAJI' : 'DỊCH SANG TIẾNG VIỆT'}
+              {round % 3 === 0 ? 'CHỌN PINYIN' : 'DỊCH SANG TIẾNG VIỆT'}
             </span>
             <h1>{vocab[word][0]}</h1>
             <p>{vocab[word][1]}</p>
@@ -631,9 +635,9 @@ export default function Home() {
     <main className="app">
       <header>
         <button className="brand" onClick={() => setScreen('home')}>
-          <span>日</span>
+          <span>汉</span>
           <b>
-            Nihon Beat<small>Learn Japanese in rhythm</small>
+            Hanzi Beat<small>Learn Chinese in rhythm</small>
           </b>
         </button>
         <nav>
@@ -766,16 +770,16 @@ export default function Home() {
           <section className="hero">
             <div>
               <span className="eyebrow">
-                <Sparkles /> HỌC TIẾNG NHẬT QUA ÂM NHẬC
+                <Sparkles /> HỌC TIẾNG TRUNG QUA ÂM NHẠC
               </span>
               <h1>
-                Chạm đúng nhịp.
+                Bắt đúng nhịp.
                 <br />
-                <em>Nhớ đúng từ.</em>
+                <em>Nhớ trọn Hán tự.</em>
               </h1>
               <p>
-                Mỗi phím bấm là một từ vựng mới. Bắt đầu hành trình từ N5 đến N1
-                theo cách vui nhất.
+                Mỗi nhịp bấm là một chữ Hán mới. Chinh phục từ HSK 1 đến HSK 6
+                qua giai điệu, pinyin và phản xạ thật tự nhiên.
               </p>
               <div className="actions">
                 <button onClick={() => setScreen('songs')}>
@@ -795,17 +799,17 @@ export default function Home() {
             </div>
             <div className="mascot">
               <div className="head">◡ ‿ ◡</div>
-              <div className="body">日</div>
+              <div className="body">汉</div>
               <span>♪</span>
               <b>
-                Let’s go!<small>がんばって！</small>
+                加油！<small>Jiā yóu!</small>
               </b>
             </div>
           </section>
           <aside>
             <section className="daily">
               <span className="eyebrow">DAILY CHALLENGE</span>
-              <h3>Tokyo Morning</h3>
+              <h3>Beijing Morning</h3>
               <p>Hoàn thành trước 23:59</p>
               <button onClick={start}>
                 <Play />
@@ -826,15 +830,15 @@ export default function Home() {
           <section className="continue">
             <div>
               <span className="eyebrow">TIẾP TỤC HÀNH TRÌNH</span>
-              <h2>N5 · Chào hỏi & Hằng ngày</h2>
+              <h2>HSK 1 · Chào hỏi & Hằng ngày</h2>
             </div>
             <article>
               <div className="album">
-                桜<Music2 />
+                早<Music2 />
               </div>
               <div>
                 <h3>
-                  桜ステップ <small>Sakura Step</small>
+                  早安节拍 <small>Morning Pulse</small>
                 </h3>
                 <p>128 BPM · 12 từ vựng</p>
                 <i>
@@ -885,16 +889,16 @@ export default function Home() {
               className={mode === 'typing' ? 'active typing' : ''}
               onClick={() => setMode('typing')}
             >
-              <span>あ → A</span>
+              <span>汉 → pinyin</span>
               <b>Typing Battle</b>
               <small>Gõ đáp án thật nhanh để tạo chuỗi Perfect</small>
             </button>
           </div>
           <div className="filters">
             <button>Tất cả</button>
-            <button>N5</button>
-            <button>N4</button>
-            <button>N3</button>
+            <button>HSK 1</button>
+            <button>HSK 2</button>
+            <button>HSK 3</button>
           </div>
           <div className="songs">
             {songs.map((s, i) => (

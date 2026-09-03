@@ -14,17 +14,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Nihon Beat — Học tiếng Nhật theo nhịp',
-  description: 'Game nhịp điệu kết hợp học từ vựng tiếng Nhật từ N5 đến N1.',
+  title: 'Hanzi Beat — Học tiếng Trung theo nhịp',
+  description: 'Game nhịp điệu kết hợp học chữ Hán, pinyin và từ vựng tiếng Trung từ HSK 1 đến HSK 6.',
   openGraph: {
-    title: 'Nihon Beat',
-    description: 'Chạm đúng nhịp. Nhớ đúng từ.',
+    title: 'Hanzi Beat',
+    description: 'Bắt đúng nhịp. Nhớ trọn Hán tự.',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Nihon Beat',
-    description: 'Chạm đúng nhịp. Nhớ đúng từ.',
+    title: 'Hanzi Beat',
+    description: 'Bắt đúng nhịp. Nhớ trọn Hán tự.',
     images: ['/og.png'],
   },
 };
