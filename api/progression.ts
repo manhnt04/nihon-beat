@@ -22,6 +22,7 @@ type Progression = {
   xp: number;
   level: number;
   jade: number;
+  coins: number;
   streak: number;
   lastStampDate: string | null;
   stamps: number;
@@ -49,9 +50,9 @@ type Progression = {
 };
 
 const castleBuildings = {
-  main: { max: 10, baseWood: 80, baseInk: 25 },
-  library: { max: 10, baseWood: 55, baseInk: 40 },
-  listening: { max: 10, baseWood: 65, baseInk: 35 },
+  main: { max: 10, baseWood: 80, baseInk: 25, baseCoin: 300 },
+  library: { max: 10, baseWood: 55, baseInk: 40, baseCoin: 220 },
+  listening: { max: 10, baseWood: 65, baseInk: 35, baseCoin: 250 },
 } as const;
 
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
@@ -93,27 +94,23 @@ const normalizeSpins = (progression: Progression, date: string) => {
   }
 };
 
-const spinRewards = [
-  { id: 'wood-small', label: 'Gỗ', icon: '🪵', weight: 28, min: 15, max: 30 },
-  { id: 'wood-medium', label: 'Gỗ lớn', icon: '🪵', weight: 15, min: 40, max: 70 },
-  { id: 'ink-small', label: 'Mực', icon: '🖌️', weight: 23, min: 8, max: 18 },
-  { id: 'ink-medium', label: 'Mực lớn', icon: '🖌️', weight: 12, min: 25, max: 45 },
-  { id: 'jade', label: 'Mảnh Ngọc', icon: '玉', weight: 8, min: 1, max: 3 },
-  { id: 'shield', label: 'Khiên Thành', icon: '🛡️', weight: 4, min: 1, max: 1 },
-  { id: 'siege-ticket', label: 'Vé Công Thành', icon: '🎟️', weight: 4, min: 1, max: 1 },
-  { id: 'resource-chest', label: 'Rương tài nguyên', icon: '🎁', weight: 3, min: 1, max: 1 },
-  { id: 'spin-refund', label: 'Hoàn lượt', icon: '🔄', weight: 2, min: 1, max: 3 },
-  { id: 'rare-fragment', label: 'Mảnh Thiên Mệnh', icon: '✨', weight: .75, min: 1, max: 1 },
-  { id: 'rare-cosmetic', label: 'Cosmetic hiếm', icon: '🌟', weight: .2, min: 1, max: 1 },
-  { id: 'jackpot', label: 'Thiên Mệnh Jackpot', icon: '🐉', weight: .05, min: 1, max: 1 },
+const slotSymbols = [
+  { id: 'coin', label: 'Coin', weight: 38 },
+  { id: 'spin', label: 'Spin', weight: 30 },
+  { id: 'wood', label: 'Gỗ', weight: 10 },
+  { id: 'ink', label: 'Mực', weight: 8 },
+  { id: 'jade', label: 'Mảnh Ngọc', weight: 5 },
+  { id: 'chest', label: 'Rương', weight: 4 },
+  { id: 'shield', label: 'Khiên Thành', weight: 2 },
+  { id: 'ticket', label: 'Vé Công Thành', weight: 1.5 },
+  { id: 'rare', label: 'Mảnh Thiên Mệnh', weight: 1.4 },
+  { id: 'jackpot', label: 'Jackpot', weight: .1 },
 ] as const;
 
 const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4_294_967_296;
-const rollSpinReward = () => {
+const rollSlotSymbol = () => {
   let roll = randomUnit() * 100;
-  const reward = spinRewards.find((entry) => ((roll -= entry.weight) < 0)) ?? spinRewards[0];
-  const amount = reward.min + Math.floor(randomUnit() * (reward.max - reward.min + 1));
-  return { ...reward, amount, slot: spinRewards.indexOf(reward) };
+  return slotSymbols.find((entry) => ((roll -= entry.weight) < 0)) ?? slotSymbols[0];
 };
 
 const shopCatalog = {
@@ -177,7 +174,7 @@ const loadProgression = async (uid: string, name: string) => {
   const stored = await redis.get<Progression>(key);
   const date = bangkokDate();
   const progression: Progression = stored ?? {
-    uid, name, xp: 0, level: 1, jade: 0, streak: 0,
+    uid, name, xp: 0, level: 1, jade: 0, coins: 0, streak: 0,
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
@@ -186,6 +183,7 @@ const loadProgression = async (uid: string, name: string) => {
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
+  progression.coins = Math.max(0, Math.floor(Number(progression.coins ?? 0)));
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
@@ -236,8 +234,15 @@ export default async function handler(request: any, response: any) {
   if (normalizedEmail === 'manhnt@gmail.com' && !await redis.get(castleGrantKey)) {
     progression.castle.wood = Math.max(99_999, progression.castle.wood);
     progression.castle.ink = Math.max(99_999, progression.castle.ink);
+    progression.coins = Math.max(99_999, progression.coins);
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     await redis.set(castleGrantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
+  }
+  const coinGrantKey = `hanzibeat:special-grant:castle-coins-99999:${user.localId}`;
+  if (normalizedEmail === 'manhnt@gmail.com' && !await redis.get(coinGrantKey)) {
+    progression.coins = Math.max(99_999, progression.coins);
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    await redis.set(coinGrantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
   }
 
   if (request.method === 'GET') {
@@ -324,29 +329,47 @@ export default async function handler(request: any, response: any) {
     const spinLock = await redis.set(spinLockKey, '1', { nx: true, ex: 5 });
     if (!spinLock) return response.status(429).json({ error: 'Vòng quay đang xử lý lượt trước.' });
     progression.spins.balance -= 1;
-    const reward = rollSpinReward();
-    if (reward.id === 'wood-small' || reward.id === 'wood-medium') progression.castle.wood += reward.amount;
-    else if (reward.id === 'ink-small' || reward.id === 'ink-medium') progression.castle.ink += reward.amount;
-    else if (reward.id === 'jade') progression.jade += reward.amount;
-    else if (reward.id === 'shield') progression.inventory['castle-shield'] = Math.min(5, Number(progression.inventory['castle-shield'] ?? 0) + reward.amount);
-    else if (reward.id === 'siege-ticket') progression.inventory['siege-ticket'] = Math.min(20, Number(progression.inventory['siege-ticket'] ?? 0) + reward.amount);
-    else if (reward.id === 'resource-chest') {
-      progression.castle.wood += 80;
-      progression.castle.ink += 40;
-    } else if (reward.id === 'spin-refund') progression.spins.balance = Math.min(200, progression.spins.balance + reward.amount);
-    else if (reward.id === 'rare-fragment') progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + 1;
-    else if (reward.id === 'rare-cosmetic') {
-      const candidates = ['effect-jade', 'seal-scholar', 'frame-cinnabar'].filter((id) => !progression.ownedCosmetics.includes(id));
-      const cosmetic = candidates[Math.floor(randomUnit() * candidates.length)];
-      if (cosmetic) progression.ownedCosmetics.push(cosmetic);
-      else progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + 5;
-    } else if (reward.id === 'jackpot') {
-      progression.inventory['celestial-jackpot'] = Number(progression.inventory['celestial-jackpot'] ?? 0) + 1;
-      progression.jade += 25;
+    const reels = [rollSlotSymbol(), rollSlotSymbol(), rollSlotSymbol()];
+    const triple = reels.every((symbol) => symbol.id === reels[0].id);
+    const rewards = { coins: 0, spins: 0, wood: 0, ink: 0, jade: 0, chests: 0, shields: 0, tickets: 0, fragments: 0, jackpots: 0 };
+    for (const symbol of reels) {
+      if (symbol.id === 'coin') rewards.coins += 6 + Math.floor(randomUnit() * 7);
+      else if (symbol.id === 'spin') rewards.spins += 1;
+      else if (symbol.id === 'wood') rewards.wood += 12;
+      else if (symbol.id === 'ink') rewards.ink += 7;
+      else if (symbol.id === 'jade') rewards.jade += 1;
+      else if (symbol.id === 'chest') rewards.chests += 1;
+      else if (symbol.id === 'shield') rewards.shields += 1;
+      else if (symbol.id === 'ticket') rewards.tickets += 1;
+      else if (symbol.id === 'rare') rewards.fragments += 1;
+      else if (symbol.id === 'jackpot') rewards.coins += 250;
     }
+    if (triple) {
+      const id = reels[0].id;
+      if (id === 'coin') rewards.coins += 80;
+      else if (id === 'spin') rewards.spins += 3;
+      else if (id === 'wood') rewards.wood += 80;
+      else if (id === 'ink') rewards.ink += 50;
+      else if (id === 'jade') rewards.jade += 6;
+      else if (id === 'chest') rewards.chests += 2;
+      else if (id === 'shield') rewards.shields += 2;
+      else if (id === 'ticket') rewards.tickets += 3;
+      else if (id === 'rare') rewards.fragments += 5;
+      else if (id === 'jackpot') { rewards.coins += 2_000; rewards.jade += 25; rewards.jackpots += 1; }
+    }
+    progression.coins += rewards.coins;
+    progression.spins.balance = Math.min(200, progression.spins.balance + rewards.spins);
+    progression.castle.wood += rewards.wood;
+    progression.castle.ink += rewards.ink;
+    progression.jade += rewards.jade;
+    progression.inventory['daily-chest'] = Number(progression.inventory['daily-chest'] ?? 0) + rewards.chests;
+    progression.inventory['castle-shield'] = Math.min(5, Number(progression.inventory['castle-shield'] ?? 0) + rewards.shields);
+    progression.inventory['siege-ticket'] = Math.min(20, Number(progression.inventory['siege-ticket'] ?? 0) + rewards.tickets);
+    progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + rewards.fragments;
+    progression.inventory['celestial-jackpot'] = Number(progression.inventory['celestial-jackpot'] ?? 0) + rewards.jackpots;
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     await redis.del(spinLockKey);
-    return response.status(200).json({ progression: publicProgression(progression), spinReward: reward });
+    return response.status(200).json({ progression: publicProgression(progression), slotResult: { reels: reels.map((symbol) => symbol.id), rewards, triple } });
   }
 
   if (action === 'upgrade-castle') {
@@ -373,11 +396,13 @@ export default async function handler(request: any, response: any) {
     }
     const woodCost = building.baseWood * currentLevel;
     const inkCost = building.baseInk * currentLevel;
-    if (progression.castle.wood < woodCost || progression.castle.ink < inkCost) {
-      return response.status(409).json({ error: `Cần ${woodCost} Gỗ và ${inkCost} Mực để nâng cấp.` });
+    const coinCost = Math.round(building.baseCoin * currentLevel ** 1.7);
+    if (progression.castle.wood < woodCost || progression.castle.ink < inkCost || progression.coins < coinCost) {
+      return response.status(409).json({ error: `Cần ${coinCost} Coin, ${woodCost} Gỗ và ${inkCost} Mực để nâng cấp.` });
     }
     progression.castle.wood -= woodCost;
     progression.castle.ink -= inkCost;
+    progression.coins -= coinCost;
     progression.castle.buildings[buildingId] = currentLevel + 1;
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     return response.status(200).json({ progression: publicProgression(progression), upgraded: buildingId });

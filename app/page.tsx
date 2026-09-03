@@ -95,6 +95,7 @@ type Progression = {
   xp: number;
   level: number;
   jade: number;
+  coins: number;
   streak: number;
   stamps: number;
   inventory: Record<string, number>;
@@ -223,24 +224,24 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 };
 
 type CastleBuildingKind = 'main' | 'library' | 'listening';
-type SpinReward = { id: string; label: string; icon: string; amount: number; slot: number };
-const spinWheelSlots = [
-  { id: 'wood-small', label: 'Gỗ', image: '/items/spin-wood.png' },
-  { id: 'wood-medium', label: 'Gỗ lớn', image: '/items/spin-wood.png' },
-  { id: 'ink-small', label: 'Mực', image: '/items/spin-ink.png' },
-  { id: 'ink-medium', label: 'Mực lớn', image: '/items/spin-ink.png' },
+type SlotRewards = { coins: number; spins: number; wood: number; ink: number; jade: number; chests: number; shields: number; tickets: number; fragments: number; jackpots: number };
+type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean };
+const slotSymbols = [
+  { id: 'coin', label: 'Coin', image: '/items/coin.png' },
+  { id: 'spin', label: 'Spin', image: '/items/spin-refund.png' },
+  { id: 'wood', label: 'Gỗ', image: '/items/spin-wood.png' },
+  { id: 'ink', label: 'Mực', image: '/items/spin-ink.png' },
   { id: 'jade', label: 'Ngọc', image: '/items/jade-fragment.png' },
+  { id: 'chest', label: 'Rương', image: '/items/daily-chest.png' },
   { id: 'shield', label: 'Khiên', image: '/items/spin-castle-shield.png' },
-  { id: 'siege-ticket', label: 'Vé', image: '/items/spin-siege-ticket.png' },
-  { id: 'resource-chest', label: 'Rương', image: '/items/daily-chest.png' },
-  { id: 'spin-refund', label: 'Spin', image: '/items/spin-refund.png' },
-  { id: 'rare-fragment', label: 'Mảnh hiếm', image: '/items/spin-destiny-fragment.png' },
-  { id: 'rare-cosmetic', label: 'Hiếm', image: '/items/spin-rare-cosmetic.png' },
+  { id: 'ticket', label: 'Vé', image: '/items/spin-siege-ticket.png' },
+  { id: 'rare', label: 'Mảnh hiếm', image: '/items/spin-destiny-fragment.png' },
   { id: 'jackpot', label: 'Jackpot', image: '/items/spin-jackpot.png' },
 ] as const;
-const spinRewardImage = (rewardId?: string) => spinWheelSlots.find((slot) => slot.id === rewardId)?.image ?? '/items/celestial-wheel-icon.png';
+const slotStrip = Array.from({ length: 8 }, () => slotSymbols).flat();
 const mainCastleLevelRequirements = [0, 0, 5, 10, 15, 22, 30, 40, 52, 66, 82];
 const mainCastleJadeBonusRates = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10];
+const castleCoinCost = (baseCoin: number, level: number) => Math.round(baseCoin * level ** 1.7);
 const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
 const CastleMapBuilding = ({ kind, level, label, onSelect }: { kind: CastleBuildingKind; level: number; label: string; onSelect: (kind: CastleBuildingKind) => void }) => {
   const stage = castleVisualStage(level);
@@ -306,8 +307,9 @@ export default function Home() {
   const [codexQuery, setCodexQuery] = useState('');
   const [selectedCastleBuilding, setSelectedCastleBuilding] = useState<CastleBuildingKind | null>(null);
   const [spinOpen, setSpinOpen] = useState(false);
-  const [spinReward, setSpinReward] = useState<SpinReward | null>(null);
-  const [spinRotation, setSpinRotation] = useState(0);
+  const [slotResult, setSlotResult] = useState<SlotResult | null>(null);
+  const [reelOffsets, setReelOffsets] = useState([0, 0, 0]);
+  const [reelRun, setReelRun] = useState(0);
   const [spinError, setSpinError] = useState('');
   const [spinBusy, setSpinBusy] = useState(false);
   const spinHoldRef = useRef(false);
@@ -346,18 +348,23 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'spin-wheel' }),
       });
-      const data = await response.json() as { progression?: Progression; spinReward?: SpinReward; error?: string };
-      if (!response.ok || !data.spinReward) throw new Error(data.error || 'Không thể quay Thiên Cơ Luân.');
+      const data = await response.json() as { progression?: Progression; slotResult?: SlotResult; error?: string };
+      if (!response.ok || !data.slotResult) throw new Error(data.error || 'Không thể quay Thiên Cơ Luân.');
       if (data.progression) setProgression(data.progression);
-      setSpinReward(data.spinReward);
-      setSpinRotation((current) => {
-        const sliceAngle = 360 / spinWheelSlots.length;
-        const selectedCenterAngle = data.spinReward!.slot * sliceAngle + sliceAngle / 2;
-        const currentNormalized = ((current % 360) + 360) % 360;
-        const correction = (360 - selectedCenterAngle - currentNormalized + 360) % 360;
-        return current + 1440 + correction;
+      setSlotResult(null);
+      setReelOffsets([0, 0, 0]);
+      setReelRun((current) => current + 1);
+      const targetOffsets = data.slotResult.reels.map((symbolId) => {
+        const symbolIndex = Math.max(0, slotSymbols.findIndex((symbol) => symbol.id === symbolId));
+        const targetIndex = slotSymbols.length * 6 + symbolIndex;
+        return (targetIndex - 1) * 72;
       });
-      await new Promise((resolve) => window.setTimeout(resolve, 1050));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        setReelOffsets(targetOffsets);
+        resolve();
+      })));
+      await new Promise((resolve) => window.setTimeout(resolve, 2950));
+      setSlotResult(data.slotResult);
       if (spinHoldRef.current && (data.progression?.spins.balance ?? 0) > 0) {
         spinBusyRef.current = false;
         setSpinBusy(false);
@@ -382,21 +389,13 @@ export default function Home() {
       <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
       {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }}><section className="spin-modal" role="dialog" aria-modal="true" aria-label="Thiên Cơ Luân" onClick={(event) => event.stopPropagation()}>
         <button className="spin-modal-close" onClick={() => { stopHoldingSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
-        <header><small>天机轮 · THIÊN CƠ LUÂN</small><h2>Vòng quay vận may</h2><p>Giữ nút để quay liên tục đến khi hết lượt.</p></header>
+        <header><small>天机奖池 · THIÊN CƠ JACKPOT</small><h2>Jackpot Tam Trụ</h2><p>Ba cột dừng lần lượt · giữ nút để quay liên tục.</p></header>
         <div className="spin-balance"><img src="/items/celestial-wheel-icon.png" alt=""/><span><small>LƯỢT HIỆN CÓ</small><b>{progression?.spins.balance ?? 0} Spin</b></span><em>+1 mỗi giờ · kho hồi 24</em></div>
-        <div className="spin-wheel-stage"><div className="spin-pointer">▼</div><div className="spin-wheel" style={{ transform: `rotate(${spinRotation}deg)` }}>{spinWheelSlots.map((slot, index) => {
-          const sliceAngle = 360 / spinWheelSlots.length;
-          const centerAngle = index * sliceAngle + sliceAngle / 2;
-          const radians = (centerAngle - 90) * Math.PI / 180;
-          const placementRadius = 34;
-          const x = 50 + placementRadius * Math.cos(radians);
-          const y = 50 + placementRadius * Math.sin(radians);
-          return <span key={slot.id} style={{ '--item-x': `${x}%`, '--item-y': `${y}%`, '--item-angle': `${centerAngle}deg` } as CSSProperties}><img src={slot.image} alt=""/><small>{slot.label}</small></span>;
-        })}<strong>运</strong></div></div>
-        <div className={`spin-result ${spinReward ? 'show' : ''}`}><img src={spinRewardImage(spinReward?.id)} alt=""/><div><small>{spinReward ? 'ĐÃ NHẬN' : 'PHẦN THƯỞNG'}</small><b>{spinReward ? `${spinReward.label} ×${spinReward.amount}` : 'Chạm để thử vận may'}</b></div></div>
+        <div className={`jackpot-machine ${slotResult?.triple ? 'jackpot-win' : ''}`}><div className="jackpot-payline"/><div className="jackpot-reels">{[0,1,2].map((reelIndex) => <div className="jackpot-reel" key={`${reelRun}-${reelIndex}`}><div className="jackpot-strip" style={{ transform: `translateY(-${reelOffsets[reelIndex]}px)`, transition: `transform ${2.1 + reelIndex * .35}s cubic-bezier(.12,.78,.16,1)` }}>{slotStrip.map((symbol, symbolIndex) => <div className="jackpot-symbol" key={`${reelIndex}-${symbolIndex}`}><img src={symbol.image} alt={symbol.label}/><small>{symbol.label}</small></div>)}</div></div>)}</div><div className="jackpot-center-label">中奖线 · PAYLINE</div></div>
+        <div className={`slot-result ${slotResult ? 'show' : ''}`}><small>{slotResult?.triple ? '🎉 TAM TRỤ ĐỒNG NHẤT' : 'PHẦN THƯỞNG'}</small><div>{slotResult && Object.entries(slotResult.rewards).filter(([,amount]) => amount > 0).map(([kind,amount]) => { const rewardAssets: Record<string,string> = { coins:'/items/coin.png',spins:'/items/spin-refund.png',wood:'/items/spin-wood.png',ink:'/items/spin-ink.png',jade:'/items/jade-fragment.png',chests:'/items/daily-chest.png',shields:'/items/spin-castle-shield.png',tickets:'/items/spin-siege-ticket.png',fragments:'/items/spin-destiny-fragment.png',jackpots:'/items/spin-jackpot.png' }; return <span key={kind}><img src={rewardAssets[kind]} alt=""/><b>×{amount}</b></span>; })}</div>{!slotResult && <p>Coin và Spin xuất hiện thường xuyên trên payline.</p>}</div>
         {spinError && <p className="spin-error">{spinError}</p>}
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''}`} disabled={!authUser || (progression?.spins.balance ?? 0) < 1} onPointerDown={() => { spinHoldRef.current = true; void spinOnce(); }} onPointerUp={stopHoldingSpin} onPointerCancel={stopHoldingSpin} onPointerLeave={stopHoldingSpin} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { spinHoldRef.current = true; void spinOnce(); } }} onKeyUp={stopHoldingSpin}>{spinBusy ? 'ĐANG QUAY…' : (progression?.spins.balance ?? 0) > 0 ? 'GIỮ ĐỂ QUAY' : 'ĐÃ HẾT LƯỢT'}<small>Thả nút để dừng sau lượt hiện tại</small></button>
-        <footer><span>78% Gỗ/Mực</span><span>Đồ hiếm 0,20%</span><span>Jackpot 0,05%</span></footer>
+        <footer><span>Coin 38%</span><span>Spin 30%</span><span>Jackpot 0,10%</span></footer>
       </section></div>}
     </>
   );
@@ -1608,9 +1607,9 @@ export default function Home() {
     const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
     const mainBonusRate = mainCastleJadeBonusRates[castle.buildings.main] ?? 10;
     const buildings = [
-      { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', baseWood: 80, baseInk: 25 },
-      { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', baseWood: 55, baseInk: 40 },
-      { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', baseWood: 65, baseInk: 35 },
+      { id: 'main', icon: '🏯', hanzi: '主城', name: 'Chủ Thành', description: 'Trái tim của Hán Tự Thành.', baseWood: 80, baseInk: 25, baseCoin: 300 },
+      { id: 'library', icon: '📚', hanzi: '藏书阁', name: 'Tàng Thư Các', description: 'Lưu giữ hành trình từ vựng.', baseWood: 55, baseInk: 40, baseCoin: 220 },
+      { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', baseWood: 65, baseInk: 35, baseCoin: 250 },
     ] as const;
     const selectedBuilding = selectedCastleBuilding ? buildings.find((building) => building.id === selectedCastleBuilding) : null;
     return (
@@ -1623,10 +1622,10 @@ export default function Home() {
             <div className={`castle-scene environment-stage-${environmentStage}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/><div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
-            <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
+            <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và Jackpot</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-coin"><img src="/items/coin.png" alt="Coin"/><div><small>铜钱 · COIN XÂY DỰNG</small><b>{progression?.coins ?? 0}</b><p>Nhận chủ yếu từ Jackpot Tam Trụ</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
-            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${woodCost} 木 / ${inkCost} 墨`}</button></article>; })}</div>
+            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const coinCost = castleCoinCost(building.baseCoin, level); const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost && (progression?.coins ?? 0) >= coinCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${coinCost.toLocaleString('vi-VN')} Coin`}</button></article>; })}</div>
           </>}
         </section>
         {selectedBuilding && (() => {
@@ -1635,8 +1634,10 @@ export default function Home() {
           const assetStage = selectedBuilding.id === 'main' ? visualStage : 1;
           const woodCost = selectedBuilding.baseWood * level;
           const inkCost = selectedBuilding.baseInk * level;
+          const coinCost = castleCoinCost(selectedBuilding.baseCoin, level);
           const hasWood = castle.wood >= woodCost;
           const hasInk = castle.ink >= inkCost;
+          const hasCoin = (progression?.coins ?? 0) >= coinCost;
           const maxed = level >= 10;
           const isMain = selectedBuilding.id === 'main';
           const supportLevel = Math.min(castle.buildings.library, castle.buildings.listening);
@@ -1644,25 +1645,26 @@ export default function Home() {
           const requiredPlayerLevel = isMain ? mainCastleLevelRequirements[level + 1] ?? 100 : 0;
           const playerLevelReady = !isMain || (progression?.level ?? 1) >= requiredPlayerLevel;
           const mainCapReady = isMain || level < castle.buildings.main;
-          const canUpgrade = !maxed && hasWood && hasInk && supportReady && playerLevelReady && mainCapReady;
+          const canUpgrade = !maxed && hasWood && hasInk && hasCoin && supportReady && playerLevelReady && mainCapReady;
           const nextVisualLevel = visualStage < 5 ? visualStage * 2 + 1 : null;
           const currentBonus = mainCastleJadeBonusRates[level] ?? 10;
           const nextBonus = mainCastleJadeBonusRates[Math.min(10, level + 1)] ?? 10;
-          const completedConditions = [!maxed, hasWood, hasInk, supportReady, playerLevelReady, mainCapReady].filter(Boolean).length;
+          const completedConditions = [!maxed, hasWood, hasInk, hasCoin, supportReady, playerLevelReady, mainCapReady].filter(Boolean).length;
           return <div className="castle-upgrade-backdrop" onClick={() => setSelectedCastleBuilding(null)}><section className="castle-upgrade-modal" role="dialog" aria-modal="true" aria-label={`Nâng cấp ${selectedBuilding.name}`} onClick={(event) => event.stopPropagation()}>
             <button className="castle-upgrade-close" onClick={() => setSelectedCastleBuilding(null)} aria-label="Đóng">×</button>
             <header><span>Lv.{level}</span><div><small>{selectedBuilding.hanzi}</small><h2>{selectedBuilding.name}</h2></div></header>
             <div className="castle-upgrade-preview"><img src={`/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`} alt={selectedBuilding.name}/><span>HÌNH THÁI {visualStage}/5</span></div>
             <div className="castle-upgrade-effect"><b>Hiệu quả nâng cấp</b>{isMain ? <><p className="castle-bonus-change"><span>玉片 sau trận</span><strong>+{currentBonus}% → +{nextBonus}%</strong></p><small>Bonus áp dụng cho Offline, Daily và PvP; tối đa 10%. Phần lẻ được tích lũy cho trận sau.</small></> : <><p>+250 繁荣度 · Mở đường nâng cấp Nhà Chính.</p>{nextVisualLevel && <small>Hình thái mới mở khi công trình đạt Lv.{nextVisualLevel}.</small>}</>}</div>
-            <div className="castle-upgrade-requirements"><b>Điều kiện · {completedConditions}/6</b>
+            <div className="castle-upgrade-requirements"><b>Điều kiện · {completedConditions}/7</b>
               <p className={!maxed ? 'ready' : 'missing'}><span>🏯 Cấp công trình</span><strong>{level}/10 {!maxed ? '✓' : 'MAX'}</strong></p>
               {isMain && <p className={supportReady ? 'ready' : 'missing'}><span>🏘 Công trình phụ cùng Lv.{level}</span><strong>Lv.{supportLevel}/{level} {supportReady ? '✓' : '!'}</strong></p>}
               {isMain && <p className={playerLevelReady ? 'ready' : 'missing'}><span>👤 Cấp tài khoản</span><strong>Lv.{progression?.level ?? 1}/{requiredPlayerLevel} {playerLevelReady ? '✓' : '!'}</strong></p>}
               {!isMain && <p className={mainCapReady ? 'ready' : 'missing'}><span>🏯 Giới hạn từ Nhà Chính</span><strong>Lv.{castle.buildings.main} {mainCapReady ? '✓' : '!'}</strong></p>}
+              <p className={hasCoin ? 'ready' : 'missing'}><span>🪙 Coin xây dựng</span><strong>{(progression?.coins ?? 0).toLocaleString('vi-VN')}/{coinCost.toLocaleString('vi-VN')} {hasCoin ? '✓' : '!'}</strong></p>
               <p className={hasWood ? 'ready' : 'missing'}><span>🪵 木材 · Gỗ</span><strong>{castle.wood.toLocaleString('vi-VN')}/{woodCost.toLocaleString('vi-VN')} {hasWood ? '✓' : '!'}</strong></p>
               <p className={hasInk ? 'ready' : 'missing'}><span>🖌 墨 · Mực</span><strong>{castle.ink.toLocaleString('vi-VN')}/{inkCost.toLocaleString('vi-VN')} {hasInk ? '✓' : '!'}</strong></p>
             </div>
-            <div className="castle-condition-progress"><i><em style={{ width: `${completedConditions / 6 * 100}%` }} /></i><span>{completedConditions}/6 hoàn tất</span></div>
+            <div className="castle-condition-progress"><i><em style={{ width: `${completedConditions / 7 * 100}%` }} /></i><span>{completedConditions}/7 hoàn tất</span></div>
             {rewardActionError && <p className="castle-upgrade-error">{rewardActionError}</p>}
             <button className="castle-upgrade-submit" disabled={rewardActionStatus === 'loading' || !canUpgrade} onClick={() => runProgressionAction('upgrade-castle', selectedBuilding.id)}>{rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ điều kiện'}</button>
             <footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer>
@@ -1723,6 +1725,7 @@ export default function Home() {
           {!authUser ? <div className="inventory-login"><Package /><h2>Kho đồ cần tài khoản</h2><p>Đăng nhập để đồng bộ Mảnh Ngọc và vật phẩm trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
+              <article className="coin-wallet"><img src="/items/coin.png" alt="Coin"/><span><small>XÂY DỰNG</small><b>{progression?.coins ?? 0} Coin</b><p>Dùng nâng cấp Hán Tự Thành</p></span></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
               <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>

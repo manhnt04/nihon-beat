@@ -122,4 +122,7 @@
 .castle-resources > .castle-economy { grid-column: 1 / -1; border-color: #bda04e; background: linear-gradient(110deg, #fff9e8, #f1e2b7); }
 .castle-resources > .castle-economy > span { background: #176b5b; }
 .castle-resources > .castle-economy b { color: #176b5b; }
+.castle-resources > .castle-coin { border-color: #d1a94c; background:linear-gradient(110deg,#fff9e8,#f4dda5) }
+.castle-resources > .castle-coin > img { flex:0 0 62px;width:62px;height:62px;object-fit:contain;filter:drop-shadow(0 5px 5px #6c3d1c44) }
+.castle-resources > .castle-coin b { color:#a66c16 }
 .castle-reward-breakdown { display: block; margin-top: 5px; color: #2a806b; font-size: 9px; font-weight: 800; }
