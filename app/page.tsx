@@ -75,8 +75,9 @@ type LeaderboardEntry = {
   correct: number;
   createdAt: string;
 };
-type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
-type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
+type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null; submittedAt?: number | null; mmr?: number; rank?: string };
+type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null; startedAt?: number | null; completedAt?: number | null; integrity?: { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean } | null; rankChanges?: Record<string, number> | null };
+type PvpRank = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
 type Progression = {
   xp: number;
   level: number;
@@ -239,6 +240,7 @@ export default function Home() {
   const [pvpWaiting, setPvpWaiting] = useState(false);
   const [pvpError, setPvpError] = useState('');
   const [pvpGameMode, setPvpGameMode] = useState<'audition' | 'typing'>('audition');
+  const [pvpRank, setPvpRank] = useState<PvpRank | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -258,6 +260,7 @@ export default function Home() {
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
+  const pvpHistorySaved = useRef(false);
   const cloudMatchSaved = useRef(false);
   const rewardSessionId = useRef('');
   const animateScreenChange = useCallback((change: () => void) => {
@@ -466,12 +469,17 @@ export default function Home() {
     if (pvpStarted.current) return;
     pvpStarted.current = true;
     pvpScoreSent.current = false;
+    pvpHistorySaved.current = false;
     setPvpRoom(room);
     setMode(room.mode ?? 'typing');
     const sharedWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, WORDS_PER_MATCH);
     start(1, sharedWords);
   }, []);
   const pvpAction = async (action: 'match' | 'create' | 'join') => {
+    if (!firebaseAuth.currentUser) {
+      setPvpError('Hãy đăng nhập để tham gia PvP Rank.');
+      return;
+    }
     const name = (pvpName || playerName).trim();
     if (name.length < 2) {
       setPvpError('Hãy nhập tên có ít nhất 2 ký tự.');
@@ -480,16 +488,18 @@ export default function Home() {
     setPvpError('');
     setPvpWaiting(true);
     try {
+      const token = await firebaseAuth.currentUser.getIdToken();
       const response = await fetch('/api/pvp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action, playerId: ensurePvpPlayer(), name, code: pvpCode, mode: pvpGameMode }),
       });
-      const data = (await response.json()) as { room?: PvpRoom | null; error?: string };
+      const data = (await response.json()) as { room?: PvpRoom | null; profile?: PvpRank; error?: string };
       if (!response.ok) throw new Error(data.error || 'Không thể kết nối PvP.');
       localStorage.setItem('hanzibeat-player-name', name);
       setPlayerName(name);
       setPvpRoom(data.room ?? null);
+      if (data.profile) setPvpRank(data.profile);
       if (data.room?.status === 'playing') beginPvpGame(data.room);
     } catch (error) {
       setPvpWaiting(false);
@@ -761,12 +771,18 @@ export default function Home() {
     if (screen === 'leaderboard') void loadLeaderboard();
   }, [screen, loadLeaderboard]);
   useEffect(() => {
+    if (screen !== 'pvp' || !firebaseAuth.currentUser) return;
+    void firebaseAuth.currentUser.getIdToken().then((token) => fetch('/api/pvp', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'profile' }) }))
+      .then((response) => response.ok ? response.json() as Promise<{ profile?: PvpRank }> : null)
+      .then((data) => data?.profile && setPvpRank(data.profile)).catch(() => undefined);
+  }, [screen, authUser?.id]);
+  useEffect(() => {
     if (screen !== 'pvp' || (!pvpWaiting && !pvpRoom)) return;
     const timer = window.setInterval(async () => {
       try {
         const query = pvpRoom?.code
           ? `code=${pvpRoom.code}`
-          : `playerId=${ensurePvpPlayer()}`;
+          : `playerId=${authUser?.id ?? ''}`;
         const response = await fetch(`/api/pvp?${query}`, { cache: 'no-store' });
         const data = (await response.json()) as { room?: PvpRoom | null };
         if (data.room) {
@@ -776,15 +792,14 @@ export default function Home() {
       } catch { /* retry on next poll */ }
     }, 1200);
     return () => window.clearInterval(timer);
-  }, [screen, pvpWaiting, pvpRoom?.code, beginPvpGame]);
+  }, [screen, pvpWaiting, pvpRoom?.code, beginPvpGame, authUser?.id]);
   useEffect(() => {
     if (screen !== 'result' || !pvpRoom || pvpScoreSent.current) return;
     pvpScoreSent.current = true;
-    void fetch('/api/pvp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'score', playerId: ensurePvpPlayer(), code: pvpRoom.code, score, correct }),
-    }).then((response) => response.json() as Promise<{ room?: PvpRoom }>).then((data) => data.room && setPvpRoom(data.room));
+    void firebaseAuth.currentUser?.getIdToken().then((token) => fetch('/api/pvp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'score', code: pvpRoom.code, score, correct }),
+    })).then((response) => response?.json() as Promise<{ room?: PvpRoom; profile?: PvpRank; error?: string }>).then((data) => { if (data?.room) setPvpRoom(data.room); if (data?.profile) setPvpRank(data.profile); if (data?.error) setPvpError(data.error); });
   }, [screen, pvpRoom?.code, score, correct]);
   useEffect(() => {
     if (screen !== 'result' || !pvpRoom || pvpRoom.status === 'finished') return;
@@ -795,6 +810,25 @@ export default function Home() {
     }, 1500);
     return () => window.clearInterval(timer);
   }, [screen, pvpRoom?.code, pvpRoom?.status]);
+  useEffect(() => {
+    if (screen !== 'result' || !authUser || pvpRoom?.status !== 'finished' || pvpHistorySaved.current) return;
+    const self = pvpRoom.host.id === authUser.id ? pvpRoom.host : pvpRoom.guest;
+    const opponent = pvpRoom.host.id === authUser.id ? pvpRoom.guest : pvpRoom.host;
+    if (!self || !opponent) return;
+    pvpHistorySaved.current = true;
+    void firebaseAuth.currentUser?.getIdToken().then((token) => fetch('/api/progression', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }))
+      .then((response) => response?.ok ? response.json() as Promise<{ progression?: Progression }> : null)
+      .then((data) => data?.progression && setProgression(data.progression)).catch(() => undefined);
+    const outcome = self.score === opponent.score ? 'draw' : Number(self.score) > Number(opponent.score) ? 'win' : 'loss';
+    void addDoc(collection(doc(firebaseDb, 'users', authUser.id), 'pvpMatches'), {
+      roomCode: pvpRoom.code, season: pvpRank?.season ?? null, mode: pvpRoom.mode,
+      opponentId: opponent.id, opponentName: opponent.name, score: self.score, opponentScore: opponent.score,
+      correct: self.correct, opponentCorrect: opponent.correct, outcome,
+      mmrChange: pvpRoom.rankChanges?.[authUser.id] ?? 0, integrity: pvpRoom.integrity ?? null,
+      startedAt: pvpRoom.startedAt ? new Date(pvpRoom.startedAt) : null,
+      completedAt: serverTimestamp(),
+    }).catch(() => { pvpHistorySaved.current = false; });
+  }, [screen, authUser?.id, pvpRoom?.status, pvpRoom?.code, pvpRank?.season]);
   const nextTypingWord = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
@@ -1331,11 +1365,12 @@ export default function Home() {
             </div>
           )}
           {pvpRoom && (() => {
-            const me = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.host : pvpRoom.guest;
-            const rival = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.guest : pvpRoom.host;
+            const me = pvpRoom.host.id === authUser?.id ? pvpRoom.host : pvpRoom.guest;
+            const rival = pvpRoom.host.id === authUser?.id ? pvpRoom.guest : pvpRoom.host;
             const finished = pvpRoom.status === 'finished' && me?.score !== null && rival?.score !== null;
             const outcome = finished ? (me!.score! > rival!.score! ? 'CHIẾN THẮNG!' : me!.score! < rival!.score! ? 'THUA CUỘC' : 'HÒA!') : 'Đang chờ đối thủ hoàn thành...';
-            return <div className="pvp-result"><span>PVP · PHÒNG {pvpRoom.code}</span><h2>{outcome}</h2><div><b>{me?.name}<small>{me?.score?.toLocaleString() ?? score.toLocaleString()}</small></b><i>VS</i><b>{rival?.name ?? 'Đối thủ'}<small>{rival?.score?.toLocaleString() ?? 'Đang chơi'}</small></b></div></div>;
+            const delta = pvpRoom.rankChanges?.[authUser?.id ?? ''] ?? 0;
+            return <div className="pvp-result"><span>PVP RANK · PHÒNG {pvpRoom.code}</span><h2>{outcome}</h2><div><b>{me?.name}<small>{me?.score?.toLocaleString() ?? score.toLocaleString()}</small></b><i>VS</i><b>{rival?.name ?? 'Đối thủ'}<small>{rival?.score?.toLocaleString() ?? 'Đang chơi'}</small></b></div>{finished && <div className={`rank-verdict ${pvpRoom.integrity?.valid ? 'valid' : 'invalid'}`}><b>{pvpRoom.integrity?.rankedEligible ? `${delta >= 0 ? '+' : ''}${delta} MMR` : 'Không tính Rank'}</b><span>{pvpRoom.integrity?.rewardEligible ? '+3 玉片 · +8 XP' : pvpRoom.integrity?.reason ?? 'Đã đạt giới hạn thưởng cùng đối thủ'}</span></div>}</div>;
           })()}
           {!pvpRoom && <div className="score-submit">
             <input
@@ -1538,8 +1573,9 @@ export default function Home() {
         </header>
         <section className="pvp-panel">
           <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng chế độ, cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
-          {!pvpRoom && !pvpWaiting ? <>
-            <label className="pvp-name">Tên người chơi<input value={pvpName} maxLength={20} onChange={(event) => setPvpName(event.target.value)} placeholder="Nhập tên của bạn" /></label>
+          {authUser && pvpRank && <div className="pvp-rank-card"><div><span>赛季 {pvpRank.season}</span><h2>{pvpRank.rank}</h2><small>PvP Rank theo mùa</small></div><strong>{pvpRank.mmr}<small>MMR</small></strong><ul><li><b>{pvpRank.wins}</b>Thắng</li><li><b>{pvpRank.losses}</b>Thua</li><li><b>{pvpRank.draws}</b>Hòa</li></ul></div>}
+          {!authUser ? <div className="pvp-login-required"><Trophy /><h2>Đăng nhập để đấu Rank</h2><p>Rank, lịch sử và kiểm tra công bằng được gắn với tài khoản Firebase.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : !pvpRoom && !pvpWaiting ? <>
+            <label className="pvp-name">Tên thi đấu<input value={authUser.name} disabled /></label>
             <div className="pvp-mode-picker">
               <button className={pvpGameMode === 'audition' ? 'on' : ''} onClick={() => setPvpGameMode('audition')}><b>Rhythm Quiz</b><small>Chọn nghĩa tiếng Việt hoặc chữ Hán</small></button>
               <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><b>Typing Battle</b><small>Gõ nghĩa tiếng Việt hoặc chữ Hán</small></button>

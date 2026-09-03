@@ -253,12 +253,9 @@ export default async function handler(request: any, response: any) {
       }
       daily.dailyCompleted = true;
     } else if (session.kind === 'pvp') {
-      requestedBonusXp = daily.rewardedPvpMatches < 10 ? 8 : 0;
+      requestedBonusXp = 0;
       daily.pvpMatches += 1;
-      if (daily.rewardedPvpMatches < 10) {
-        jadeEarned = 3;
-        daily.rewardedPvpMatches += 1;
-      }
+      jadeEarned = 0;
     } else {
       daily.offlineMatches += 1;
       jadeEarned = Math.min(2, Math.max(0, 20 - daily.offlineJade));
