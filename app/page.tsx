@@ -33,7 +33,8 @@ type Screen =
   | 'game'
   | 'result'
   | 'dictionary'
-  | 'leaderboard';
+  | 'leaderboard'
+  | 'pvp';
 type LeaderboardEntry = {
   id: string;
   name: string;
@@ -41,6 +42,8 @@ type LeaderboardEntry = {
   correct: number;
   createdAt: string;
 };
+type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
+type PvpRoom = { code: string; seed: number; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
 const baseVocabulary: VocabularyEntry[] = [
   ['你好', 'nǐ hǎo', 'ni hao', 'xin chào', 'HSK 1'],
   ['朋友', 'péng you', 'peng you', 'bạn bè', 'HSK 1'],
@@ -51,10 +54,20 @@ const baseVocabulary: VocabularyEntry[] = [
 ];
 const allVocabulary = [...baseVocabulary, ...hsk2Vocabulary];
 const WORDS_PER_MATCH = 20;
-const shuffleVocabulary = (entries: VocabularyEntry[]) => {
+const shuffleVocabulary = (entries: VocabularyEntry[], seed?: number) => {
   const shuffled = [...entries];
+  let state = seed ?? 0;
+  const random = seed === undefined
+    ? Math.random
+    : () => {
+        state += 0x6d2b79f5;
+        let value = state;
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+      };
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const randomIndex = Math.floor(random() * (index + 1));
     [shuffled[index], shuffled[randomIndex]] = [
       shuffled[randomIndex],
       shuffled[index],
@@ -135,6 +148,14 @@ export default function Home() {
   const [leaderboardMode, setLeaderboardMode] = useState<'audition' | 'typing'>('audition');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [pvpName, setPvpName] = useState('');
+  const [pvpCode, setPvpCode] = useState('');
+  const [pvpRoom, setPvpRoom] = useState<PvpRoom | null>(null);
+  const [pvpWaiting, setPvpWaiting] = useState(false);
+  const [pvpError, setPvpError] = useState('');
+  const pvpPlayerId = useRef('');
+  const pvpStarted = useRef(false);
+  const pvpScoreSent = useRef(false);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
     () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
@@ -221,12 +242,13 @@ export default function Home() {
       player.pause();
     }
   };
-  const start = (songIndex = selected) => {
+  const start = (songIndex = selected, forcedVocabulary?: VocabularyEntry[]) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
     const requestedPool = nextSong === 1 ? hsk2Vocabulary : baseVocabulary;
     const pool =
       requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
-    const nextVocabulary = shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
+    const nextVocabulary = forcedVocabulary ?? shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
+    if (!forcedVocabulary) setPvpRoom(null);
     setSelected(nextSong);
     setMatchVocabulary(nextVocabulary);
     setScore(0);
@@ -248,6 +270,47 @@ export default function Home() {
     setScreen('game');
     playDefaultTrack();
   };
+  const ensurePvpPlayer = () => {
+    if (!pvpPlayerId.current) {
+      pvpPlayerId.current = localStorage.getItem('hanzibeat-pvp-id') || crypto.randomUUID();
+      localStorage.setItem('hanzibeat-pvp-id', pvpPlayerId.current);
+    }
+    return pvpPlayerId.current;
+  };
+  const beginPvpGame = useCallback((room: PvpRoom) => {
+    if (pvpStarted.current) return;
+    pvpStarted.current = true;
+    pvpScoreSent.current = false;
+    setPvpRoom(room);
+    setMode('typing');
+    const sharedWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, WORDS_PER_MATCH);
+    start(1, sharedWords);
+  }, []);
+  const pvpAction = async (action: 'match' | 'create' | 'join') => {
+    const name = (pvpName || playerName).trim();
+    if (name.length < 2) {
+      setPvpError('Hãy nhập tên có ít nhất 2 ký tự.');
+      return;
+    }
+    setPvpError('');
+    setPvpWaiting(true);
+    try {
+      const response = await fetch('/api/pvp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, playerId: ensurePvpPlayer(), name, code: pvpCode }),
+      });
+      const data = (await response.json()) as { room?: PvpRoom | null; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Không thể kết nối PvP.');
+      localStorage.setItem('hanzibeat-player-name', name);
+      setPlayerName(name);
+      setPvpRoom(data.room ?? null);
+      if (data.room?.status === 'playing') beginPvpGame(data.room);
+    } catch (error) {
+      setPvpWaiting(false);
+      setPvpError(error instanceof Error ? error.message : 'Không thể kết nối PvP.');
+    }
+  };
   const loadLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
     try {
@@ -256,7 +319,7 @@ export default function Home() {
         { cache: 'no-store' },
       );
       if (!response.ok) throw new Error('Không tải được bảng xếp hạng');
-      const data = await response.json();
+      const data = (await response.json()) as { entries?: LeaderboardEntry[] };
       setLeaderboard(data.entries ?? []);
     } catch {
       setLeaderboard([]);
@@ -288,11 +351,50 @@ export default function Home() {
   };
   useEffect(() => {
     const savedName = localStorage.getItem('hanzibeat-player-name');
-    if (savedName) setPlayerName(savedName);
+    if (savedName) {
+      setPlayerName(savedName);
+      setPvpName(savedName);
+    }
+    ensurePvpPlayer();
   }, []);
   useEffect(() => {
     if (screen === 'leaderboard') void loadLeaderboard();
   }, [screen, loadLeaderboard]);
+  useEffect(() => {
+    if (screen !== 'pvp' || (!pvpWaiting && !pvpRoom)) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const query = pvpRoom?.code
+          ? `code=${pvpRoom.code}`
+          : `playerId=${ensurePvpPlayer()}`;
+        const response = await fetch(`/api/pvp?${query}`, { cache: 'no-store' });
+        const data = (await response.json()) as { room?: PvpRoom | null };
+        if (data.room) {
+          setPvpRoom(data.room);
+          if (data.room.status === 'playing') beginPvpGame(data.room);
+        }
+      } catch { /* retry on next poll */ }
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [screen, pvpWaiting, pvpRoom?.code, beginPvpGame]);
+  useEffect(() => {
+    if (screen !== 'result' || !pvpRoom || pvpScoreSent.current) return;
+    pvpScoreSent.current = true;
+    void fetch('/api/pvp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'score', playerId: ensurePvpPlayer(), code: pvpRoom.code, score, correct }),
+    }).then((response) => response.json() as Promise<{ room?: PvpRoom }>).then((data) => data.room && setPvpRoom(data.room));
+  }, [screen, pvpRoom?.code, score, correct]);
+  useEffect(() => {
+    if (screen !== 'result' || !pvpRoom || pvpRoom.status === 'finished') return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch(`/api/pvp?code=${pvpRoom.code}`, { cache: 'no-store' });
+      const data = (await response.json()) as { room?: PvpRoom | null };
+      if (data.room) setPvpRoom(data.room);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [screen, pvpRoom?.code, pvpRoom?.status]);
   const nextTypingWord = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
@@ -808,7 +910,14 @@ export default function Home() {
               xác
             </span>
           </div>
-          <div className="score-submit">
+          {pvpRoom && (() => {
+            const me = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.host : pvpRoom.guest;
+            const rival = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.guest : pvpRoom.host;
+            const finished = pvpRoom.status === 'finished' && me?.score !== null && rival?.score !== null;
+            const outcome = finished ? (me!.score! > rival!.score! ? 'CHIẾN THẮNG!' : me!.score! < rival!.score! ? 'THUA CUỘC' : 'HÒA!') : 'Đang chờ đối thủ hoàn thành...';
+            return <div className="pvp-result"><span>PVP · PHÒNG {pvpRoom.code}</span><h2>{outcome}</h2><div><b>{me?.name}<small>{me?.score?.toLocaleString() ?? score.toLocaleString()}</small></b><i>VS</i><b>{rival?.name ?? 'Đối thủ'}<small>{rival?.score?.toLocaleString() ?? 'Đang chơi'}</small></b></div></div>;
+          })()}
+          {!pvpRoom && <div className="score-submit">
             <input
               value={playerName}
               onChange={(event) => {
@@ -827,8 +936,8 @@ export default function Home() {
                   ? 'Đã lên hạng'
                   : 'Đăng điểm'}
             </button>
-          </div>
-          {scoreStatus === 'error' && <p className="score-error">Không thể đăng điểm. Hãy thử lại.</p>}
+          </div>}
+          {!pvpRoom && scoreStatus === 'error' && <p className="score-error">Không thể đăng điểm. Hãy thử lại.</p>}
           <div className="actions">
             <button onClick={() => start()}>
               <Play /> Chơi lại
@@ -841,6 +950,27 @@ export default function Home() {
             </button>
             <button onClick={() => setScreen('home')}>Về menu</button>
           </div>
+        </section>
+      </main>
+    );
+  if (screen === 'pvp')
+    return (
+      <main className="app pvp-page">
+        <header>
+          <button className="brand" onClick={() => setScreen('home')}><span>汉</span><b>Hanzi Beat<small>Online battle</small></b></button>
+          <button className="leaderboard-back" onClick={() => setScreen('home')}>Về trang chủ</button>
+        </header>
+        <section className="pvp-panel">
+          <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
+          {!pvpRoom && !pvpWaiting ? <>
+            <label className="pvp-name">Tên người chơi<input value={pvpName} maxLength={20} onChange={(event) => setPvpName(event.target.value)} placeholder="Nhập tên của bạn" /></label>
+            <div className="pvp-choices">
+              <article><span>⚔</span><h2>Ghép trận</h2><p>Tìm một đối thủ đang chờ trên toàn hệ thống.</p><button onClick={() => pvpAction('match')}>Tìm đối thủ</button></article>
+              <article><span>🏮</span><h2>Tạo phòng</h2><p>Tạo mã riêng và gửi cho bạn bè cùng tham gia.</p><button onClick={() => pvpAction('create')}>Tạo phòng mới</button></article>
+            </div>
+            <div className="join-room"><input value={pvpCode} maxLength={6} onChange={(event) => setPvpCode(event.target.value.toUpperCase())} placeholder="NHẬP MÃ PHÒNG" /><button onClick={() => pvpAction('join')}>Vào phòng</button></div>
+          </> : <div className="pvp-waiting"><div className="pvp-spinner">汉</div><span>{pvpRoom ? `MÃ PHÒNG: ${pvpRoom.code}` : 'ĐANG GHÉP TRẬN'}</span><h2>{pvpRoom?.guest ? 'Đã tìm thấy đối thủ!' : 'Đang chờ đối thủ...'}</h2>{pvpRoom && <><p>Gửi mã này cho bạn bè:</p><button className="room-code" onClick={() => navigator.clipboard.writeText(pvpRoom.code)}>{pvpRoom.code}</button></>}<small>Trận đấu sẽ tự bắt đầu khi đủ 2 người.</small></div>}
+          {pvpError && <p className="pvp-error">{pvpError}</p>}
         </section>
       </main>
     );
@@ -922,6 +1052,7 @@ export default function Home() {
             Từ điển
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
+          <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; setScreen('pvp'); }}>PvP Online</button>
         </nav>
         <button
           className="user audio-library-button"
