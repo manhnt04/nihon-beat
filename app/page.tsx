@@ -1957,7 +1957,7 @@ export default function Home() {
               className={mode === 'audition' ? 'active' : ''}
               onClick={() => setMode('audition')}
             >
-              <span>← ↓ ↑ →</span>
+              <span className="mode-artwork"><img src="/lesson-rhythm-quiz.webp" alt="Minh họa Rhythm Quiz với thẻ từ vựng và bốn đáp án theo nhịp" /></span>
               <b>Rhythm Quiz</b>
               <small>Luân phiên chọn nghĩa tiếng Việt và chữ Hán</small>
             </button>
@@ -1965,7 +1965,7 @@ export default function Home() {
               className={mode === 'typing' ? 'active typing' : ''}
               onClick={() => setMode('typing')}
             >
-              <span>汉 ⇄ Việt</span>
+              <span className="mode-artwork"><img src="/lesson-typing-battle.webp" alt="Minh họa Typing Battle với bàn phím Hán tự phát sáng" /></span>
               <b>Typing Battle</b>
               <small>Luân phiên dịch chữ Hán và nghĩa tiếng Việt</small>
             </button>
