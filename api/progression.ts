@@ -45,6 +45,8 @@ type Progression = {
     ink: number;
     jadeBonusCarry: number;
     shieldActiveUntil: number;
+    likes: number;
+    theme: string;
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
@@ -194,7 +196,7 @@ const loadProgression = async (uid: string, name: string) => {
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
-    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } },
+    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } },
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -208,12 +210,14 @@ const loadProgression = async (uid: string, name: string) => {
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
   progression.castle.shieldActiveUntil = Number(progression.castle.shieldActiveUntil ?? 0);
   if (progression.castle.shieldActiveUntil <= Date.now()) progression.castle.shieldActiveUntil = 0;
+  progression.castle.likes = Math.max(0, Number(progression.castle.likes ?? 0));
+  progression.castle.theme = String(progression.castle.theme ?? 'classic');
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
@@ -271,6 +275,49 @@ export default async function handler(request: any, response: any) {
   }
 
   const action = String(request.body?.action ?? '');
+  if (action === 'castle-social') {
+    const season = new Date().toISOString().slice(0, 7);
+    const score = Object.values(progression.castle.buildings).reduce((sum, level) => sum + level, 0) * 1_000
+      + progression.discoveries.length * 5 + progression.streak * 20;
+    const snapshot = {
+      uid: user.localId, name: progression.name, level: progression.level, score,
+      likes: progression.castle.likes, theme: progression.castle.theme,
+      shieldActiveUntil: progression.castle.shieldActiveUntil,
+      buildings: progression.castle.buildings, updatedAt: Date.now(),
+    };
+    await redis.set(`hanzibeat:castle-public:${user.localId}`, snapshot);
+    await redis.zadd(`hanzibeat:castle-rank:${season}`, { score, member: user.localId });
+    const operation = String(request.body?.operation ?? 'list');
+    if (operation === 'like') {
+      const targetId = String(request.body?.targetId ?? '');
+      if (!targetId || targetId === user.localId) return response.status(400).json({ error: 'Không thể Like thành này.' });
+      const likeAdded = await redis.set(`hanzibeat:castle-like:${user.localId}:${targetId}`, '1', { nx: true });
+      if (!likeAdded) return response.status(409).json({ error: 'Bạn đã Like thành này.' });
+      const target = await redis.get<any>(`hanzibeat:castle-public:${targetId}`);
+      if (!target) return response.status(404).json({ error: 'Không tìm thấy thành.' });
+      target.likes = Number(target.likes ?? 0) + 1;
+      await redis.set(`hanzibeat:castle-public:${targetId}`, target);
+      const targetProgression = await redis.get<Progression>(`hanzibeat:progression:${targetId}`);
+      if (targetProgression) { targetProgression.castle.likes = target.likes; await redis.set(`hanzibeat:progression:${targetId}`, targetProgression); }
+    } else if (operation === 'visit') {
+      const targetId = String(request.body?.targetId ?? '');
+      const target = await redis.get<any>(`hanzibeat:castle-public:${targetId}`);
+      if (!target) return response.status(404).json({ error: 'Không tìm thấy thành.' });
+      await redis.lpush(`hanzibeat:castle-visitors:${targetId}`, { uid: user.localId, name: progression.name, visitedAt: Date.now() });
+      await redis.ltrim(`hanzibeat:castle-visitors:${targetId}`, 0, 19);
+      return response.status(200).json({ visitedCastle: target });
+    } else if (operation === 'theme') {
+      const theme = String(request.body?.theme ?? 'classic');
+      const requiredLevel: Record<string, number> = { classic: 1, moon: 4, crimson: 7 };
+      if (!(theme in requiredLevel) || progression.castle.buildings.main < requiredLevel[theme]) return response.status(403).json({ error: 'Chủ Thành chưa đủ cấp để dùng phong cảnh này.' });
+      progression.castle.theme = theme;
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    }
+    const ids = await redis.zrange<string[]>(`hanzibeat:castle-rank:${season}`, 0, 19, { rev: true });
+    const castles = (await Promise.all(ids.map((id) => redis.get<any>(`hanzibeat:castle-public:${id}`)))).filter(Boolean);
+    const visitors = await redis.lrange<any>(`hanzibeat:castle-visitors:${user.localId}`, 0, 19);
+    return response.status(200).json({ progression: publicProgression(progression), castleSocial: { season, castles, visitors } });
+  }
   if (action === 'start-match') {
     const kind = ['offline', 'daily', 'pvp'].includes(request.body?.kind)
       ? request.body.kind : 'offline';

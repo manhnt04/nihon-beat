@@ -110,6 +110,8 @@ type Progression = {
     ink: number;
     jadeBonusCarry: number;
     shieldActiveUntil: number;
+    likes: number;
+    theme: string;
     buildings: { main: number; library: number; listening: number };
   };
   completedTasks: number;
@@ -227,6 +229,8 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 type CastleBuildingKind = 'main' | 'library' | 'listening';
 type SlotRewards = { coins: number; spins: number; wood: number; ink: number; jade: number; chests: number; shields: number; tickets: number; fragments: number; jackpots: number };
 type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean };
+type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; buildings: { main: number; library: number; listening: number } };
+type CastleVisitor = { uid: string; name: string; visitedAt: number };
 const slotSymbols = [
   { id: 'coin', label: 'Coin', image: '/items/coin.png' },
   { id: 'spin', label: 'Spin', image: '/items/spin-refund.png' },
@@ -316,6 +320,8 @@ export default function Home() {
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
   const [castleEffect, setCastleEffect] = useState<{ type: 'siege' | 'shield'; rewards?: { coins: number; wood: number; ink: number } } | null>(null);
+  const [castleSocial, setCastleSocial] = useState<{ season: string; castles: PublicCastle[]; visitors: CastleVisitor[] } | null>(null);
+  const [visitedCastle, setVisitedCastle] = useState<PublicCastle | null>(null);
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -726,6 +732,25 @@ export default function Home() {
       setRewardActionStatus('idle');
     }
   };
+  const runCastleSocial = useCallback(async (operation: 'list' | 'like' | 'visit' | 'theme' = 'list', targetId?: string, theme?: string) => {
+    const user = firebaseAuth.currentUser;
+    if (!user) return;
+    setRewardActionError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-social', operation, targetId, theme }) });
+      const data = await response.json() as { progression?: Progression; castleSocial?: { season: string; castles: PublicCastle[]; visitors: CastleVisitor[] }; visitedCastle?: PublicCastle; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Không thể kết nối Hán Tự Thành.');
+      if (data.progression) setProgression(data.progression);
+      if (data.castleSocial) setCastleSocial(data.castleSocial);
+      if (data.visitedCastle) setVisitedCastle(data.visitedCastle);
+    } catch (error) {
+      setRewardActionError(error instanceof Error ? error.message : 'Không thể kết nối Hán Tự Thành.');
+    }
+  }, []);
+  useEffect(() => {
+    if (screen === 'castle' && authUser) void runCastleSocial();
+  }, [screen, authUser, runCastleSocial]);
   const openPvp = () => {
     setPvpRoom(null);
     setPvpWaiting(false);
@@ -1632,7 +1657,7 @@ export default function Home() {
       </main>
     );
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
@@ -1653,15 +1678,17 @@ export default function Home() {
         <section className="castle-panel">
           <div className="castle-hero">
             <div className="castle-copy"><span className="eyebrow">汉字城 · HÁN TỰ THÀNH</span><h1>{castleTitle}</h1><p>Học Hán tự, thu thập nguyên liệu và xây dựng thành trì của riêng bạn.</p><div className="castle-owner-card"><div className={`header-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0,1).toUpperCase() ?? '汉'}</div><span><small>{authUser?.name ?? 'Người chơi'}</small><b>繁荣度 {prosperity.toLocaleString('vi-VN')}</b></span></div><div className="castle-level"><b>Lv.{castleLevel}</b><span>Điểm phát triển thành</span></div></div>
-            <div className={`castle-scene environment-stage-${environmentStage} ${castle.shieldActiveUntil > 0 ? 'shield-protected' : ''}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/>{castle.shieldActiveUntil > 0 && <div className="castle-virtual-shield" aria-label="Khiên Thành đang hoạt động"><i>盾</i><span>KHIÊN THÀNH</span></div>}<div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
+            <div className={`castle-scene environment-stage-${environmentStage} castle-theme-${castle.theme} ${castle.shieldActiveUntil > 0 ? 'shield-protected' : ''}`} aria-label={castleTitle}><img key={environmentStage} className="castle-map-base" src={environmentStage === 1 ? '/castle/map-empty.webp' : `/castle/environment-stage-${environmentStage}.webp`} alt={`Cảnh giới ${environmentNames[environmentStage - 1]}`}/>{castle.shieldActiveUntil > 0 && <div className="castle-virtual-shield" aria-label="Khiên Thành đang hoạt động"><i>盾</i><span>KHIÊN THÀNH</span></div>}<div className="castle-environment-badge"><small>CẢNH GIỚI {environmentStage}/5</small><b>{environmentNames[environmentStage - 1]}</b>{environmentStage < 5 && <span>Nâng tất cả công trình lên Lv.{environmentStage * 2} để mở cảnh tiếp theo</span>}</div><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁" onSelect={setSelectedCastleBuilding}/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁" onSelect={setSelectedCastleBuilding}/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và Jackpot</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article><article className="castle-coin"><img src="/items/coin.png" alt="Coin"/><div><small>铜钱 · COIN XÂY DỰNG</small><b>{progression?.coins ?? 0}</b><p>Nhận chủ yếu từ Jackpot Tam Trụ</p></div></article><article className="castle-economy"><span>玉</span><div><small>PHÚC LỢI CHỦ THÀNH</small><b>+{mainBonusRate}% 玉片</b><p>Áp dụng cho Offline, Daily và PvP · tối đa 10%</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
             <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const { wood: woodCost, ink: inkCost, coin: coinCost } = castleUpgradeCost(building, level); const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost && (progression?.coins ?? 0) >= coinCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${coinCost.toLocaleString('vi-VN')} Coin`}</button></article>; })}</div>
+            <section className="castle-social-panel"><header><div><span>社交 · XÃ HỘI</span><h2>Castle Rank · {castleSocial?.season ?? 'Mùa hiện tại'}</h2></div><b>♥ {castle.likes}</b></header><div className="castle-theme-picker">{[{id:'classic',name:'Cổ Điển',level:1},{id:'moon',name:'Nguyệt Dạ',level:4},{id:'crimson',name:'Xích Hà',level:7}].map((theme) => <button key={theme.id} className={castle.theme === theme.id ? 'on' : ''} disabled={castle.buildings.main < theme.level} onClick={() => void runCastleSocial('theme', undefined, theme.id)}>{theme.name}<small>Lv.{theme.level}</small></button>)}</div><div className="castle-rank-list">{castleSocial?.castles.map((entry,index) => { const rival = entry.uid !== authUser?.id && !castleSocial.castles.slice(0,index).some((item) => item.uid !== authUser?.id); return <article key={entry.uid} className={rival ? 'rival' : ''}><b>#{index+1}</b><i>{entry.name.slice(0,1).toUpperCase()}</i><span><strong>{entry.name}</strong><small>主城 Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><em>♥ {entry.likes}</em>{entry.uid !== authUser?.id && <div><button onClick={() => void runCastleSocial('visit',entry.uid)}>Ghé thăm</button><button onClick={() => void runCastleSocial('like',entry.uid)}>Like</button></div>}{rival && <mark>RIVAL</mark>}</article>; })}</div><div className="castle-visitors"><h3>Nhật ký khách ghé thăm</h3>{castleSocial?.visitors.length ? castleSocial.visitors.map((visitor) => <p key={`${visitor.uid}-${visitor.visitedAt}`}><b>{visitor.name}</b><span>{new Date(visitor.visitedAt).toLocaleString('vi-VN')}</span></p>) : <small>Chưa có khách ghé thăm.</small>}</div></section>
           </>}
         </section>
+        {visitedCastle && <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}><section className={`castle-visit-card castle-theme-${visitedCastle.theme}`} onClick={(event) => event.stopPropagation()}><button onClick={() => setVisitedCastle(null)}>×</button><span>拜访 · GHÉ THĂM</span><h2>Thành của {visitedCastle.name}</h2><div><img src="/castle/map-empty.webp" alt="Thành của người chơi"/><b>主城 Lv.{visitedCastle.buildings.main}</b></div><p>繁荣度 {visitedCastle.score.toLocaleString('vi-VN')} · ♥ {visitedCastle.likes}</p><button onClick={() => void runCastleSocial('like',visitedCastle.uid)}>♥ Like thành</button></section></div>}
         {selectedBuilding && (() => {
           const level = castle.buildings[selectedBuilding.id];
           const visualStage = castleVisualStage(level);
