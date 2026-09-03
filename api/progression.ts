@@ -26,8 +26,20 @@ type Progression = {
   lastStampDate: string | null;
   stamps: number;
   inventory: Record<string, number>;
+  ownedCosmetics: string[];
+  equipped: { frame: string | null; seal: string | null; effect: string | null };
+  lastGuardUseDate: string | null;
   daily: DailyProgress;
 };
+
+const shopCatalog = {
+  'streak-guard': { price: 30, type: 'consumable' },
+  'effect-jade': { price: 60, type: 'effect' },
+  'seal-scholar': { price: 100, type: 'seal' },
+  'frame-cinnabar': { price: 150, type: 'frame' },
+  'effect-golden': { price: 180, type: 'effect' },
+  'frame-dragon': { price: 300, type: 'frame' },
+} as const;
 
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -82,12 +94,17 @@ const loadProgression = async (uid: string, name: string) => {
   const date = bangkokDate();
   const progression: Progression = stored ?? {
     uid, name, xp: 0, level: 1, jade: 0, streak: 0,
-    lastStampDate: null, stamps: 0, inventory: {}, daily: emptyDaily(date),
+    lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
+    equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
+    daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
+  progression.ownedCosmetics = progression.ownedCosmetics ?? [];
+  progression.equipped = progression.equipped ?? { frame: null, seal: null, effect: null };
+  progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
   return progression;
 };
 
@@ -122,6 +139,63 @@ export default async function handler(request: any, response: any) {
       mode: String(request.body?.mode ?? ''), level: Number(request.body?.level ?? 1),
     }, { ex: 1800 });
     return response.status(201).json({ sessionId });
+  }
+
+  if (action === 'buy-item') {
+    const itemId = String(request.body?.itemId ?? '') as keyof typeof shopCatalog;
+    const item = shopCatalog[itemId];
+    if (!item) return response.status(400).json({ error: 'Vật phẩm không tồn tại.' });
+    if (item.type !== 'consumable' && progression.ownedCosmetics.includes(itemId)) {
+      return response.status(409).json({ error: 'Bạn đã sở hữu vật phẩm này.' });
+    }
+    if (progression.jade < item.price) return response.status(409).json({ error: 'Không đủ Mảnh Ngọc.' });
+    if (itemId === 'streak-guard' && Number(progression.inventory[itemId] ?? 0) >= 2) {
+      return response.status(409).json({ error: 'Chỉ được giữ tối đa 2 Hộ Ấn.' });
+    }
+    progression.jade -= item.price;
+    if (item.type === 'consumable') {
+      progression.inventory[itemId] = Number(progression.inventory[itemId] ?? 0) + 1;
+    } else {
+      progression.ownedCosmetics.push(itemId);
+    }
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({ progression: publicProgression(progression), purchased: itemId });
+  }
+
+  if (action === 'equip-item') {
+    const itemId = String(request.body?.itemId ?? '') as keyof typeof shopCatalog;
+    const item = shopCatalog[itemId];
+    if (!item || item.type === 'consumable' || !progression.ownedCosmetics.includes(itemId)) {
+      return response.status(403).json({ error: 'Bạn chưa sở hữu cosmetic này.' });
+    }
+    progression.equipped[item.type] = progression.equipped[item.type] === itemId ? null : itemId;
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({ progression: publicProgression(progression), equipped: itemId });
+  }
+
+  if (action === 'open-chest') {
+    const chestCount = Number(progression.inventory['daily-chest'] ?? 0);
+    if (chestCount < 1) return response.status(409).json({ error: 'Bạn không có Rương Hằng Ngày.' });
+    progression.inventory['daily-chest'] = chestCount - 1;
+    const roll = crypto.getRandomValues(new Uint32Array(1))[0] / 4_294_967_296;
+    const jadeReward = 5 + Math.floor(roll * 4);
+    const xpReward = 30;
+    progression.jade += jadeReward;
+    progression.xp += xpReward;
+    progression.level = levelFromXp(progression.xp).level;
+    let bonus: string | null = null;
+    if (roll < 0.02 && !progression.ownedCosmetics.includes('frame-cinnabar')) {
+      bonus = 'frame-cinnabar';
+      progression.ownedCosmetics.push(bonus);
+    } else if (roll < 0.12 && !progression.ownedCosmetics.includes('seal-scholar')) {
+      bonus = 'seal-scholar';
+      progression.ownedCosmetics.push(bonus);
+    }
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    return response.status(200).json({
+      progression: publicProgression(progression),
+      chestReward: { jade: jadeReward, xp: xpReward, bonus },
+    });
   }
 
   if (action === 'finish-match') {
@@ -174,7 +248,15 @@ export default async function handler(request: any, response: any) {
       progression.inventory['daily-seal'] = Number(progression.inventory['daily-seal'] ?? 0) + 1;
       const distance = progression.lastStampDate
         ? dayDistance(progression.lastStampDate, daily.date) : 0;
-      progression.streak = distance === 1 ? progression.streak + 1 : 1;
+      const guardAvailable = Number(progression.inventory['streak-guard'] ?? 0) > 0;
+      const guardReady = !progression.lastGuardUseDate || dayDistance(progression.lastGuardUseDate, daily.date) >= 7;
+      if (distance === 2 && guardAvailable && guardReady) {
+        progression.inventory['streak-guard'] -= 1;
+        progression.lastGuardUseDate = daily.date;
+        progression.streak += 1;
+      } else {
+        progression.streak = distance === 1 ? progression.streak + 1 : 1;
+      }
       progression.lastStampDate = daily.date;
       progression.xp += 50;
       progression.jade += 5;

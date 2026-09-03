@@ -14,6 +14,7 @@ import {
   Music2,
   Package,
   Play,
+  ShoppingBag,
   Sparkles,
   Trash2,
   Trophy,
@@ -62,6 +63,7 @@ type Screen =
   | 'leaderboard'
   | 'pvp'
   | 'inventory'
+  | 'shop'
   | 'auth';
 type AuthUser = { id: string; name: string; email: string };
 type LeaderboardEntry = {
@@ -80,6 +82,9 @@ type Progression = {
   streak: number;
   stamps: number;
   inventory: Record<string, number>;
+  ownedCosmetics: string[];
+  equipped: { frame: string | null; seal: string | null; effect: string | null };
+  lastGuardUseDate: string | null;
   completedTasks: number;
   levelProgress: { level: number; currentXp: number; nextXp: number };
   daily: {
@@ -127,6 +132,14 @@ const songs = [
   ['上海霓虹', 'Shanghai Neon', '178', 'HSK 3', 'Khó', '#19c6d3'],
   ['龙门飞跃', 'Dragon Gate', '186', 'HSK 4', 'Thử thách', '#b5272d'],
 ];
+const shopItems = [
+  { id: 'streak-guard', type: 'consumable', name: 'Hộ Ấn', hanzi: '护印', price: 30, image: '/items/streak-guard.png', rarity: 'Hiếm', description: 'Tự động bảo vệ một ngày bỏ lỡ. Tối đa 2, dùng một lần mỗi 7 ngày.' },
+  { id: 'effect-jade', type: 'effect', name: 'Ngọc Quang', hanzi: '玉光', price: 60, image: '/items/jade-fragment.png', rarity: 'Hiếm', description: 'Hiệu ứng ánh ngọc khi trả lời chính xác.' },
+  { id: 'seal-scholar', type: 'seal', name: 'Ấn Học Giả', hanzi: '学者印', price: 100, image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Con dấu Học Giả hiển thị trên hồ sơ.' },
+  { id: 'frame-cinnabar', type: 'frame', name: 'Khung Chu Sa', hanzi: '朱砂框', price: 150, image: '/items/daily-seal.png', rarity: 'Sử thi', description: 'Khung avatar đỏ son với viền vàng cổ điển.' },
+  { id: 'effect-golden', type: 'effect', name: 'Kim Vân', hanzi: '金云', price: 180, image: '/items/daily-chest.png', rarity: 'Sử thi', description: 'Hiệu ứng mây vàng cho chuỗi Perfect.' },
+  { id: 'frame-dragon', type: 'frame', name: 'Khung Long Môn', hanzi: '龙门框', price: 300, image: '/items/streak-guard.png', rarity: 'Huyền thoại', description: 'Khung rồng dành cho người chinh phục hành trình.' },
+] as const;
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
 const normalizeAnswer = (value: string) =>
@@ -214,6 +227,10 @@ export default function Home() {
   const [authError, setAuthError] = useState('');
   const [progression, setProgression] = useState<Progression | null>(null);
   const [lastReward, setLastReward] = useState<{ xp: number; jade: number } | null>(null);
+  const [rewardActionStatus, setRewardActionStatus] = useState<'idle' | 'loading'>('idle');
+  const [rewardActionError, setRewardActionError] = useState('');
+  const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
+  const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
@@ -500,6 +517,32 @@ export default function Home() {
       setScoreStatus('error');
     }
   }, [authUser?.id, authUser?.name, playerName, scoreStatus, selected, mode, score, correct]);
+  const runProgressionAction = async (action: 'buy-item' | 'equip-item' | 'open-chest', itemId?: string) => {
+    const user = firebaseAuth.currentUser;
+    if (!user || rewardActionStatus === 'loading') return;
+    setRewardActionStatus('loading');
+    setRewardActionError('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, itemId }),
+      });
+      const data = await response.json() as {
+        progression?: Progression;
+        chestReward?: { jade: number; xp: number; bonus: string | null };
+        error?: string;
+      };
+      if (!response.ok) throw new Error(data.error || 'Không thể thực hiện thao tác.');
+      if (data.progression) setProgression(data.progression);
+      if (data.chestReward) setChestReward(data.chestReward);
+    } catch (error) {
+      setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện thao tác.');
+    } finally {
+      setRewardActionStatus('idle');
+    }
+  };
   const openPvp = () => {
     setPvpRoom(null);
     setPvpWaiting(false);
@@ -680,7 +723,7 @@ export default function Home() {
   }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
-    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'auth'];
+    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'shop', 'auth'];
     const handleHistory = (event: PopStateEvent) => {
       const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
       if (previousScreen && validScreens.includes(previousScreen)) {
@@ -748,6 +791,13 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
   }, [round, vocab.length, directionBreakDone]);
+  const triggerCosmeticEffect = useCallback(() => {
+    const effect = progression?.equipped.effect;
+    if (!effect) return;
+    setCosmeticEffect(null);
+    window.requestAnimationFrame(() => setCosmeticEffect(effect));
+    window.setTimeout(() => setCosmeticEffect(null), 750);
+  }, [progression?.equipped.effect]);
   const submitTyping = (event: FormEvent) => {
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
@@ -767,6 +817,7 @@ export default function Home() {
       acceptedAnswers.includes(normalizedInput);
     if (isCorrect) {
       playAnswerSound('correct');
+      triggerCosmeticEffect();
       const nextCombo = combo + 1;
       const speedBonus = typingTime * 70;
       const chainBonus = Math.min(nextCombo, 10) * 100;
@@ -789,6 +840,7 @@ export default function Home() {
       const target = vocab[word][round <= 10 ? 3 : 0];
       if (answer === target) {
         playAnswerSound('correct');
+        triggerCosmeticEffect();
         const nextCombo = combo + 1;
         setCorrect((c) => c + 1);
         setScore((s) => s + 600 + roundTime * 50 + Math.min(nextCombo, 10) * 50);
@@ -804,7 +856,7 @@ export default function Home() {
         setTimeout(makeRound, 850);
       }
     },
-    [phase, word, round, combo, roundTime, makeRound],
+    [phase, word, round, combo, roundTime, makeRound, triggerCosmeticEffect],
   );
   const pressArrow = useCallback(
     (lane: number) => {
@@ -1018,6 +1070,7 @@ export default function Home() {
   if (screen === 'game' && mode === 'typing')
     return (
       <main className="game typing-battle">
+        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/daily-chest.png' : '/items/jade-fragment.png'} alt="" /></div>}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
@@ -1134,6 +1187,7 @@ export default function Home() {
   if (screen === 'game')
     return (
       <main className="game audition">
+        {cosmeticEffect && <div className={`cosmetic-answer-effect ${cosmeticEffect}`} aria-hidden="true"><img src={cosmeticEffect === 'effect-golden' ? '/items/daily-chest.png' : '/items/jade-fragment.png'} alt="" /></div>}
         <div className="hud">
           {historyControls}
           <button onClick={() => navigate('songs')}>EXIT</button>
@@ -1303,9 +1357,10 @@ export default function Home() {
           <button className="auth-brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat</b></button>
           {authUser ? (
             <div className="auth-profile">
-              <div>{authUser.name.slice(0, 1).toUpperCase()}</div>
+              <div className={`profile-avatar ${progression?.equipped.frame ?? ''}`}>{authUser.name.slice(0, 1).toUpperCase()}</div>
               <span>ĐÃ ĐĂNG NHẬP</span>
               <h1>{authUser.name}</h1>
+              {progression?.equipped.seal && <strong className="equipped-seal">学者印 · HỌC GIẢ</strong>}
               <p>{authUser.email}</p>
               {progression && <div className="profile-progression">
                 <span><b>Lv.{progression.level}</b>Cấp tài khoản</span>
@@ -1313,6 +1368,7 @@ export default function Home() {
                 <span><b>{progression.streak}</b>Chuỗi Nhật Ấn</span>
               </div>}
               <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> Mở Inventory <small>{progression ? `${progression.jade} 玉片 · ${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm tài khoản'}</small></button>
+              <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> Cửa hàng cosmetic <small>Dùng Mảnh Ngọc để mở khóa ngoại trang</small></button>
               <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
               <button onClick={logout}><LogOut /> Đăng xuất</button>
               <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
@@ -1336,17 +1392,20 @@ export default function Home() {
     );
   if (screen === 'inventory') {
     const itemDefinitions = [
-      { id: 'daily-seal', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành tiến độ hằng ngày.' },
-      { id: 'daily-chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Nhận từ lần hoàn thành Daily Challenge đầu tiên trong ngày.' },
-      { id: 'streak-guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/streak-guard.png', rarity: 'Sử thi', description: 'Bảo vệ chuỗi Nhật Ấn khi bỏ lỡ một ngày.' },
-    ];
+      { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
+      { id: 'daily-chest', type: 'chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Mở để nhận 5–8 Mảnh Ngọc, 30 XP và cơ hội nhận cosmetic.' },
+      { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
+      ...shopItems.filter((item) => item.type !== 'consumable'),
+    ] as const;
+    const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
+      + (progression?.ownedCosmetics.length ?? 0);
     return (
       <main className="app inventory-page">
         {historyControls}
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Inventory</small></b></button>
-          <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
+          <div className="reward-header-actions"><button onClick={() => navigate('shop')}><ShoppingBag /> Cửa hàng</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="inventory-panel">
           <div className="title"><span className="eyebrow"><Package /> 行囊 · TÚI HÀNH TRANG</span><h1>Inventory</h1><p>Currency, vật phẩm và phần thưởng bạn thu thập trong hành trình.</p></div>
@@ -1355,14 +1414,61 @@ export default function Home() {
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
             </div>
-            <div className="inventory-heading"><div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div><b>{Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm</b></div>
+            {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
+            <div className="inventory-heading"><div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div><b>{totalItems} vật phẩm</b></div>
             <div className="inventory-grid">
               {itemDefinitions.map((item) => {
-                const quantity = progression?.inventory?.[item.id] ?? 0;
-                return <article key={item.id} className={quantity === 0 ? 'locked' : ''}>
+                const isCosmetic = item.type === 'frame' || item.type === 'seal' || item.type === 'effect';
+                const owned = isCosmetic ? Boolean(progression?.ownedCosmetics.includes(item.id)) : (progression?.inventory?.[item.id] ?? 0) > 0;
+                const quantity = isCosmetic ? (owned ? 1 : 0) : progression?.inventory?.[item.id] ?? 0;
+                const equipped = isCosmetic && progression?.equipped[item.type] === item.id;
+                const action = item.type === 'chest'
+                  ? () => runProgressionAction('open-chest')
+                  : item.type === 'guard'
+                    ? () => navigate('shop')
+                    : isCosmetic && owned
+                      ? () => runProgressionAction('equip-item', item.id)
+                      : undefined;
+                const label = item.type === 'chest' ? 'Mở rương'
+                  : item.type === 'guard' ? 'Mua thêm'
+                    : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
+                      : 'Vật phẩm sưu tầm';
+                return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
                   <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
-                  <button disabled={quantity === 0}>{quantity > 0 ? 'Xem vật phẩm' : 'Chưa sở hữu'}</button>
+                  <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || item.type === 'collectible'}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
+                </article>;
+              })}
+            </div>
+          </>}
+        </section>
+        {chestReward && <div className="chest-reward-backdrop" onClick={() => setChestReward(null)}><section className="chest-reward" onClick={(event) => event.stopPropagation()}><img src="/items/daily-chest.png" alt="Rương đã mở" /><span>宝箱开启 · RƯƠNG ĐÃ MỞ</span><h2>+{chestReward.jade} 玉片 · +{chestReward.xp} XP</h2>{chestReward.bonus && <p>Bonus hiếm: {shopItems.find((item) => item.id === chestReward.bonus)?.name}</p>}<button onClick={() => setChestReward(null)}>Nhận thưởng</button></section></div>}
+      </main>
+    );
+  }
+  if (screen === 'shop')
+    return (
+      <main className="app shop-page">
+        {historyControls}
+        {mobileNavigation}
+        <header>
+          <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Cosmetic shop</small></b></button>
+          <div className="reward-header-actions"><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+        </header>
+        <section className="shop-panel">
+          <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
+          {!authUser ? <div className="inventory-login"><ShoppingBag /><h2>Đăng nhập để mua vật phẩm</h2><p>Cosmetic và Mảnh Ngọc sẽ được đồng bộ theo tài khoản.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
+            {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
+            <div className="shop-grid">
+              {shopItems.map((item) => {
+                const owned = item.type !== 'consumable' && progression?.ownedCosmetics.includes(item.id);
+                const equipped = item.type !== 'consumable' && progression?.equipped[item.type] === item.id;
+                const guardCount = progression?.inventory['streak-guard'] ?? 0;
+                const cannotBuy = (progression?.jade ?? 0) < item.price || (item.id === 'streak-guard' && guardCount >= 2);
+                return <article key={item.id} className={`${item.rarity === 'Huyền thoại' ? 'legendary' : ''} ${equipped ? 'equipped' : ''}`}>
+                  <div className="shop-item-art"><img src={item.image} alt={item.name} />{item.id === 'streak-guard' && <b>{guardCount}/2</b>}</div>
+                  <span>{item.rarity}</span><h2>{item.name}</h2><small>{item.hanzi}</small><p>{item.description}</p>
+                  {owned ? <button className="equip-button" disabled={rewardActionStatus === 'loading'} onClick={() => runProgressionAction('equip-item', item.id)}>{equipped ? 'Bỏ trang bị' : 'Trang bị'}</button> : <button disabled={rewardActionStatus === 'loading' || cannotBuy} onClick={() => runProgressionAction('buy-item', item.id)}><img src="/items/jade-fragment.png" alt="" />{cannotBuy && item.id === 'streak-guard' && guardCount >= 2 ? 'Đã đạt tối đa' : `${item.price} 玉片`}</button>}
                 </article>;
               })}
             </div>
@@ -1370,7 +1476,6 @@ export default function Home() {
         </section>
       </main>
     );
-  }
   if (screen === 'pvp')
     return (
       <main className="app pvp-page">
@@ -1481,13 +1586,14 @@ export default function Home() {
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => navigate('inventory')}>Inventory</button>
+          <button onClick={() => navigate('shop')}>Cửa hàng</button>
           <button onClick={openPvp}>PvP Online</button>
         </nav>
         <button
           className="user account-button"
           onClick={() => navigate('auth')}
         >
-          <span>
+          <span className={`header-avatar ${progression?.equipped.frame ?? ''}`}>
             {authUser ? authUser.name.slice(0, 1).toUpperCase() : <LogIn />}
           </span>
           <b>
