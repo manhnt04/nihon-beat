@@ -1456,7 +1456,7 @@ export default function Home() {
           <div className="reward-header-actions"><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
-          <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
+          <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
           {!authUser ? <div className="inventory-login"><ShoppingBag /><h2>Đăng nhập để mua vật phẩm</h2><p>Cosmetic và Mảnh Ngọc sẽ được đồng bộ theo tài khoản.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="shop-grid">
@@ -1468,7 +1468,7 @@ export default function Home() {
                 return <article key={item.id} className={`${item.rarity === 'Huyền thoại' ? 'legendary' : ''} ${equipped ? 'equipped' : ''}`}>
                   <div className="shop-item-art"><img src={item.image} alt={item.name} />{item.id === 'streak-guard' && <b>{guardCount}/2</b>}</div>
                   <span>{item.rarity}</span><h2>{item.name}</h2><small>{item.hanzi}</small><p>{item.description}</p>
-                  {owned ? <button className="equip-button" disabled={rewardActionStatus === 'loading'} onClick={() => runProgressionAction('equip-item', item.id)}>{equipped ? 'Bỏ trang bị' : 'Trang bị'}</button> : <button disabled={rewardActionStatus === 'loading' || cannotBuy} onClick={() => runProgressionAction('buy-item', item.id)}><img src="/items/jade-fragment.png" alt="" />{cannotBuy && item.id === 'streak-guard' && guardCount >= 2 ? 'Đã đạt tối đa' : `${item.price} 玉片`}</button>}
+                  {owned ? <button className="equip-button" disabled={rewardActionStatus === 'loading'} onClick={() => runProgressionAction('equip-item', item.id)}>{rewardActionStatus === 'loading' ? 'Đang đồng bộ…' : equipped ? '✓ Đang dùng · Bấm để tháo' : item.type === 'frame' ? 'Trang bị lên Avatar' : 'Trang bị'}</button> : <button disabled={rewardActionStatus === 'loading' || cannotBuy} onClick={() => runProgressionAction('buy-item', item.id)}><img src="/items/jade-fragment.png" alt="" />{cannotBuy && item.id === 'streak-guard' && guardCount >= 2 ? 'Đã đạt tối đa' : `${item.price} 玉片`}</button>}
                 </article>;
               })}
             </div>
