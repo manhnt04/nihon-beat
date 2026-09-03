@@ -24,6 +24,7 @@ import {
   hsk2Vocabulary,
   type VocabularyEntry,
 } from '@/lib/hsk2-vocabulary';
+import { defaultAudioTracks } from '@/lib/default-audio';
 
 type Screen = 'home' | 'songs' | 'game' | 'result' | 'dictionary';
 const baseVocabulary: VocabularyEntry[] = [
@@ -109,7 +110,9 @@ export default function Home() {
       ),
     );
   }, [round, selected]);
-  const start = () => {
+  const start = (songIndex = selected) => {
+    const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
+    setSelected(nextSong);
     setScore(0);
     setCombo(0);
     setProgress(0);
@@ -126,20 +129,19 @@ export default function Home() {
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setScreen('game');
-    if (audioTracks.length) {
-      const track = audioTracks[Math.floor(Math.random() * audioTracks.length)];
-      audioPlayer.current?.pause();
-      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
-      audioUrl.current = URL.createObjectURL(track.blob);
-      const player = new Audio(audioUrl.current);
-      player.loop = true;
-      player.volume = volume;
-      audioPlayer.current = player;
-      setCurrentTrackName(track.name);
-      void player.play().catch(() => undefined);
-    } else {
-      setCurrentTrackName('Chưa tải nhạc');
+    const track =
+      defaultAudioTracks[Math.floor(Math.random() * defaultAudioTracks.length)];
+    audioPlayer.current?.pause();
+    if (audioUrl.current) {
+      URL.revokeObjectURL(audioUrl.current);
+      audioUrl.current = null;
     }
+    const player = new Audio(track.src);
+    player.loop = true;
+    player.volume = volume;
+    audioPlayer.current = player;
+    setCurrentTrackName(track.name);
+    void player.play().catch(() => undefined);
   };
   const nextTypingWord = useCallback(() => {
     setWord((w) => (w + 1) % vocab.length);
@@ -634,7 +636,7 @@ export default function Home() {
             </span>
           </div>
           <div className="actions">
-            <button onClick={start}>
+            <button onClick={() => start()}>
               <Play /> Chơi lại
             </button>
             <button onClick={() => setScreen('dictionary')}>
@@ -701,17 +703,35 @@ export default function Home() {
             <div className="audio-modal-head">
               <div>
                 <span className="eyebrow">GAME AUDIO</span>
-                <h2>Thư viện âm thanh</h2>
-                <p>Mỗi trận sẽ chọn ngẫu nhiên một bài trong danh sách.</p>
+              <h2>Thư viện âm thanh</h2>
+                <p>Game tự chọn một trong 7 bài nhạc chính khi bắt đầu trận.</p>
               </div>
               <button onClick={() => setAudioOpen(false)} aria-label="Đóng">
                 ×
               </button>
             </div>
+            <div className="default-audio-list">
+              <span className="eyebrow">NHẠC CHÍNH · {defaultAudioTracks.length} BÀI</span>
+              {defaultAudioTracks.map((track) => (
+                <button
+                  key={track.src}
+                  onClick={() => {
+                    audioPlayer.current?.pause();
+                    const player = new Audio(track.src);
+                    player.volume = volume;
+                    audioPlayer.current = player;
+                    setCurrentTrackName(track.name);
+                    void player.play().catch(() => undefined);
+                  }}
+                >
+                  <Play /> {track.name}
+                </button>
+              ))}
+            </div>
             <label className="audio-upload">
               <Upload />
               <span>
-                <b>Tải file âm thanh</b>
+                <b>Thêm nhạc cá nhân để nghe thử</b>
                 <small>MP3, WAV, OGG hoặc M4A · Có thể chọn nhiều file</small>
               </span>
               <input
@@ -827,7 +847,7 @@ export default function Home() {
               <span className="eyebrow">DAILY CHALLENGE</span>
               <h3>Beijing Morning</h3>
               <p>Hoàn thành trước 23:59</p>
-              <button onClick={start}>
+              <button onClick={() => start()}>
                 <Play />
               </button>
             </section>
@@ -864,7 +884,7 @@ export default function Home() {
               <strong>
                 84,650<small>BEST SCORE</small>
               </strong>
-              <button onClick={start}>
+              <button onClick={() => start()}>
                 <Play />
               </button>
             </article>
@@ -940,8 +960,7 @@ export default function Home() {
                 </strong>
                 <button
                   onClick={() => {
-                    setSelected(i);
-                    start();
+                    start(i);
                   }}
                 >
                   <Play />
