@@ -437,6 +437,32 @@ export default function Home() {
       setScoreStatus('error');
     }
   }, [authUser?.id, authUser?.name, playerName, scoreStatus, selected, mode, score, correct]);
+  const openPvp = () => {
+    setPvpRoom(null);
+    setPvpWaiting(false);
+    setPvpError('');
+    pvpStarted.current = false;
+    navigate('pvp');
+  };
+  const mobileNavigation = (
+    <nav className="mobile-nav" aria-label="Điều hướng điện thoại">
+      <button className={screen === 'home' ? 'on' : ''} onClick={() => navigate('home')}>
+        <Sparkles /><span>Trang chủ</span>
+      </button>
+      <button className={screen === 'songs' ? 'on' : ''} onClick={() => navigate('songs')}>
+        <Music2 /><span>Bài học</span>
+      </button>
+      <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
+        <BookOpen /><span>Từ vựng</span>
+      </button>
+      <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
+        <Trophy /><span>Xếp hạng</span>
+      </button>
+      <button className={screen === 'pvp' ? 'on' : ''} onClick={openPvp}>
+        <span className="mobile-vs">VS</span><span>PvP</span>
+      </button>
+    </nav>
+  );
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
     if (authStatus === 'loading') return;
@@ -1165,6 +1191,7 @@ export default function Home() {
     return (
       <main className="app pvp-page">
         {historyControls}
+        {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Online battle</small></b></button>
           <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
@@ -1191,6 +1218,7 @@ export default function Home() {
     return (
       <main className="app leaderboard-page">
         {historyControls}
+        {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}>
             <span>汉</span>
@@ -1240,6 +1268,7 @@ export default function Home() {
   return (
     <main className="app">
       {historyControls}
+      {mobileNavigation}
       <header>
         <button className="brand" onClick={() => navigate('home')}>
           <span>汉</span>
@@ -1267,7 +1296,7 @@ export default function Home() {
             Từ điển
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
-          <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; navigate('pvp'); }}>PvP Online</button>
+          <button onClick={openPvp}>PvP Online</button>
         </nav>
         <button
           className="user account-button"
