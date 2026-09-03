@@ -3,7 +3,7 @@ export type VocabularyEntry = readonly [
   pinyin: string,
   typing: string,
   meaning: string,
-  level: 'HSK 1' | 'HSK 2' | 'HSK 3',
+  level: 'HSK 1' | 'HSK 2' | 'HSK 3' | 'HSK 4' | 'HSK 5' | 'HSK 6' | 'HSK 7' | 'HSK 8' | 'HSK 9',
 ];
 
 export const hsk2Vocabulary: VocabularyEntry[] = [

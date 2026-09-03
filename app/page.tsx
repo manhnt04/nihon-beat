@@ -33,6 +33,7 @@ import {
 import { defaultAudioTracks } from '@/lib/default-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
+import { hsk4Vocabulary } from '@/lib/hsk4-vocabulary';
 import { firebaseAuth, firebaseDb } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
@@ -75,6 +76,7 @@ const allVocabulary = [
   ...baseVocabulary,
   ...hsk2Vocabulary,
   ...hsk3Vocabulary,
+  ...hsk4Vocabulary,
 ];
 const WORDS_PER_MATCH = 20;
 const shuffleVocabulary = (entries: VocabularyEntry[], seed?: number) => {
@@ -102,6 +104,7 @@ const songs = [
   ['早安节拍', 'Morning Pulse', '128', 'HSK 1', 'Dễ', '#ff5f91'],
   ['星河漫游', 'Starlight Ride', '154', 'HSK 2', 'Vừa', '#7857ff'],
   ['上海霓虹', 'Shanghai Neon', '178', 'HSK 3', 'Khó', '#19c6d3'],
+  ['龙门飞跃', 'Dragon Gate', '186', 'HSK 4', 'Thử thách', '#b5272d'],
 ];
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
@@ -312,7 +315,9 @@ export default function Home() {
         ? hsk2Vocabulary
         : nextSong === 2
           ? hsk3Vocabulary
-          : baseVocabulary;
+          : nextSong === 3
+            ? hsk4Vocabulary
+            : baseVocabulary;
     const pool =
       requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
     const nextVocabulary = forcedVocabulary ?? shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);

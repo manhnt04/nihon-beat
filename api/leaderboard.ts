@@ -1,7 +1,7 @@
 import { Redis } from '@upstash/redis';
 
 const redis = Redis.fromEnv();
-const allowedLevels = new Set(['0', '1', '2']);
+const allowedLevels = new Set(['0', '1', '2', '3']);
 const allowedModes = new Set(['audition', 'typing']);
 
 const boardKey = (level: string, mode: string) =>
