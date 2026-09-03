@@ -71,6 +71,24 @@ type LeaderboardEntry = {
 };
 type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
 type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
+type Progression = {
+  xp: number;
+  level: number;
+  jade: number;
+  streak: number;
+  stamps: number;
+  completedTasks: number;
+  levelProgress: { level: number; currentXp: number; nextXp: number };
+  daily: {
+    correct: number;
+    offlineMatches: number;
+    pvpMatches: number;
+    dailyCompleted: boolean;
+    offlineJade: number;
+    rewardedPvpMatches: number;
+    stampEarned: boolean;
+  };
+};
 const baseVocabulary = hsk1Vocabulary;
 const allVocabulary = [
   ...baseVocabulary,
@@ -191,10 +209,13 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState('');
   const [authStatus, setAuthStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [authError, setAuthError] = useState('');
+  const [progression, setProgression] = useState<Progression | null>(null);
+  const [lastReward, setLastReward] = useState<{ xp: number; jade: number } | null>(null);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
   const cloudMatchSaved = useRef(false);
+  const rewardSessionId = useRef('');
   const animateScreenChange = useCallback((change: () => void) => {
     const transitionDocument = document as Document & {
       startViewTransition?: (callback: () => void) => void;
@@ -312,6 +333,23 @@ export default function Home() {
       player.pause();
     }
   };
+  const beginRewardSession = async (kind: 'offline' | 'daily' | 'pvp', level: number) => {
+    rewardSessionId.current = '';
+    const user = firebaseAuth.currentUser;
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/progression', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'start-match', kind, mode, level }),
+      });
+      const data = await response.json() as { sessionId?: string };
+      rewardSessionId.current = data.sessionId ?? '';
+    } catch {
+      rewardSessionId.current = '';
+    }
+  };
   const start = (
     songIndex = selected,
     forcedVocabulary?: VocabularyEntry[],
@@ -351,7 +389,14 @@ export default function Home() {
     setDirectionCountdown(0);
     setDirectionBreakDone(false);
     setScoreStatus('idle');
+    setLastReward(null);
     cloudMatchSaved.current = false;
+    const rewardKind = isDailyChallenge
+      ? 'daily'
+      : forcedVocabulary && pvpStarted.current
+        ? 'pvp'
+        : 'offline';
+    void beginRewardSession(rewardKind, nextSong + 1);
     navigate('game');
     playDefaultTrack();
   };
@@ -530,12 +575,20 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
       if (!firebaseUser) {
         setAuthUser(null);
+        setProgression(null);
         return;
       }
       const name = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Người chơi';
       setAuthUser({ id: firebaseUser.uid, name, email: firebaseUser.email || '' });
       setPlayerName(name);
       setPvpName(name);
+      void firebaseUser.getIdToken().then((token) => fetch('/api/progression', {
+        headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+      })).then(async (response) => response.ok
+        ? await response.json() as { progression?: Progression }
+        : null)
+        .then((data) => setProgression(data?.progression ?? null))
+        .catch(() => setProgression(null));
       const userRef = doc(firebaseDb, 'users', firebaseUser.uid);
       void getDoc(userRef).then((snapshot) => {
         const data = snapshot.data();
@@ -595,6 +648,22 @@ export default function Home() {
       }, { merge: true });
     }).catch(() => undefined);
   }, [screen, authUser?.id, score, correct, mode, selected, dailyChallenge, pvpRoom?.code, vocab.length]);
+  useEffect(() => {
+    if (screen !== 'result' || !authUser || !rewardSessionId.current) return;
+    const sessionId = rewardSessionId.current;
+    rewardSessionId.current = '';
+    void firebaseAuth.currentUser?.getIdToken().then((token) => fetch('/api/progression', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'finish-match', sessionId, correct, score }),
+    })).then(async (response) => response.ok
+      ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number } }
+      : null)
+      .then((data) => {
+        if (data?.progression) setProgression(data.progression);
+        if (data?.reward) setLastReward(data.reward);
+      }).catch(() => undefined);
+  }, [screen, authUser?.id, correct, score]);
   useEffect(() => {
     if (
       screen === 'result' &&
@@ -1173,6 +1242,13 @@ export default function Home() {
               xác
             </span>
           </div>
+          {lastReward && (
+            <div className="match-reward">
+              <span>奖励 · PHẦN THƯỞNG</span>
+              <b>+{lastReward.xp} XP</b>
+              {lastReward.jade > 0 && <b>+{lastReward.jade} 玉片</b>}
+            </div>
+          )}
           {pvpRoom && (() => {
             const me = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.host : pvpRoom.guest;
             const rival = pvpRoom.host.id === pvpPlayerId.current ? pvpRoom.guest : pvpRoom.host;
@@ -1228,6 +1304,11 @@ export default function Home() {
               <span>ĐÃ ĐĂNG NHẬP</span>
               <h1>{authUser.name}</h1>
               <p>{authUser.email}</p>
+              {progression && <div className="profile-progression">
+                <span><b>Lv.{progression.level}</b>Cấp tài khoản</span>
+                <span><b>{progression.jade}</b>玉片</span>
+                <span><b>{progression.streak}</b>Chuỗi Nhật Ấn</span>
+              </div>}
               <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
               <button onClick={logout}><LogOut /> Đăng xuất</button>
               <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
@@ -1510,8 +1591,8 @@ export default function Home() {
               <div className="streak">
                 <Flame />
                 <span>
-                  <b>7 ngày liên tiếp!</b>
-                  <small>Thêm 1 ngày nữa để nhận 100 XP</small>
+                  <b>{progression ? `${progression.streak} ngày Nhật Ấn` : 'Đăng nhập để lưu hành trình'}</b>
+                  <small>{progression ? `${progression.stamps} con dấu đã thu thập` : 'Đồng bộ level, XP và Mảnh Ngọc'}</small>
                 </span>
               </div>
             </div>
@@ -1544,12 +1625,17 @@ export default function Home() {
               <h3>Tiến độ hôm nay</h3>
               <div>
                 <span>
-                  13<small>/ 20 từ</small>
+                  {progression?.completedTasks ?? 0}<small>/ 4 nhiệm vụ</small>
                 </span>
               </div>
-              <p>
-                Chỉ còn <b>7 từ</b> để đạt mục tiêu!
-              </p>
+              {progression ? <div className="daily-tasks">
+                <span className={progression.daily.correct >= 20 ? 'done' : ''}>Ôn đúng 20 câu <b>{Math.min(progression.daily.correct, 20)}/20</b></span>
+                <span className={progression.daily.dailyCompleted ? 'done' : ''}>Daily Challenge <b>{progression.daily.dailyCompleted ? '✓' : '0/1'}</b></span>
+                <span className={progression.daily.offlineMatches >= 1 ? 'done' : ''}>Chơi offline <b>{Math.min(progression.daily.offlineMatches, 1)}/1</b></span>
+                <span className={progression.daily.pvpMatches >= 2 ? 'done' : ''}>Chơi PvP <b>{Math.min(progression.daily.pvpMatches, 2)}/2</b></span>
+              </div> : <p>Đăng nhập để bắt đầu nhiệm vụ và nhận Nhật Ấn.</p>}
+              {progression && <p className="daily-cap">玉片 offline: {progression.daily.offlineJade}/20 · PvP: {progression.daily.rewardedPvpMatches}/10 trận</p>}
+              {progression?.daily.stampEarned && <strong className="stamp-earned">印 Nhật Ấn hôm nay đã nhận</strong>}
             </section>
           </aside>
           <section className="continue">
@@ -1581,15 +1667,15 @@ export default function Home() {
           <section className="quick">
             <span>
               <Trophy />
-              <b>18</b>Bài đã xong
+              <b>Lv.{progression?.level ?? 1}</b>Cấp tài khoản
             </span>
             <span>
               <BookOpen />
-              <b>126</b>Từ đã học
+              <b>{progression?.xp ?? 0}</b>Tổng XP
             </span>
             <span>
               <Flame />
-              <b>42</b>Combo cao nhất
+              <b>{progression?.jade ?? 0}</b>Mảnh Ngọc 玉片
             </span>
           </section>
         </div>
