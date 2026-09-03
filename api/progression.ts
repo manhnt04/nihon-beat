@@ -29,6 +29,8 @@ type Progression = {
   ownedCosmetics: string[];
   equipped: { frame: string | null; seal: string | null; effect: string | null };
   lastGuardUseDate: string | null;
+  discoveries: string[];
+  jadeRelics: string[];
   daily: DailyProgress;
 };
 
@@ -96,6 +98,7 @@ const loadProgression = async (uid: string, name: string) => {
     uid, name, xp: 0, level: 1, jade: 0, streak: 0,
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
+    discoveries: [], jadeRelics: [],
     daily: emptyDaily(date),
   };
   progression.name = name || progression.name;
@@ -105,6 +108,8 @@ const loadProgression = async (uid: string, name: string) => {
   progression.ownedCosmetics = progression.ownedCosmetics ?? [];
   progression.equipped = progression.equipped ?? { frame: null, seal: null, effect: null };
   progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
+  progression.discoveries = progression.discoveries ?? [];
+  progression.jadeRelics = progression.jadeRelics ?? [];
   return progression;
 };
 
@@ -223,6 +228,11 @@ export default async function handler(request: any, response: any) {
       return response.status(409).json({ error: 'Trận đã được nhận thưởng hoặc không hợp lệ.' });
     }
     const correct = Math.max(0, Math.min(20, Math.floor(Number(request.body?.correct ?? 0))));
+    const encountered = Array.isArray(request.body?.encountered)
+      ? request.body.encountered.slice(0, 20)
+        .map((value: unknown) => String(value).trim().slice(0, 8))
+        .filter(Boolean)
+      : [];
     const elapsed = Date.now() - session.startedAt;
     if (!Number.isFinite(correct) || elapsed < 5_000 || elapsed > 1_800_000) {
       return response.status(400).json({ error: 'Kết quả trận không hợp lệ.' });
@@ -258,6 +268,10 @@ export default async function handler(request: any, response: any) {
     daily.matchXp += bonusXp;
     progression.xp += questionXp + bonusXp;
     progression.jade += jadeEarned;
+    progression.discoveries = Array.from(new Set([...progression.discoveries, ...encountered])).slice(0, 3000);
+    if (progression.discoveries.length >= 25 && !progression.jadeRelics.includes('sprout')) progression.jadeRelics.push('sprout');
+    if (progression.discoveries.length >= 100 && !progression.jadeRelics.includes('scholar')) progression.jadeRelics.push('scholar');
+    if (progression.discoveries.length >= 250 && !progression.jadeRelics.includes('dragon')) progression.jadeRelics.push('dragon');
 
     if (taskCount(daily) >= 3 && !daily.stampEarned) {
       daily.stampEarned = true;

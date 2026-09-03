@@ -11,6 +11,7 @@ import {
   FolderOpen,
   LogIn,
   LogOut,
+  Map as MapIcon,
   Music2,
   Package,
   Play,
@@ -64,6 +65,7 @@ type Screen =
   | 'pvp'
   | 'inventory'
   | 'shop'
+  | 'codex'
   | 'auth';
 type AuthUser = { id: string; name: string; email: string };
 type LeaderboardEntry = {
@@ -85,6 +87,8 @@ type Progression = {
   ownedCosmetics: string[];
   equipped: { frame: string | null; seal: string | null; effect: string | null };
   lastGuardUseDate: string | null;
+  discoveries: string[];
+  jadeRelics: string[];
   completedTasks: number;
   levelProgress: { level: number; currentXp: number; nextXp: number };
   daily: {
@@ -139,6 +143,24 @@ const shopItems = [
   { id: 'frame-cinnabar', type: 'frame', name: 'Khung Chu Sa', hanzi: '朱砂框', price: 150, image: '/items/shop-frame-cinnabar.png', rarity: 'Sử thi', description: 'Khung avatar đỏ son với viền vàng cổ điển.' },
   { id: 'effect-golden', type: 'effect', name: 'Kim Vân', hanzi: '金云', price: 180, image: '/items/shop-effect-golden.png', rarity: 'Sử thi', description: 'Hiệu ứng mây vàng cho chuỗi Perfect.' },
   { id: 'frame-dragon', type: 'frame', name: 'Khung Long Môn', hanzi: '龙门框', price: 300, image: '/items/shop-frame-dragon.png', rarity: 'Huyền thoại', description: 'Khung rồng dành cho người chinh phục hành trình.' },
+] as const;
+const jadeRelics = [
+  { id: 'sprout', name: 'Ngọc Bội Khai Văn', hanzi: '开文玉佩', threshold: 25, image: '/items/jade-fragment.png' },
+  { id: 'scholar', name: 'Ngọc Bội Bác Học', hanzi: '博学玉佩', threshold: 100, image: '/items/shop-effect-jade.png' },
+  { id: 'dragon', name: 'Ngọc Bội Long Môn', hanzi: '龙门玉佩', threshold: 250, image: '/items/shop-streak-guard.png' },
+] as const;
+const radicalGroups = [
+  { name: 'Nhân · Người', radical: '亻', test: (hanzi: string) => /[你他们住休做位]/u.test(hanzi) },
+  { name: 'Thuỷ · Nước', radical: '氵', test: (hanzi: string) => /[洗海游泳河酒]/u.test(hanzi) },
+  { name: 'Khẩu · Miệng', radical: '口', test: (hanzi: string) => /[吃喝叫听唱吗呢哪]/u.test(hanzi) },
+  { name: 'Tâm · Cảm xúc', radical: '心', test: (hanzi: string) => /[想忘快慢意思情]/u.test(hanzi) },
+  { name: 'Mộc · Cây', radical: '木', test: (hanzi: string) => /[本校杯桌椅果]/u.test(hanzi) },
+] as const;
+const topicGroups = [
+  { name: 'Giao tiếp', icon: '语', test: (entry: VocabularyEntry) => /chào|nói|hỏi|xin lỗi|cảm ơn|giới thiệu|nghĩa/u.test(entry[3].toLowerCase()) },
+  { name: 'Gia đình', icon: '家', test: (entry: VocabularyEntry) => /bố|mẹ|cha|ông|bà|vợ|chồng|con trai|con gái|gia đình/u.test(entry[3].toLowerCase()) },
+  { name: 'Học tập', icon: '学', test: (entry: VocabularyEntry) => /học|thi|bài|sách|vở|trường|lớp|dạy/u.test(entry[3].toLowerCase()) },
+  { name: 'Hành trình', icon: '行', test: (entry: VocabularyEntry) => /đi|xe|tàu|đường|du lịch|khách sạn|trạm|bến/u.test(entry[3].toLowerCase()) },
 ] as const;
 const arrowKeys = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'];
 const arrowGlyphs = ['←', '↓', '↑', '→'];
@@ -231,6 +253,8 @@ export default function Home() {
   const [rewardActionError, setRewardActionError] = useState('');
   const [chestReward, setChestReward] = useState<{ jade: number; xp: number; bonus: string | null } | null>(null);
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
+  const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
+  const [codexQuery, setCodexQuery] = useState('');
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
@@ -561,6 +585,9 @@ export default function Home() {
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
       </button>
+      <button className={screen === 'codex' ? 'on' : ''} onClick={() => navigate('codex')}>
+        <MapIcon /><span>Đồ Giám</span>
+      </button>
       <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
         <Trophy /><span>Xếp hạng</span>
       </button>
@@ -701,7 +728,7 @@ export default function Home() {
     void firebaseAuth.currentUser?.getIdToken().then((token) => fetch('/api/progression', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: 'finish-match', sessionId, correct, score }),
+        body: JSON.stringify({ action: 'finish-match', sessionId, correct, score, encountered: vocab.map((entry) => entry[0]) }),
     })).then(async (response) => response.ok
       ? await response.json() as { progression?: Progression; reward?: { xp: number; jade: number } }
       : null)
@@ -709,7 +736,7 @@ export default function Home() {
         if (data?.progression) setProgression(data.progression);
         if (data?.reward) setLastReward(data.reward);
       }).catch(() => undefined);
-  }, [screen, authUser?.id, correct, score]);
+  }, [screen, authUser?.id, correct, score, vocab]);
   useEffect(() => {
     if (
       screen === 'result' &&
@@ -723,7 +750,7 @@ export default function Home() {
   }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
-    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'shop', 'auth'];
+    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'inventory', 'shop', 'codex', 'auth'];
     const handleHistory = (event: PopStateEvent) => {
       const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
       if (previousScreen && validScreens.includes(previousScreen)) {
@@ -1368,6 +1395,7 @@ export default function Home() {
                 <span><b>{progression.streak}</b>Chuỗi Nhật Ấn</span>
               </div>}
               <button className="auth-inventory" onClick={() => navigate('inventory')}><Package /> Mở Inventory <small>{progression ? `${progression.jade} 玉片 · ${Object.values(progression.inventory ?? {}).reduce((sum, count) => sum + count, 0)} vật phẩm` : 'Kho vật phẩm tài khoản'}</small></button>
+              <button className="auth-codex" onClick={() => navigate('codex')}><BookOpen /> Hán Tự Đồ Giám <small>{progression ? `${progression.discoveries.length} từ đã khám phá` : 'Bộ sưu tập và hành trình HSK'}</small></button>
               <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> Cửa hàng cosmetic <small>Dùng Mảnh Ngọc để mở khóa ngoại trang</small></button>
               <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> Thư viện nhạc <small>{audioTracks.length} bài đã lưu</small></button>
               <button onClick={logout}><LogOut /> Đăng xuất</button>
@@ -1390,6 +1418,32 @@ export default function Home() {
         </section>
       </main>
     );
+  if (screen === 'codex') {
+    const uniqueVocabulary = Array.from(new globalThis.Map(allVocabulary.map((entry) => [entry[0], entry])).values());
+    const discovered = new Set(progression?.discoveries ?? []);
+    const normalizedCodexQuery = normalizeAnswer(codexQuery);
+    const atlasEntries = uniqueVocabulary.filter((entry) => !normalizedCodexQuery || entry.some((value) => normalizeAnswer(value).includes(normalizedCodexQuery)));
+    return (
+      <main className="app codex-page">
+        {historyControls}{mobileNavigation}
+        <header><button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Hán Tự Đồ Giám</small></b></button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></header>
+        <section className="codex-panel">
+          <div className="codex-hero"><div><span className="eyebrow"><BookOpen /> 汉字图鉴 · HÁN TỰ ĐỒ GIÁM</span><h1>Biến mỗi trận đấu thành một trang sưu tập.</h1><p>Gặp từ trong Offline, Daily hoặc PvP để ghi danh vào Đồ Giám.</p></div><div className="codex-progress"><b>{discovered.size}</b><span>/ {uniqueVocabulary.length} từ đã khám phá</span><i><em style={{ width: `${Math.min(100, discovered.size / uniqueVocabulary.length * 100)}%` }} /></i></div></div>
+          {!authUser ? <div className="inventory-login"><BookOpen /><h2>Đồ Giám cần tài khoản</h2><p>Đăng nhập để lưu từ đã gặp và mở khóa Ngọc Bội.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
+            <div className="codex-tabs"><button className={codexTab === 'atlas' ? 'on' : ''} onClick={() => setCodexTab('atlas')}><BookOpen /> Đồ Giám</button><button className={codexTab === 'collections' ? 'on' : ''} onClick={() => setCodexTab('collections')}><Package /> Bộ sưu tập</button><button className={codexTab === 'journey' ? 'on' : ''} onClick={() => setCodexTab('journey')}><MapIcon /> Hành trình</button></div>
+            {codexTab === 'atlas' && <><div className="codex-search"><input value={codexQuery} onChange={(event) => setCodexQuery(event.target.value)} placeholder="Tìm chữ Hán, pinyin hoặc nghĩa..." /><span>{atlasEntries.filter((entry) => discovered.has(entry[0])).length} đã mở</span></div><div className="atlas-grid">{atlasEntries.map((entry) => { const unlocked = discovered.has(entry[0]); return <article key={entry[0]} className={unlocked ? 'unlocked' : 'locked'}><span>{entry[4]}</span><h2>{unlocked ? entry[0] : '？'}</h2><b>{unlocked ? entry[1] : 'Chưa khám phá'}</b><p>{unlocked ? entry[3] : 'Gặp từ này trong một trận đấu để mở khóa.'}</p>{unlocked && <button onClick={() => speak(entry[0])}><Volume2 /> Nghe</button>}</article>; })}</div></>}
+            {codexTab === 'collections' && <div className="collection-sections">
+              <section><div className="inventory-heading"><div><span className="eyebrow">THEO CẤP ĐỘ</span><h2>Bộ sưu tập HSK</h2></div></div><div className="collection-grid">{[1,2,3,4].map((level) => { const entries = uniqueVocabulary.filter((entry) => entry[4] === `HSK ${level}`); const count = entries.filter((entry) => discovered.has(entry[0])).length; return <article key={level}><strong>HSK {level}</strong><b>{count}/{entries.length}</b><i><em style={{width:`${entries.length ? count / entries.length * 100 : 0}%`}} /></i><small>{count === entries.length ? 'HOÀN TẤT' : 'Đang sưu tập'}</small></article>; })}</div></section>
+              <section><div className="inventory-heading"><div><span className="eyebrow">THEO CHỦ ĐỀ</span><h2>Chuyên tập</h2></div></div><div className="collection-grid topic-grid">{topicGroups.map((topic) => { const entries = uniqueVocabulary.filter(topic.test); const count = entries.filter((entry) => discovered.has(entry[0])).length; return <article key={topic.name}><strong>{topic.icon} {topic.name}</strong><b>{count}/{entries.length}</b><i><em style={{width:`${entries.length ? count / entries.length * 100 : 0}%`}} /></i><small>TẬP CHỦ ĐỀ</small></article>; })}</div></section>
+              <section><div className="inventory-heading"><div><span className="eyebrow">THEO BỘ THỦ</span><h2>Dấu vết cấu tạo</h2></div></div><div className="radical-grid">{radicalGroups.map((group) => { const entries = uniqueVocabulary.filter((entry) => group.test(entry[0])); const count = entries.filter((entry) => discovered.has(entry[0])).length; return <article key={group.radical}><b>{group.radical}</b><span>{group.name}</span><small>{count}/{entries.length} đã gặp</small></article>; })}</div></section>
+              <section><div className="inventory-heading"><div><span className="eyebrow">DI VẬT HIẾM</span><h2>Ngọc Bội</h2></div></div><div className="relic-grid">{jadeRelics.map((relic) => { const owned = progression?.jadeRelics.includes(relic.id); return <article key={relic.id} className={owned ? 'owned' : 'locked'}><img src={relic.image} alt={relic.name}/><span>{owned ? 'ĐÃ THỨC TỈNH' : `${Math.min(discovered.size,relic.threshold)}/${relic.threshold}`}</span><h3>{relic.name}</h3><small>{relic.hanzi}</small><p>Khám phá {relic.threshold} từ khác nhau để mở khóa.</p></article>; })}</div></section>
+            </div>}
+            {codexTab === 'journey' && <div className="journey-map"><div className="journey-road" />{Array.from({length:9},(_,index)=>index+1).map((level) => { const entries = uniqueVocabulary.filter((entry) => entry[4] === `HSK ${level}`); const count = entries.filter((entry) => discovered.has(entry[0])).length; const available = entries.length > 0; const unlocked = available && (level === 1 || (progression?.level ?? 1) >= level * 2); return <article key={level} className={`${unlocked ? 'unlocked' : 'locked'} ${!available ? 'future' : ''}`}><div>{unlocked ? level : '锁'}</div><span>CHƯƠNG {level}</span><h2>HSK {level}</h2><p>{available ? `${count}/${entries.length} từ đã khám phá` : 'Sắp ra mắt'}</p>{available && <i><em style={{width:`${entries.length ? count / entries.length * 100 : 0}%`}} /></i>}</article>; })}</div>}
+          </>}
+        </section>
+      </main>
+    );
+  }
   if (screen === 'inventory') {
     const itemDefinitions = [
       { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
@@ -1586,6 +1640,7 @@ export default function Home() {
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => navigate('inventory')}>Inventory</button>
+          <button onClick={() => navigate('codex')}>Đồ Giám</button>
           <button onClick={() => navigate('shop')}>Cửa hàng</button>
           <button onClick={openPvp}>PvP Online</button>
         </nav>
@@ -1734,6 +1789,9 @@ export default function Home() {
                 </button>
                 <button onClick={() => navigate('dictionary')}>
                   <BookOpen /> Từ điển của tôi
+                </button>
+                <button onClick={() => navigate('codex')}>
+                  <MapIcon /> Hán Tự Đồ Giám
                 </button>
               </div>
               <div className="streak">
