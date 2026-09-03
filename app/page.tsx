@@ -9,6 +9,8 @@ import {
   Flame,
   Folder,
   FolderOpen,
+  LogIn,
+  LogOut,
   Music2,
   Play,
   Settings,
@@ -40,7 +42,9 @@ type Screen =
   | 'result'
   | 'dictionary'
   | 'leaderboard'
-  | 'pvp';
+  | 'pvp'
+  | 'auth';
+type AuthUser = { id: string; name: string; email: string };
 type LeaderboardEntry = {
   id: string;
   name: string;
@@ -159,6 +163,13 @@ export default function Home() {
   const [pvpError, setPvpError] = useState('');
   const [pvpGameMode, setPvpGameMode] = useState<'audition' | 'typing'>('audition');
   const [dailyChallenge, setDailyChallenge] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authStatus, setAuthStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [authError, setAuthError] = useState('');
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
   const pvpScoreSent = useRef(false);
@@ -401,6 +412,34 @@ export default function Home() {
       setScoreStatus('error');
     }
   };
+  const submitAuth = async (event: FormEvent) => {
+    event.preventDefault();
+    if (authStatus === 'loading') return;
+    setAuthStatus('loading');
+    setAuthError('');
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: authMode, name: authName, email: authEmail, password: authPassword }),
+      });
+      const data = (await response.json()) as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) throw new Error(data.error || 'Không thể đăng nhập.');
+      setAuthUser(data.user);
+      setPlayerName(data.user.name);
+      setPvpName(data.user.name);
+      setAuthPassword('');
+      setAuthStatus('idle');
+      navigate('home');
+    } catch (error) {
+      setAuthStatus('error');
+      setAuthError(error instanceof Error ? error.message : 'Không thể đăng nhập.');
+    }
+  };
+  const logout = async () => {
+    await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) });
+    setAuthUser(null);
+  };
   useEffect(() => {
     const savedName = localStorage.getItem('hanzibeat-player-name');
     if (savedName) {
@@ -408,10 +447,20 @@ export default function Home() {
       setPvpName(savedName);
     }
     ensurePvpPlayer();
+    void fetch('/api/auth', { cache: 'no-store' })
+      .then((response) => response.json() as Promise<{ user?: AuthUser | null }>)
+      .then((data) => {
+        if (data.user) {
+          setAuthUser(data.user);
+          setPlayerName(data.user.name);
+          setPvpName(data.user.name);
+        }
+      })
+      .catch(() => undefined);
   }, []);
   useEffect(() => {
     window.history.replaceState({ hanzibeatScreen: screen }, '');
-    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp'];
+    const validScreens: Screen[] = ['home', 'songs', 'game', 'result', 'dictionary', 'leaderboard', 'pvp', 'auth'];
     const handleHistory = (event: PopStateEvent) => {
       const previousScreen = event.state?.hanzibeatScreen as Screen | undefined;
       if (previousScreen && validScreens.includes(previousScreen)) {
@@ -972,6 +1021,38 @@ export default function Home() {
         </section>
       </main>
     );
+  if (screen === 'auth')
+    return (
+      <main className="auth-page">
+        {historyControls}
+        <section className="auth-card">
+          <button className="auth-brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat</b></button>
+          {authUser ? (
+            <div className="auth-profile">
+              <div>{authUser.name.slice(0, 1).toUpperCase()}</div>
+              <span>ĐÃ ĐĂNG NHẬP</span>
+              <h1>{authUser.name}</h1>
+              <p>{authUser.email}</p>
+              <button onClick={logout}><LogOut /> Đăng xuất</button>
+              <button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button>
+            </div>
+          ) : <>
+            <div className="auth-tabs">
+              <button className={authMode === 'login' ? 'on' : ''} onClick={() => { setAuthMode('login'); setAuthError(''); }}>Đăng nhập</button>
+              <button className={authMode === 'register' ? 'on' : ''} onClick={() => { setAuthMode('register'); setAuthError(''); }}>Đăng ký</button>
+            </div>
+            <div className="auth-title"><span>{authMode === 'login' ? '欢迎回来' : '加入我们'}</span><h1>{authMode === 'login' ? 'Chào mừng trở lại' : 'Tạo tài khoản mới'}</h1><p>{authMode === 'login' ? 'Tiếp tục hành trình học tiếng Trung của bạn.' : 'Lưu danh tính người chơi cho bảng xếp hạng và PvP.'}</p></div>
+            <form className="auth-form" onSubmit={submitAuth}>
+              {authMode === 'register' && <label>Tên hiển thị<input value={authName} onChange={(event) => setAuthName(event.target.value)} minLength={2} maxLength={24} required placeholder="Ví dụ: Minh Anh" autoComplete="name" /></label>}
+              <label>Email<input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} type="email" required placeholder="ban@example.com" autoComplete="email" /></label>
+              <label>Mật khẩu<input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} type="password" minLength={8} maxLength={128} required placeholder="Tối thiểu 8 ký tự" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} /></label>
+              {authError && <p className="auth-error">{authError}</p>}
+              <button className="auth-submit" disabled={authStatus === 'loading'}><LogIn /> {authStatus === 'loading' ? 'Đang xử lý...' : authMode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}</button>
+            </form>
+          </>}
+        </section>
+      </main>
+    );
   if (screen === 'pvp')
     return (
       <main className="app pvp-page">
@@ -1079,6 +1160,7 @@ export default function Home() {
           </button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => { setPvpRoom(null); setPvpWaiting(false); setPvpError(''); pvpStarted.current = false; navigate('pvp'); }}>PvP Online</button>
+          <button onClick={() => navigate('auth')}>{authUser ? authUser.name : 'Đăng nhập'}</button>
         </nav>
         <button
           className="user audio-library-button"
