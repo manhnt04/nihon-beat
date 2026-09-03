@@ -136,7 +136,7 @@ export default function Home() {
   const [sequence, setSequence] = useState<number[]>([0, 1, 3]);
   const [entered, setEntered] = useState<number[]>([]);
   const [round, setRound] = useState(1);
-  const [roundTime, setRoundTime] = useState(6);
+  const [roundTime, setRoundTime] = useState(8);
   const [beat, setBeat] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [typingInput, setTypingInput] = useState('');
@@ -206,11 +206,12 @@ export default function Home() {
     );
   }, [dictionaryQuery, selectedHskFolder]);
   const options = useMemo(() => {
-    const column = round % 3 === 0 ? 2 : 3;
+    const column = round % 2 === 1 ? 3 : 0;
     return [
       vocab[word][column],
       vocab[(word + 2) % vocab.length][column],
       vocab[(word + 4) % vocab.length][column],
+      vocab[(word + 6) % vocab.length][column],
     ].sort(() => 0.5 - Math.random());
   }, [word, round, selected]);
   const makeRound = useCallback(() => {
@@ -224,8 +225,8 @@ export default function Home() {
     setProgress((round / vocab.length) * 100);
     setPhase('answer');
     setEntered([]);
-    setRoundTime(6);
-    setJudgment('DỊCH TỪ');
+    setRoundTime(8);
+    setJudgment('CHỌN ĐÁP ÁN');
     setSequence(
       Array.from(
         { length: Math.min(3 + Math.floor(round / 3), 7) },
@@ -296,11 +297,11 @@ export default function Home() {
     setWord(0);
     setCorrect(0);
     setRound(1);
-    setRoundTime(6);
+    setRoundTime(8);
     setSequence([0, 1, 3]);
     setEntered([]);
     setPhase('answer');
-    setJudgment('DỊCH TỪ');
+    setJudgment('CHỌN ĐÁP ÁN');
     setTypingInput('');
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
@@ -497,21 +498,25 @@ export default function Home() {
   const chooseAnswer = useCallback(
     (answer: string) => {
       if (phase !== 'answer') return;
-      const target = vocab[word][round % 3 === 0 ? 2 : 3];
+      const target = vocab[word][round % 2 === 1 ? 3 : 0];
       if (answer === target) {
         playAnswerSound('correct');
+        const nextCombo = combo + 1;
         setCorrect((c) => c + 1);
-        setScore((s) => s + 500);
+        setScore((s) => s + 600 + roundTime * 50 + Math.min(nextCombo, 10) * 50);
+        setCombo(nextCombo);
         setJudgment('CHÍNH XÁC!');
         setPhase('sequence');
+        setTimeout(makeRound, 650);
       } else {
         playAnswerSound('wrong');
         setCombo(0);
-        setJudgment('SAI NGHĨA');
-        setTimeout(() => setPhase('sequence'), 450);
+        setJudgment(`ĐÁP ÁN: ${target}`);
+        setPhase('sequence');
+        setTimeout(makeRound, 850);
       }
     },
-    [phase, word, round, selected],
+    [phase, word, round, combo, roundTime, makeRound],
   );
   const pressArrow = useCallback(
     (lane: number) => {
@@ -548,27 +553,16 @@ export default function Home() {
     const onKey = (e: KeyboardEvent) => {
       if (screen !== 'game') return;
       if (mode !== 'audition') return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        hitBeat();
-        return;
-      }
       if (
         phase === 'answer' &&
-        ['Digit1', 'Digit2', 'Digit3'].includes(e.code)
+        ['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)
       ) {
         chooseAnswer(options[Number(e.code.slice(-1)) - 1]);
-        return;
-      }
-      const lane = arrowKeys.indexOf(e.key);
-      if (lane >= 0) {
-        e.preventDefault();
-        pressArrow(lane);
       }
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [screen, mode, phase, options, chooseAnswer, pressArrow, hitBeat]);
+  }, [screen, mode, phase, options, chooseAnswer]);
   useEffect(() => {
     if (screen !== 'game') return;
     const started = Date.now();
@@ -579,15 +573,16 @@ export default function Home() {
     return () => clearInterval(t);
   }, [screen]);
   useEffect(() => {
-    if (screen !== 'game' || mode !== 'audition' || phase === 'beat') return;
+    if (screen !== 'game' || mode !== 'audition' || phase !== 'answer') return;
     const t = setInterval(
       () =>
         setRoundTime((v) => {
           if (v <= 1) {
+            setPhase('sequence');
             setCombo(0);
             setJudgment('TIME OUT');
-            setTimeout(makeRound, 350);
-            return 6;
+            setTimeout(makeRound, 650);
+            return 8;
           }
           return v - 1;
         }),
@@ -871,71 +866,29 @@ export default function Home() {
           </div>
           <article className="quiz-card">
             <span>
-              {round % 3 === 0 ? 'CHỌN PINYIN' : 'DỊCH SANG TIẾNG VIỆT'}
+              {round % 2 === 1 ? 'CHỌN NGHĨA TIẾNG VIỆT' : 'CHỌN CHỮ HÁN'}
             </span>
-            <h1>{vocab[word][0]}</h1>
-            <p>{vocab[word][1]}</p>
+            <h1>{round % 2 === 1 ? vocab[word][0] : vocab[word][3]}</h1>
+            <p>{round % 2 === 1 ? vocab[word][1] : 'Từ nào có nghĩa như trên?'}</p>
             {phase === 'answer' ? (
               <div className="answer-options">
                 {options.map((o, i) => (
                   <button key={o} onClick={() => chooseAnswer(o)}>
                     <kbd>{i + 1}</kbd>
-                    {round % 3 === 0 && o === vocab[word][3]
-                      ? vocab[word][2]
-                      : o}
+                    {o}
                   </button>
                 ))}
               </div>
             ) : (
               <div className="answer-reveal">
-                <b>{vocab[word][2]}</b>
-                <span>{vocab[word][3]}</span>
+                <b>{judgment}</b>
+                <span>{vocab[word][0]} · {vocab[word][1]} · {vocab[word][3]}</span>
               </div>
             )}
           </article>
-          <div className="dance-avatar">
-            <div className="dancer-head">◡ ‿ ◡</div>
-            <div className="dancer-body">日</div>
-          </div>
-          <div className={`command-panel ${phase}`}>
-            <strong className="judgment">{judgment}</strong>
-            <div className="sequence">
-              {sequence.map((lane, i) => (
-                <span
-                  className={`c${lane} ${i < entered.length ? 'done' : ''} ${i === entered.length ? 'current' : ''}`}
-                  key={`${lane}-${i}`}
-                >
-                  {arrowGlyphs[lane]}
-                </span>
-              ))}
-            </div>
-            {phase === 'beat' && (
-              <div className="beat-track">
-                <i style={{ left: `${beat}%` }} />
-                <b>SPACE</b>
-              </div>
-            )}
-            <div className="touch-controls">
-              {arrowGlyphs.map((glyph, lane) => (
-                <button
-                  className={`c${lane} ${active === lane ? 'pressed' : ''}`}
-                  onPointerDown={() => pressArrow(lane)}
-                  key={glyph}
-                >
-                  {glyph}
-                </button>
-              ))}
-              <button className="space-button" onPointerDown={hitBeat}>
-                SPACE
-              </button>
-            </div>
-            <p>
-              {phase === 'answer'
-                ? 'Chọn nghĩa bằng phím 1 · 2 · 3'
-                : phase === 'sequence'
-                  ? 'Nhập chuỗi phím mũi tên'
-                  : 'Nhấn SPACE khi vệt sáng vào giữa'}
-            </p>
+          <div className="learning-hint">
+            <strong>{judgment}</strong>
+            <p>Chọn đáp án bằng cách chạm hoặc nhấn phím 1 · 2 · 3 · 4</p>
           </div>
         </section>
         <aside className="audition-side">
@@ -954,7 +907,7 @@ export default function Home() {
         {historyControls}
         <section>
           <span className="eyebrow">
-            {mode === 'typing' ? 'TYPING BATTLE COMPLETE!' : 'DANCE COMPLETE!'}
+            {mode === 'typing' ? 'TYPING BATTLE COMPLETE!' : 'RHYTHM QUIZ COMPLETE!'}
           </span>
           <div className="rank">A</div>
           <h1>{dailyChallenge ? '每日挑战' : songs[selected][0]}</h1>
@@ -1066,7 +1019,7 @@ export default function Home() {
               ))}
             </div>
             <div>
-              <button className={leaderboardMode === 'audition' ? 'on' : ''} onClick={() => setLeaderboardMode('audition')}>Vũ đạo</button>
+              <button className={leaderboardMode === 'audition' ? 'on' : ''} onClick={() => setLeaderboardMode('audition')}>Trắc nghiệm</button>
               <button className={leaderboardMode === 'typing' ? 'on' : ''} onClick={() => setLeaderboardMode('typing')}>Gõ chữ</button>
             </div>
           </div>
@@ -1364,8 +1317,8 @@ export default function Home() {
               onClick={() => setMode('audition')}
             >
               <span>← ↓ ↑ →</span>
-              <b>Rhythm Dance</b>
-              <small>Nhập chuỗi phím và canh Space đúng nhịp</small>
+              <b>Rhythm Quiz</b>
+              <small>Luân phiên chọn nghĩa tiếng Việt và chữ Hán</small>
             </button>
             <button
               className={mode === 'typing' ? 'active typing' : ''}

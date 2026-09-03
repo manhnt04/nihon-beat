@@ -640,6 +640,46 @@
   }
 }
 
+/* Learning-focused Rhythm Quiz: music remains, dance inputs are removed. */
+.audition-stage {
+  grid-template-columns: minmax(340px, 560px);
+  grid-template-rows: 1fr auto;
+  column-gap: 0;
+}
+.audition-stage .quiz-card {
+  width: min(560px, 92vw);
+  padding: 34px;
+}
+.audition-stage .quiz-card h1 {
+  font-size: clamp(38px, 6vw, 62px);
+  line-height: 1.15;
+}
+.audition-stage .answer-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.audition-stage .answer-options button {
+  min-height: 58px;
+  font-size: 15px;
+}
+.learning-hint {
+  width: min(560px, 92vw);
+  margin: 0 auto;
+  padding: 14px 20px;
+  text-align: center;
+  border: 1px solid #d6a53a44;
+  border-radius: 7px;
+  background: #170c10e8;
+  color: #fff1c9;
+}
+.learning-hint strong { color: #e7bd63; }
+.learning-hint p { margin: 5px 0 0; color: #b8adce; font-size: 11px; }
+@media (max-width: 560px) {
+  .audition-stage .quiz-card { padding: 24px 18px; }
+  .audition-stage .answer-options { grid-template-columns: 1fr; }
+  .audition-stage .answer-options button { min-height: 48px; }
+}
+
 /* Chinese rhythm-stage skin */
 .game{background:radial-gradient(circle at 50% 25%,#5e1d25,#160d12 68%)}
 .hud{background:#1b0d10ed;border-bottom:1px solid #d6a53a55}.bar{background:#351820}.bar i{background:linear-gradient(90deg,#b5272d,#d6a53a,#176b5b)}
@@ -998,4 +1038,16 @@
     height: 48px;
     font-size: 29px;
   }
+}
+
+.game.audition .audition-stage {
+  grid-template-columns: minmax(340px, 560px);
+  grid-template-rows: 1fr auto;
+  column-gap: 0;
+}
+.game.audition .quiz-card { width: min(560px, 92vw); max-width: none; margin: auto; }
+.game.audition .answer-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) {
+  .game.audition .audition-stage { grid-template-columns: 1fr; padding-top: 65px; }
+  .game.audition .answer-options { grid-template-columns: 1fr; }
 }
