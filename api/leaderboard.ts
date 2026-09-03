@@ -22,7 +22,10 @@ export default async function handler(request: any, response: any) {
     const entries = [];
     for (let index = 0; index < raw.length; index += 2) {
       try {
-        const player = JSON.parse(String(raw[index]));
+        const player =
+          typeof raw[index] === 'string'
+            ? JSON.parse(String(raw[index]))
+            : raw[index];
         entries.push({ ...player, score: Number(raw[index + 1]) });
       } catch {
         // Ignore malformed legacy entries.
