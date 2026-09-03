@@ -43,3 +43,33 @@
   .castle-hotspot.library { left: 3%; top: 48%; }
   .castle-hotspot.listening { right: 3%; top: 49%; }
 }
+
+/* Layered base-building map: every structure is an independent level-aware component. */
+.castle-map-base { position: absolute; inset: 0; z-index: 0; }
+.map-building { position: absolute; z-index: 2; display: block; padding: 0; border: 0; background: transparent; filter: drop-shadow(0 10px 8px #1b0d0b55); transition: transform .22s ease, filter .22s ease; }
+.map-building:hover { z-index: 5; filter: drop-shadow(0 15px 12px #1b0d0b88) brightness(1.05); }
+.map-building > img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+.map-building > span { position: absolute; left: 50%; bottom: 2%; min-width: 92px; padding: 5px 8px; border: 1px solid #efcd68; border-radius: 15px; background: #351714e8; color: #fff2d0; transform: translateX(-50%); box-shadow: 0 5px 12px #0005; white-space: nowrap; }
+.map-building > span b, .map-building > span small { display: block; }
+.map-building > span b { font: 700 11px "Songti SC", "SimSun", serif; }
+.map-building > span small { margin-top: 1px; color: #e9c961; font-size: 7px; }
+.map-building-main { left: 29%; top: 1%; width: 43%; height: 60%; }
+.map-building-main:hover { transform: translateY(-5px) scale(1.025); }
+.map-building-library { left: 6%; top: 34%; width: 29%; height: 43%; }
+.map-building-library:hover { transform: translateY(-5px) scale(1.035); }
+.map-building-listening { right: 5%; top: 34%; width: 29%; height: 43%; }
+.map-building-listening:hover { transform: translateY(-5px) scale(1.035); }
+.map-building.visual-stage-2 { filter: drop-shadow(0 10px 9px #1b0d0b66) saturate(1.03); }
+.map-building.visual-stage-3 { filter: drop-shadow(0 12px 10px #1b0d0b77) saturate(1.06); }
+.map-building.visual-stage-4 { filter: drop-shadow(0 14px 12px #1b0d0b88) saturate(1.08); }
+.map-building.visual-stage-5 { filter: drop-shadow(0 0 13px #f0ca5a88) drop-shadow(0 15px 13px #1b0d0b99); }
+.building-art > img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 8px #2e17152f); }
+.building-art > b { position: absolute; left: 9px; top: 9px; padding: 4px 7px; border-radius: 4px; background: #176b5be8; color: #efffd7; font-size: 8px; }
+@media (max-width: 520px) {
+  .map-building-main { left: 20%; top: 3%; width: 60%; height: 57%; }
+  .map-building-library { left: 1%; top: 39%; width: 38%; height: 38%; }
+  .map-building-listening { right: 1%; top: 39%; width: 38%; height: 38%; }
+  .map-building > span { min-width: 70px; padding: 4px 5px; }
+  .map-building > span b { font-size: 9px; }
+  .map-building > span small { font-size: 6px; }
+}

@@ -219,6 +219,14 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
   window.setTimeout(() => void context.close(), 450);
 };
 
+type CastleBuildingKind = 'main' | 'library' | 'listening';
+const castleVisualStage = (level: number) => Math.min(5, Math.max(1, Math.ceil(level / 2)));
+const CastleMapBuilding = ({ kind, level, label }: { kind: CastleBuildingKind; level: number; label: string }) => {
+  const stage = castleVisualStage(level);
+  const assetStage = kind === 'main' ? stage : 1;
+  return <button className={`map-building map-building-${kind} visual-stage-${stage}`} onClick={() => document.getElementById(`building-${kind}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} aria-label={`${label}, cấp ${level}, hình thái ${stage}`}><img src={`/castle/buildings/${kind}/stage-${assetStage}.webp`} alt=""/><span><b>{label}</b><small>Lv.{level} · Hình thái {stage}/5</small></span></button>;
+};
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('home');
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
@@ -1514,13 +1522,13 @@ export default function Home() {
         <section className="castle-panel">
           <div className="castle-hero">
             <div className="castle-copy"><span className="eyebrow">汉字城 · HÁN TỰ THÀNH</span><h1>{castleTitle}</h1><p>Học Hán tự, thu thập nguyên liệu và xây dựng thành trì của riêng bạn.</p><div className="castle-owner-card"><div className={`header-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0,1).toUpperCase() ?? '汉'}</div><span><small>{authUser?.name ?? 'Người chơi'}</small><b>繁荣度 {prosperity.toLocaleString('vi-VN')}</b></span></div><div className="castle-level"><b>Lv.{castleLevel}</b><span>Điểm phát triển thành</span></div></div>
-            <div className={`castle-scene castle-stage-${Math.min(5, Math.ceil(castleLevel / 5))}`} aria-label={castleTitle}><img src="/castle/hanzi-castle-home.webp" alt="Bản đồ Hán Tự Thành nhìn isometric"/><button className="castle-hotspot main" onClick={() => document.getElementById('castle-buildings')?.scrollIntoView({behavior:'smooth'})}><b>主城</b><small>Lv.{castle.buildings.main}</small></button><button className="castle-hotspot library" onClick={() => document.getElementById('castle-buildings')?.scrollIntoView({behavior:'smooth'})}><b>藏书阁</b><small>Lv.{castle.buildings.library}</small></button><button className="castle-hotspot listening" onClick={() => document.getElementById('castle-buildings')?.scrollIntoView({behavior:'smooth'})}><b>听音阁</b><small>Lv.{castle.buildings.listening}</small></button></div>
+            <div className="castle-scene" aria-label={castleTitle}><img className="castle-map-base" src="/castle/map-empty.webp" alt="Bản đồ xây dựng Hán Tự Thành nhìn isometric"/><CastleMapBuilding kind="main" level={castle.buildings.main} label="主城"/><CastleMapBuilding kind="library" level={castle.buildings.library} label="藏书阁"/><CastleMapBuilding kind="listening" level={castle.buildings.listening} label="听音阁"/></div>
           </div>
           {!authUser ? <div className="inventory-login"><MapIcon /><h2>Hán Tự Thành cần tài khoản</h2><p>Đăng nhập để lưu tài nguyên và công trình trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="castle-resources"><article><span>木</span><div><small>木材 · GỖ</small><b>{castle.wood}</b><p>Nhận từ Offline, Daily và PvP</p></div></article><article><span>墨</span><div><small>墨 · MỰC</small><b>{castle.ink}</b><p>Dùng cho công trình học thuật</p></div></article></div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
             <div className="inventory-heading"><div><span className="eyebrow">建设 · KIẾN THIẾT</span><h2>Công trình trong thành</h2></div><b>Giai đoạn 1</b></div>
-            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost; return <article key={building.id}><div className={`building-art building-${building.id}`}><span>{building.icon}</span><i>{building.hanzi}</i></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${woodCost} 木 / ${inkCost} 墨`}</button></article>; })}</div>
+            <div className="castle-buildings" id="castle-buildings">{buildings.map((building) => { const level = castle.buildings[building.id]; const visualStage = castleVisualStage(level); const assetStage = building.id === 'main' ? visualStage : 1; const woodCost = building.baseWood * level; const inkCost = building.baseInk * level; const maxed = level >= 10; const affordable = castle.wood >= woodCost && castle.ink >= inkCost; return <article key={building.id} id={`building-${building.id}`}><div className={`building-art building-${building.id}`}><img src={`/castle/buildings/${building.id}/stage-${assetStage}.webp`} alt={`${building.name} hình thái ${visualStage}`}/><i>{building.hanzi}</i><b>Hình thái {visualStage}/5</b></div><div className="building-title"><div><small>{building.hanzi}</small><h2>{building.name}</h2></div><b>Lv.{level}</b></div><p>{building.description}</p><div className="building-progress"><i><em style={{width:`${level * 10}%`}} /></i><span>{level}/10</span></div><button disabled={rewardActionStatus === 'loading' || maxed || !affordable} onClick={() => runProgressionAction('upgrade-castle', building.id)}>{maxed ? 'Đã đạt cấp tối đa' : `Nâng cấp · ${woodCost} 木 / ${inkCost} 墨`}</button></article>; })}</div>
           </>}
         </section>
       </main>
