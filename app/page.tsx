@@ -31,6 +31,7 @@ import {
 } from '@/lib/hsk2-vocabulary';
 import { defaultAudioTracks } from '@/lib/default-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
+import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
 
 type Screen =
   | 'home'
@@ -50,7 +51,11 @@ type LeaderboardEntry = {
 type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null };
 type PvpRoom = { code: string; seed: number; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null };
 const baseVocabulary = hsk1Vocabulary;
-const allVocabulary = [...baseVocabulary, ...hsk2Vocabulary];
+const allVocabulary = [
+  ...baseVocabulary,
+  ...hsk2Vocabulary,
+  ...hsk3Vocabulary,
+];
 const WORDS_PER_MATCH = 20;
 const shuffleVocabulary = (entries: VocabularyEntry[], seed?: number) => {
   const shuffled = [...entries];
@@ -272,7 +277,12 @@ export default function Home() {
     isDailyChallenge = false,
   ) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
-    const requestedPool = nextSong === 1 ? hsk2Vocabulary : baseVocabulary;
+    const requestedPool =
+      nextSong === 1
+        ? hsk2Vocabulary
+        : nextSong === 2
+          ? hsk3Vocabulary
+          : baseVocabulary;
     const pool =
       requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
     const nextVocabulary = forcedVocabulary ?? shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
