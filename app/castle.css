@@ -53,11 +53,11 @@
 .map-building > span b, .map-building > span small { display: block; }
 .map-building > span b { font: 700 11px "Songti SC", "SimSun", serif; }
 .map-building > span small { margin-top: 1px; color: #e9c961; font-size: 7px; }
-.map-building-main { left: 29%; top: 1%; width: 43%; height: 60%; }
+.map-building-main { left: 29%; top: -5%; width: 43%; height: 58%; }
 .map-building-main:hover { transform: translateY(-5px) scale(1.025); }
-.map-building-library { left: 6%; top: 34%; width: 29%; height: 43%; }
+.map-building-library { left: 10%; top: 24%; width: 28%; height: 40%; }
 .map-building-library:hover { transform: translateY(-5px) scale(1.035); }
-.map-building-listening { right: 5%; top: 34%; width: 29%; height: 43%; }
+.map-building-listening { right: 12%; top: 23%; width: 28%; height: 40%; }
 .map-building-listening:hover { transform: translateY(-5px) scale(1.035); }
 .map-building.visual-stage-2 { filter: drop-shadow(0 10px 9px #1b0d0b66) saturate(1.03); }
 .map-building.visual-stage-3 { filter: drop-shadow(0 12px 10px #1b0d0b77) saturate(1.06); }
@@ -66,9 +66,10 @@
 .building-art > img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 8px #2e17152f); }
 .building-art > b { position: absolute; left: 9px; top: 9px; padding: 4px 7px; border-radius: 4px; background: #176b5be8; color: #efffd7; font-size: 8px; }
 @media (max-width: 520px) {
-  .map-building-main { left: 20%; top: 3%; width: 60%; height: 57%; }
-  .map-building-library { left: 1%; top: 39%; width: 38%; height: 38%; }
-  .map-building-listening { right: 1%; top: 39%; width: 38%; height: 38%; }
+  .castle-scene { aspect-ratio: 3 / 2; }
+  .map-building-main { left: 29%; top: -5%; width: 43%; height: 58%; }
+  .map-building-library { left: 10%; top: 24%; width: 28%; height: 40%; }
+  .map-building-listening { right: 12%; top: 23%; width: 28%; height: 40%; }
   .map-building > span { min-width: 70px; padding: 4px 5px; }
   .map-building > span b { font-size: 9px; }
   .map-building > span small { font-size: 6px; }

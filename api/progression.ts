@@ -158,6 +158,13 @@ export default async function handler(request: any, response: any) {
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     await redis.set(grantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
   }
+  const castleGrantKey = `hanzibeat:special-grant:castle-resources-99999:${user.localId}`;
+  if (normalizedEmail === 'manhnt@gmail.com' && !await redis.get(castleGrantKey)) {
+    progression.castle.wood = Math.max(99_999, progression.castle.wood);
+    progression.castle.ink = Math.max(99_999, progression.castle.ink);
+    await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+    await redis.set(castleGrantKey, { grantedAt: new Date().toISOString(), email: normalizedEmail });
+  }
 
   if (request.method === 'GET') {
     return response.status(200).json({ progression: publicProgression(progression) });
