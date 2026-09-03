@@ -166,6 +166,8 @@ export default function Home() {
   const [typingTime, setTypingTime] = useState(8);
   const [typingFeedback, setTypingFeedback] = useState('NHẬP ĐÁP ÁN');
   const [typingLocked, setTypingLocked] = useState(false);
+  const [directionCountdown, setDirectionCountdown] = useState(0);
+  const [directionBreakDone, setDirectionBreakDone] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
   const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [selectedHskFolder, setSelectedHskFolder] = useState<number | null>(null);
@@ -238,7 +240,7 @@ export default function Home() {
     );
   }, [dictionaryQuery, selectedHskFolder]);
   const options = useMemo(() => {
-    const column = round % 2 === 1 ? 3 : 0;
+    const column = round <= 10 ? 3 : 0;
     return [
       vocab[word][column],
       vocab[(word + 2) % vocab.length][column],
@@ -250,6 +252,12 @@ export default function Home() {
     if (round >= vocab.length) {
       setProgress(100);
       navigate('result');
+      return;
+    }
+    if (round === 10 && !directionBreakDone) {
+      setDirectionBreakDone(true);
+      setDirectionCountdown(10);
+      setPhase('sequence');
       return;
     }
     setWord((w) => (w + 1) % vocab.length);
@@ -265,7 +273,7 @@ export default function Home() {
         (_, i) => (round * 3 + i * 2) % 4,
       ),
     );
-  }, [round, vocab.length]);
+  }, [round, vocab.length, directionBreakDone]);
   const playDefaultTrack = (trackIndex?: number) => {
     const index =
       trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
@@ -340,6 +348,8 @@ export default function Home() {
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
+    setDirectionCountdown(0);
+    setDirectionBreakDone(false);
     setScoreStatus('idle');
     cloudMatchSaved.current = false;
     navigate('game');
@@ -652,6 +662,12 @@ export default function Home() {
       navigate('result');
       return;
     }
+    if (round === 10 && !directionBreakDone) {
+      setDirectionBreakDone(true);
+      setDirectionCountdown(10);
+      setTypingLocked(true);
+      return;
+    }
     setWord((w) => (w + 1) % vocab.length);
     setRound((r) => r + 1);
     setProgress((round / vocab.length) * 100);
@@ -659,12 +675,12 @@ export default function Home() {
     setTypingTime(8);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
-  }, [round, vocab.length]);
+  }, [round, vocab.length, directionBreakDone]);
   const submitTyping = (event: FormEvent) => {
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
     setTypingLocked(true);
-    const typingToHanzi = round % 2 === 0;
+    const typingToHanzi = round > 10;
     const target = vocab[word][typingToHanzi ? 0 : 3];
     const normalizedInput = normalizeAnswer(typingInput);
     const acceptedAnswers = typingToHanzi
@@ -698,7 +714,7 @@ export default function Home() {
   const chooseAnswer = useCallback(
     (answer: string) => {
       if (phase !== 'answer') return;
-      const target = vocab[word][round % 2 === 1 ? 3 : 0];
+      const target = vocab[word][round <= 10 ? 3 : 0];
       if (answer === target) {
         playAnswerSound('correct');
         const nextCombo = combo + 1;
@@ -808,6 +824,19 @@ export default function Home() {
     );
     return () => clearInterval(t);
   }, [screen, mode, typingLocked, nextTypingWord]);
+  useEffect(() => {
+    if (screen !== 'game' || directionCountdown <= 0) return;
+    const timer = window.setTimeout(() => {
+      if (directionCountdown > 1) {
+        setDirectionCountdown((value) => value - 1);
+        return;
+      }
+      setDirectionCountdown(0);
+      if (mode === 'typing') nextTypingWord();
+      else makeRound();
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [screen, mode, directionCountdown, nextTypingWord, makeRound]);
   useEffect(() => {
     if (screen !== 'game' || mode !== 'typing' || typingLocked) return;
     const frame = requestAnimationFrame(() => {
@@ -950,6 +979,14 @@ export default function Home() {
           <span>语</span>
           <span>♪</span>
         </div>
+        {directionCountdown > 0 && (
+          <div className="direction-transition" role="status" aria-live="assertive">
+            <span>第二回合 · HIỆP 2</span>
+            <h2>Chuyển sang Việt → Trung</h2>
+            <b>{directionCountdown}</b>
+            <p>Chuẩn bị nhập chữ Hán</p>
+          </div>
+        )}
         <section className="typing-stage">
           <div className="typing-round">
             <span>CÂU {round}</span>
@@ -957,13 +994,13 @@ export default function Home() {
           </div>
           <article className={`typing-card ${typingLocked ? 'locked' : ''}`}>
             <span className="typing-label">
-              {round % 2 === 0 ? 'NHẬP CHỮ HÁN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
+              {round > 10 ? 'NHẬP CHỮ HÁN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
             </span>
             <button className="pronounce" onClick={() => speak(vocab[word][0])}>
               <Volume2 /> Nghe phát âm
             </button>
-            <h1>{round % 2 === 0 ? vocab[word][3] : vocab[word][0]}</h1>
-            <p>{round % 2 === 0 ? 'Dịch sang tiếng Trung' : vocab[word][1]}</p>
+            <h1>{round > 10 ? vocab[word][3] : vocab[word][0]}</h1>
+            <p>{round > 10 ? 'Dịch sang tiếng Trung' : vocab[word][1]}</p>
             <div
               className="time-ring"
               style={
@@ -979,7 +1016,7 @@ export default function Home() {
                 value={typingInput}
                 onChange={(event) => setTypingInput(event.target.value)}
                 placeholder={
-                  round % 2 === 0 ? 'Ví dụ: 你好' : 'Ví dụ: xin chào'
+                  round > 10 ? 'Ví dụ: 你好' : 'Ví dụ: xin chào'
                 }
                 disabled={typingLocked}
                 autoComplete="off"
@@ -1059,6 +1096,14 @@ export default function Home() {
           <div className="spotlight right" />
           <div className="crowd" />
         </div>
+        {directionCountdown > 0 && (
+          <div className="direction-transition" role="status" aria-live="assertive">
+            <span>第二回合 · HIỆP 2</span>
+            <h2>Chuyển sang Việt → Trung</h2>
+            <b>{directionCountdown}</b>
+            <p>Chuẩn bị chọn chữ Hán</p>
+          </div>
+        )}
         <section className="audition-stage">
           <div className="round-info">
             <span>ROUND {round}</span>
@@ -1066,10 +1111,10 @@ export default function Home() {
           </div>
           <article className="quiz-card">
             <span>
-              {round % 2 === 1 ? 'CHỌN NGHĨA TIẾNG VIỆT' : 'CHỌN CHỮ HÁN'}
+              {round <= 10 ? 'CHỌN NGHĨA TIẾNG VIỆT' : 'CHỌN CHỮ HÁN'}
             </span>
-            <h1>{round % 2 === 1 ? vocab[word][0] : vocab[word][3]}</h1>
-            <p>{round % 2 === 1 ? vocab[word][1] : 'Từ nào có nghĩa như trên?'}</p>
+            <h1>{round <= 10 ? vocab[word][0] : vocab[word][3]}</h1>
+            <p>{round <= 10 ? vocab[word][1] : 'Từ nào có nghĩa như trên?'}</p>
             {phase === 'answer' ? (
               <div className="answer-options">
                 {options.map((o, i) => (
