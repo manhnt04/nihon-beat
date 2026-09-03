@@ -1895,13 +1895,22 @@ export default function Home() {
             <div className="shop-grid">
               {shopItems.map((item) => {
                 const owned = item.type !== 'consumable' && progression?.ownedCosmetics.includes(item.id);
-                const equipped = item.type !== 'consumable' && progression?.equipped[item.type] === item.id;
                 const guardCount = progression?.inventory['streak-guard'] ?? 0;
-                const cannotBuy = (progression?.jade ?? 0) < item.price || (item.id === 'streak-guard' && guardCount >= 2);
-                return <article key={item.id} className={`${item.rarity === 'Huyền thoại' ? 'legendary' : ''} ${equipped ? 'equipped' : ''}`}>
+                const isMaxGuard = item.id === 'streak-guard' && guardCount >= 2;
+                const notEnoughJade = (progression?.jade ?? 0) < item.price;
+                return <article key={item.id} className={`${item.rarity === 'Huyền thoại' ? 'legendary' : ''} ${owned ? 'owned' : ''} ${isMaxGuard ? 'sold-out' : ''}`}>
                   <div className="shop-item-art"><img src={item.image} alt={item.name} />{item.id === 'streak-guard' && <b>{guardCount}/2</b>}</div>
                   <span>{item.rarity}</span><h2>{item.name}</h2><small>{item.hanzi}</small><p>{item.description}</p>
-                  {owned ? <button className="equip-button" disabled={rewardActionStatus === 'loading'} onClick={() => runProgressionAction('equip-item', item.id)}>{rewardActionStatus === 'loading' ? 'Đang đồng bộ…' : equipped ? '✓ Đang dùng · Bấm để tháo' : item.type === 'frame' ? 'Trang bị lên Avatar' : 'Trang bị'}</button> : <button disabled={rewardActionStatus === 'loading' || cannotBuy} onClick={() => runProgressionAction('buy-item', item.id)}><img src="/items/jade-fragment.png" alt="" />{cannotBuy && item.id === 'streak-guard' && guardCount >= 2 ? 'Đã đạt tối đa' : `${item.price} 玉片`}</button>}
+                  {owned ? (
+                    <button className="shop-btn-owned" disabled>Đã mua</button>
+                  ) : isMaxGuard ? (
+                    <button className="shop-btn-sold-out" disabled>Sold out</button>
+                  ) : (
+                    <button disabled={rewardActionStatus === 'loading' || notEnoughJade} onClick={() => runProgressionAction('buy-item', item.id)}>
+                      <img src="/items/jade-fragment.png" alt="" />
+                      {rewardActionStatus === 'loading' ? 'Đang mua…' : `${item.price} 玉片`}
+                    </button>
+                  )}
                 </article>;
               })}
             </div>
