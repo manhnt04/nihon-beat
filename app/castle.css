@@ -129,7 +129,100 @@
 .castle-resources > .castle-coin b { color:#a66c16 }
 .castle-reward-breakdown { display: block; margin-top: 5px; color: #2a806b; font-size: 9px; font-weight: 800; }
 
-.castle-theme-jade{filter:hue-rotate(55deg) saturate(1.18)}.castle-theme-lantern{filter:hue-rotate(320deg) saturate(1.3) brightness(1.05)}.castle-theme-festival{filter:sepia(.22) saturate(1.45)}.castle-commerce-panel{margin-top:18px;padding:18px;border:1px solid #6c51a1;border-radius:10px;background:linear-gradient(145deg,#241833,#3c2458);color:#f5eaff}.castle-commerce-panel>header{display:flex;align-items:center;justify-content:space-between}.castle-commerce-panel>header span{color:#cbb1f1;font-size:8px;font-weight:900}.castle-commerce-panel h2{margin:4px 0;font-family:"Songti SC","SimSun",serif}.castle-commerce-panel>header>b{padding:8px 12px;border:1px solid #8f72c0;border-radius:18px;background:#170e2377;color:#bceeff}.castle-commerce-panel>p{color:#cbbbd8;font-size:9px}.commerce-products{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.commerce-products article{min-height:100px;display:grid;grid-template-columns:55px 1fr;align-items:center;gap:7px;padding:9px;border:1px solid #ffffff22;border-radius:7px;background:#ffffff0d}.commerce-products article>i{width:50px;height:50px;display:grid;place-items:center;border-radius:50%;background:#1d755e;color:#d8ffd9;font:700 27px "Songti SC","SimSun",serif;font-style:normal}.commerce-products .preview-lantern>i{background:#9d392d}.commerce-products .preview-festival>i{background:#bd741f}.commerce-products span strong,.commerce-products span small{display:block}.commerce-products span strong{font-size:9px}.commerce-products span small{margin-top:4px;color:#d2b8ed;font-size:7px}.commerce-products button{grid-column:1/-1;padding:7px;border:0;border-radius:4px;background:#7c54ad;color:#fff;font-size:8px;font-weight:900}.castle-pass{margin-top:12px;padding:12px;border:1px solid #b28a44;border-radius:7px;background:#201328}.castle-pass>header{display:flex;justify-content:space-between}.castle-pass header span b,.castle-pass header span small{display:block}.castle-pass header span small{margin-top:3px;color:#d5b866;font-size:7px}.castle-pass header button{border:0;border-radius:4px;padding:7px;background:#b58532;color:#fff;font-size:8px;font-weight:900}.pass-progress{position:relative;height:16px;margin:12px 0;border-radius:8px;background:#ffffff17;overflow:hidden}.pass-progress i{display:block;height:100%;background:linear-gradient(90deg,#7353ac,#e0b84f)}.pass-progress span{position:absolute;inset:0;display:grid;place-items:center;font-size:7px;font-weight:900}.pass-tiers{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}.pass-tiers article{display:grid;gap:4px;text-align:center}.pass-tiers button{padding:6px 2px;border:0;border-radius:3px;background:#7653a7;color:#fff;font-size:7px}.pass-tiers button:disabled{background:#55485f;color:#92869c}@media(max-width:650px){.commerce-products{grid-template-columns:1fr}.pass-tiers{grid-template-columns:repeat(2,1fr)}}
+.castle-theme-jade{filter:hue-rotate(65deg) saturate(1.2) brightness(1.04)}.castle-theme-lantern{filter:hue-rotate(320deg) saturate(1.3) brightness(1.05)}.castle-theme-frost{filter:hue-rotate(185deg) saturate(1.15) brightness(1.15)}.castle-theme-crimson{filter:hue-rotate(350deg) saturate(1.4) contrast(1.08)}.castle-theme-classic{filter:none}
+.castle-scene{position:relative;overflow:hidden}
+.castle-weather-layer{position:absolute;inset:0;pointer-events:none;z-index:20;overflow:hidden}
+.castle-weather-layer.weather-petals i{position:absolute;width:12px;height:12px;border-radius:12px 1px;background:linear-gradient(135deg,#ffb2c8,#ff6f91);opacity:.85;animation:falling-petals 6s ease-in-out infinite}
+.castle-weather-layer.weather-petals i:nth-child(1){left:10%;top:-10px;animation-delay:0s;animation-duration:5.5s}
+.castle-weather-layer.weather-petals i:nth-child(2){left:25%;top:-10px;animation-delay:1.2s;animation-duration:6.2s}
+.castle-weather-layer.weather-petals i:nth-child(3){left:45%;top:-10px;animation-delay:2.5s;animation-duration:5.8s}
+.castle-weather-layer.weather-petals i:nth-child(4){left:60%;top:-10px;animation-delay:0.7s;animation-duration:6.5s}
+.castle-weather-layer.weather-petals i:nth-child(5){left:78%;top:-10px;animation-delay:3.1s;animation-duration:5.9s}
+.castle-weather-layer.weather-petals i:nth-child(6){left:90%;top:-10px;animation-delay:1.8s;animation-duration:6.8s}
+.castle-weather-layer.weather-lanterns i{position:absolute;width:14px;height:18px;border-radius:5px 5px 2px 2px;background:radial-gradient(circle at 50% 60%,#ffe878,#ea5428);box-shadow:0 0 12px #ff8c3a;opacity:.9;animation:floating-lanterns 7s ease-in-out infinite}
+.castle-weather-layer.weather-lanterns i:nth-child(1){left:15%;bottom:-20px;animation-delay:0s;animation-duration:6.8s}
+.castle-weather-layer.weather-lanterns i:nth-child(2){left:32%;bottom:-20px;animation-delay:1.6s;animation-duration:7.4s}
+.castle-weather-layer.weather-lanterns i:nth-child(3){left:55%;bottom:-20px;animation-delay:3.2s;animation-duration:6.5s}
+.castle-weather-layer.weather-lanterns i:nth-child(4){left:70%;bottom:-20px;animation-delay:0.9s;animation-duration:7.9s}
+.castle-weather-layer.weather-lanterns i:nth-child(5){left:85%;bottom:-20px;animation-delay:2.4s;animation-duration:7.1s}
+.castle-weather-layer.weather-snow i{position:absolute;width:6px;height:6px;border-radius:50%;background:#ffffff;box-shadow:0 0 4px #c2e2ff;opacity:.8;animation:falling-snow 4s linear infinite}
+.castle-weather-layer.weather-snow i:nth-child(1){left:12%;top:-10px;animation-delay:0s;animation-duration:3.8s}
+.castle-weather-layer.weather-snow i:nth-child(2){left:28%;top:-10px;animation-delay:1.1s;animation-duration:4.5s}
+.castle-weather-layer.weather-snow i:nth-child(3){left:48%;top:-10px;animation-delay:2.2s;animation-duration:3.6s}
+.castle-weather-layer.weather-snow i:nth-child(4){left:68%;top:-10px;animation-delay:0.5s;animation-duration:4.8s}
+.castle-weather-layer.weather-snow i:nth-child(5){left:86%;top:-10px;animation-delay:1.7s;animation-duration:4.1s}
+.castle-weather-layer.weather-clouds i{position:absolute;width:120px;height:40px;border-radius:40px;background:radial-gradient(circle,#9958dc55,transparent 70%);filter:blur(8px);animation:mystic-cloud 10s ease-in-out infinite alternate}
+.castle-weather-layer.weather-clouds i:nth-child(1){left:10%;top:20%;animation-delay:0s}
+.castle-weather-layer.weather-clouds i:nth-child(2){right:15%;top:35%;animation-delay:3s}
+@keyframes falling-petals{0%{transform:translate(0,-10px) rotate(0deg);opacity:0}20%{opacity:.9}100%{transform:translate(60px,360px) rotate(360deg);opacity:0}}
+@keyframes floating-lanterns{0%{transform:translate(0,20px) scale(.7);opacity:0}25%{opacity:.95}100%{transform:translate(25px,-380px) scale(1.1);opacity:0}}
+@keyframes falling-snow{0%{transform:translate(0,-10px);opacity:0}15%{opacity:.85}100%{transform:translate(-25px,380px);opacity:0}}
+@keyframes mystic-cloud{0%{transform:translateX(-20px) scale(1)}100%{transform:translateX(40px) scale(1.15)}}
+.castle-guardian-statue{position:absolute;left:24px;bottom:24px;z-index:25;display:grid;place-items:center;width:42px;height:42px;border:2px solid #e0be69;border-radius:50%;background:radial-gradient(circle,#5a2e1d,#29130d);box-shadow:0 6px 14px #0009;font-size:22px;pointer-events:auto}
+.castle-banner-flag{position:absolute;right:28px;top:28px;z-index:25;padding:6px 11px;border:2px solid #e2bf68;border-radius:4px;background:linear-gradient(135deg,#9c2424,#5a1010);box-shadow:0 6px 12px #0008;color:#fcefb4;font:900 13px "Songti SC","SimSun",serif;letter-spacing:.1em;animation:flag-wave 3s ease-in-out infinite alternate}
+@keyframes flag-wave{0%{transform:skewY(-3deg)}100%{transform:skewY(3deg)}}
+.castle-commerce-panel{margin-top:20px;padding:20px;border:2px solid #845db8;border-radius:12px;background:linear-gradient(145deg,#20142e,#381f52);color:#f5ebff;box-shadow:0 14px 38px #10061977}
+.castle-commerce-panel>header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.castle-commerce-panel>header span{color:#cbb1f1;font-size:9px;font-weight:900;letter-spacing:.1em}
+.castle-commerce-panel h2{margin:3px 0 0;font:700 24px "Songti SC","SimSun",serif;color:#f4ebff}
+.commerce-balance{display:flex;align-items:center;gap:10px}
+.commerce-balance>b{padding:7px 14px;border:1px solid #9c78d4;border-radius:20px;background:#180b27bb;color:#7ee8fa;font-size:14px;font-weight:900}
+.topup-trigger-btn{padding:7px 13px;border:1px solid #e3be66;border-radius:6px;background:linear-gradient(#e4bb5b,#9e7323);color:#2b1604;font-size:10px;font-weight:900;box-shadow:0 2px 0 #68480b}
+.commerce-policy-banner{margin:12px 0 16px;padding:9px 13px;border:1px solid #a372e644;border-radius:6px;background:#ffffff0f;color:#e8d4ff;font-size:9px;font-weight:700;line-height:1.5}
+.commerce-tabs{display:flex;gap:7px;margin-bottom:15px;overflow-x:auto;padding-bottom:3px}
+.commerce-tabs button{padding:9px 15px;border:1px solid #6b4d96;border-radius:6px;background:#28183c;color:#d7c4eb;font-weight:800;font-size:11px;white-space:nowrap;transition:all .15s ease}
+.commerce-tabs button.on{border-color:#e0be6c;background:linear-gradient(135deg,#5f3796,#8a4ec9);color:#ffffff;box-shadow:0 4px 12px #6e33af55}
+.commerce-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
+.commerce-card{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:14px;border:1px solid #ffffff24;border-radius:8px;background:#ffffff12;backdrop-filter:blur(4px);transition:transform .15s ease}
+.commerce-card:hover{border-color:#b58feb;transform:translateY(-2px)}
+.commerce-card-icon{width:56px;height:56px;margin:0 auto 10px;display:grid;place-items:center;border-radius:50%;border:2px solid #ffffff33;background:#176856;color:#e1ffe7;font-size:26px}
+.commerce-card.preview-lantern .commerce-card-icon{background:#9d392d}
+.commerce-card.preview-frost .commerce-card-icon{background:#236187}
+.commerce-card.preview-crimson .commerce-card-icon{background:#a34e1c}
+.commerce-card.preview-classic .commerce-card-icon{background:#634b35}
+.commerce-card.preview-weather .commerce-card-icon{background:#6c3ea3}
+.commerce-card.preview-guardian .commerce-card-icon{background:#8a601f}
+.commerce-card.preview-banner .commerce-card-icon{background:#8a2828}
+.commerce-card h3{margin:0;font:700 16px "Songti SC","SimSun",serif;color:#f9f4ff;text-align:center}
+.commerce-card p{min-height:36px;margin:6px 0 12px;color:#d2c0e7;font-size:9px;line-height:1.45;text-align:center}
+.commerce-card footer{display:flex;align-items:center;gap:8px;margin-top:auto}
+.commerce-card footer button{flex:1;padding:8px;border:0;border-radius:5px;background:linear-gradient(#9565d6,#6d39b8);color:#fff;font-size:10px;font-weight:900}
+.commerce-card footer button.active-equipped{background:#217a61;color:#effff4;cursor:default}
+.commerce-card footer button.unequip-btn{background:#773535;color:#ffdada}
+.commerce-card footer button:disabled{background:#584a6b;color:#a292b5;cursor:not-allowed}
+.castle-pass-v2{padding:16px;border:1px solid #b79047;border-radius:10px;background:#20112e}
+.castle-pass-header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.castle-pass-header h3{margin:0;font:700 20px "Songti SC","SimSun",serif;color:#ffd97e}
+.castle-pass-header small{display:block;margin-top:3px;color:#d1c296;font-size:9px}
+.castle-pass-header button.unlock-pass-btn{padding:9px 16px;border:1px solid #f6cf70;border-radius:6px;background:linear-gradient(#f0c65b,#af7d1c);color:#2b1500;font-weight:900;font-size:11px;box-shadow:0 3px 0 #6e4e0f}
+.pass-progress-bar{position:relative;height:20px;margin:15px 0 20px;border-radius:10px;background:#ffffff17;overflow:hidden;border:1px solid #ffffff22}
+.pass-progress-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7a51c4,#ecbc43);transition:width .3s ease}
+.pass-progress-bar span{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:8px;font-weight:900;text-shadow:0 1px 2px #000}
+.pass-tier-list{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.pass-tier-card{padding:10px;border:1px solid #ffffff20;border-radius:8px;background:#ffffff0d;display:flex;flex-direction:column;gap:8px;text-align:center}
+.pass-tier-card>strong{display:block;color:#e8be66;font-size:11px}
+.pass-tier-track{display:flex;flex-direction:column;gap:6px;padding:8px 6px;border-radius:6px;background:#150a20bb}
+.pass-tier-track.premium{border:1px solid #e0ba5e55;background:linear-gradient(145deg,#361e12aa,#22102faa)}
+.pass-tier-track small{color:#cfbde3;font-size:8px;font-weight:700;line-height:1.3}
+.pass-tier-track.premium small{color:#ffd88f}
+.pass-tier-track button{padding:6px;border:0;border-radius:4px;background:#754ab8;color:#fff;font-size:8px;font-weight:900}
+.pass-tier-track button.claimed{background:#236b53;color:#d6ffe7;cursor:default}
+.pass-tier-track button:disabled:not(.claimed){background:#4f435c;color:#897c99;cursor:not-allowed}
+.topup-modal-backdrop{position:fixed;inset:0;z-index:260;display:grid;place-items:center;padding:16px;background:#110619dd;backdrop-filter:blur(8px)}
+.topup-modal{width:min(580px,95vw);padding:22px;border:2px solid #b8914b;border-radius:12px;background:linear-gradient(150deg,#241434,#3a1e54);color:#f5ebff;box-shadow:0 24px 70px #000a}
+.topup-modal>header{position:relative;margin-bottom:16px;text-align:center}
+.topup-modal>header span{color:#e6c475;font-size:9px;font-weight:900;letter-spacing:.1em}
+.topup-modal>header h2{margin:3px 0 6px;font:700 24px "Songti SC","SimSun",serif;color:#fff2d4}
+.topup-modal>header p{margin:0;color:#cbbae0;font-size:9px}
+.topup-modal>header button.close-btn{position:absolute;right:0;top:0;width:30px;height:30px;border:0;border-radius:50%;background:#8b2c2c;color:#fff;font-size:16px;font-weight:900}
+.topup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.topup-card{padding:14px;border:1px solid #e0ba6355;border-radius:8px;background:#ffffff10;text-align:center;display:flex;flex-direction:column;justify-content:space-between}
+.topup-card b.crystals{display:block;margin:6px 0;font-size:20px;color:#7feaff}
+.topup-card h4{margin:0;font-size:12px;color:#fff0d0}
+.topup-card small{display:block;margin:5px 0 12px;color:#caaee8;font-size:8px}
+.topup-card button{padding:8px;border:1px solid #dcae4a;border-radius:5px;background:linear-gradient(#deb355,#9e7523);color:#241100;font-weight:900;font-size:10px}
+.topup-policy-note{margin-top:14px;padding:9px;border-radius:6px;background:#00000033;text-align:center;color:#bca9d3;font-size:8px}
+@media(max-width:760px){.pass-tier-list{grid-template-columns:repeat(2,1fr)}.topup-grid{grid-template-columns:1fr}}
 
 .castle-rank-list article button.attack{background:#a42b2f}.castle-combat-panel{margin-top:18px;padding:18px;border:1px solid #c99a58;border-radius:10px;background:linear-gradient(145deg,#3b1c18,#61231f);color:#f7e8c6}.castle-combat-panel>header{display:flex;align-items:center;gap:12px}.castle-combat-panel>header>div{flex:1}.castle-combat-panel>header span{color:#e4bc5f;font-size:8px;font-weight:900}.castle-combat-panel h2{margin:3px 0;font:700 24px "Songti SC","SimSun",serif}.castle-combat-panel>header>b{font-size:16px;color:#ffe074}.castle-combat-panel>header>button{padding:8px;border:1px solid #c2984a;border-radius:5px;background:#765425;color:#fff;font-size:8px;font-weight:900}.castle-combat-panel>header>button.on{background:#176b5b}.castle-combat-panel>p{color:#d4c09e;font-size:9px}.combat-protection{display:flex;gap:8px;margin:10px 0}.combat-protection span{flex:1;padding:7px;border:1px solid #ffffff20;border-radius:5px;background:#ffffff0d;font-size:8px}.combat-log-list{display:grid;gap:6px}.combat-log-list article{display:grid;grid-template-columns:65px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:5px;background:#fff7e9;color:#4d2a25}.combat-log-list article>b{font-size:8px}.combat-log-list .win{color:#21805f}.combat-log-list .lose{color:#a52c31}.combat-log-list span strong,.combat-log-list span small{display:block}.combat-log-list span small{margin-top:2px;color:#8d7465;font-size:7px}.combat-log-list button{padding:6px;border:0;border-radius:4px;background:#a42b2e;color:white;font-size:8px;font-weight:900}.combat-quiz-backdrop,.combat-result-backdrop{position:fixed;inset:0;z-index:250;display:grid;place-items:center;padding:18px;background:#160b09d9;backdrop-filter:blur(7px)}.combat-quiz,.combat-result-backdrop>section{width:min(520px,94vw);padding:25px;border:3px solid #bd8d3c;border-radius:12px;background:#fff6e1;text-align:center;box-shadow:0 25px 80px #0009}.combat-quiz>span,.combat-result-backdrop span{color:#a62c30;font-size:9px;font-weight:900;letter-spacing:.1em}.combat-quiz h2{margin:4px;font-family:"Songti SC","SimSun",serif}.combat-quiz-progress{height:7px;margin:12px 0;border-radius:5px;background:#e5d5b6;overflow:hidden}.combat-quiz-progress i{display:block;height:100%;background:linear-gradient(90deg,#a62c30,#e8bc55)}.combat-quiz>strong{display:block;color:#852629;font:700 52px "Songti SC","SimSun",serif}.combat-quiz>small{color:#8b7161}.combat-quiz>div:not(.combat-quiz-progress){display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.combat-quiz>div button{min-height:50px;padding:8px;border:1px solid #d6bd90;border-radius:6px;background:#fffdf7;color:#5e382f;font-weight:800}.combat-quiz>p{font-size:9px;font-weight:900}.combat-result-backdrop>section>b{display:block;font-size:60px}.combat-result-backdrop h2{font-family:"Songti SC","SimSun",serif}.combat-result-backdrop strong{display:block;margin:12px;color:#197058}.combat-result-backdrop button{padding:10px 30px;border:0;border-radius:5px;background:#a62c30;color:#fff;font-weight:900}@media(max-width:600px){.castle-combat-panel>header{flex-wrap:wrap}.combat-protection{flex-direction:column}.combat-log-list article{grid-template-columns:55px 1fr}.combat-log-list article button{grid-column:2}.combat-quiz>div:not(.combat-quiz-progress){grid-template-columns:1fr}}
 

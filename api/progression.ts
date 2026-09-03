@@ -49,6 +49,13 @@ type Progression = {
     likes: number;
     theme: string;
     ownedThemes: string[];
+    decorations: {
+      theme: string;
+      weather: string | null;
+      guardian: string | null;
+      banner: string | null;
+    };
+    ownedDecorations: string[];
     attackEnergy: number;
     attackUpdatedAt: number;
     peaceUntil: number;
@@ -146,11 +153,37 @@ const shopCatalog = {
   'frame-dragon': { price: 300, type: 'frame' },
 } as const;
 const castleCommerceCatalog = {
-  'theme-jade': { price: 120, kind: 'theme', theme: 'jade' },
-  'theme-lantern': { price: 180, kind: 'theme', theme: 'lantern' },
-  'seasonal-lantern-gate': { price: 90, kind: 'cosmetic', theme: 'festival' },
-  'premium-pass': { price: 129, kind: 'pass', theme: '' },
+  'theme-jade': { price: 120, kind: 'theme', slot: 'theme', theme: 'jade', name: 'Theme Pack · Bích Ngọc Cung', desc: 'Thành trì ngọc bích thanh tao, mái ngói ngọc lục bích tỏa ánh minh châu.' },
+  'theme-lantern': { price: 180, kind: 'theme', slot: 'theme', theme: 'lantern', name: 'Theme Pack · Đèn Lồng Phố Đêm', desc: 'Đêm hoa đăng ấm áp rực rỡ, lầu son sáng bừng ngập tràn ánh đèn.' },
+  'theme-frost': { price: 220, kind: 'theme', slot: 'theme', theme: 'frost', name: 'Theme Pack · Băng Thiên Tuyết Sơn', desc: 'Đỉnh núi tuyết ngàn năm kỳ vĩ, phong thái băng thanh ngọc khiết.' },
+  'theme-crimson': { price: 150, kind: 'theme', slot: 'theme', theme: 'crimson', name: 'Theme Pack · Đan Hà Thu Cảnh', desc: 'Ráng chiều hoàng hôn rực rỡ, sắc thu vàng son bên thành cổ tráng lệ.' },
+  'weather-petals': { price: 70, kind: 'weather', slot: 'weather', theme: 'weather-petals', name: 'Khí Tượng · Lạc Hoa Phù Dao', desc: 'Cánh hoa đào bay lượn nhẹ nhàng khắp bầu trời thành trì.' },
+  'weather-lanterns': { price: 80, kind: 'weather', slot: 'weather', theme: 'weather-lanterns', name: 'Khí Tượng · Thiên Đăng Cầu Nguyện', desc: 'Hàng ngàn chiếc đèn lồng giấy bồng bềnh thắp sáng trời đêm.' },
+  'weather-snow': { price: 90, kind: 'weather', slot: 'weather', theme: 'weather-snow', name: 'Khí Tượng · Băng Tuyết Phiêu Diêu', desc: 'Bông tuyết trắng tinh khôi rơi chầm chậm trên mái ngói hoàng thành.' },
+  'weather-clouds': { price: 110, kind: 'weather', slot: 'weather', theme: 'weather-clouds', name: 'Khí Tượng · Tử Khí Đông Lai', desc: 'Làn mây tím phong thủy điềm lành bao bọc vương điện Chủ Thành.' },
+  'guardian-lion': { price: 60, kind: 'guardian', slot: 'guardian', theme: 'guardian-lion', name: 'Linh Thú · Thạch Sư Uy Nghi', desc: 'Cặp tượng sư tử đá trấn trạch bảo hộ bình an cho thành trì.' },
+  'guardian-qilin': { price: 130, kind: 'guardian', slot: 'guardian', theme: 'guardian-qilin', name: 'Linh Thú · Kỳ Lân Hiến Thụy', desc: 'Kỳ lân thần thú mang lại điềm lành, phúc lộc và thịnh vượng.' },
+  'guardian-dragon': { price: 190, kind: 'guardian', slot: 'guardian', theme: 'guardian-dragon', name: 'Linh Thú · Thanh Long Trấn Thành', desc: 'Thần rồng xanh dũng mãnh bảo hộ giang sơn vững như bàn thạch.' },
+  'banner-scholar': { price: 45, kind: 'banner', slot: 'banner', theme: 'banner-scholar', name: 'Cờ Hiệu · Bác Học Văn Kỳ', desc: 'Cờ chữ Văn đỏ thắm thể hiện ý chí hiếu học kiên cường.' },
+  'banner-dragon': { price: 75, kind: 'banner', slot: 'banner', theme: 'banner-dragon', name: 'Cờ Hiệu · Long Đằng Chiến Kỳ', desc: 'Chiến kỳ thêu rồng vàng dũng mãnh tung bay trong gió lớn.' },
+  'topup-60': { price: 0, crystals: 60, kind: 'topup', slot: 'topup', theme: '', name: 'Túi Long Tinh', tag: '29.000đ', desc: 'Nhận ngay 60 Long Tinh để trải nghiệm trang trí thành.' },
+  'topup-180': { price: 0, crystals: 180, kind: 'topup', slot: 'topup', theme: '', name: 'Hòm Long Tinh (+20)', tag: '79.000đ', desc: 'Nhận 180 Long Tinh (Ưu đãi tặng thêm 20 💎).' },
+  'topup-450': { price: 0, crystals: 450, kind: 'topup', slot: 'topup', theme: '', name: 'Rương Long Tinh (+60)', tag: '179.000đ', desc: 'Nhận 450 Long Tinh (Ưu đãi tặng thêm 60 💎).' },
+  'premium-pass': { price: 129, kind: 'pass', slot: 'pass', theme: '', name: 'Long Vân Pass Mùa 1', desc: 'Mở khóa đường thưởng Premium với linh thú độc quyền.' },
 } as const;
+
+export const BATTLE_PASS_TIERS = [
+  { tier: 1, free: { id: 'free-1', name: '15 Mảnh Ngọc', type: 'jade', amount: 15 }, premium: { id: 'premium-1', name: 'Cờ Hiệu Bác Học', type: 'banner', banner: 'banner-scholar' } },
+  { tier: 2, free: { id: 'free-2', name: '50 XP Học Tập', type: 'xp', amount: 50 }, premium: { id: 'premium-2', name: '30 Long Tinh', type: 'crystals', amount: 30 } },
+  { tier: 3, free: { id: 'free-3', name: '20 Mảnh Ngọc', type: 'jade', amount: 20 }, premium: { id: 'premium-3', name: 'Khí Tượng Cánh Hoa', type: 'weather', weather: 'weather-petals' } },
+  { tier: 4, free: { id: 'free-4', name: '80 XP Học Tập', type: 'xp', amount: 80 }, premium: { id: 'premium-4', name: '40 Long Tinh', type: 'crystals', amount: 40 } },
+  { tier: 5, free: { id: 'free-5', name: 'Cờ Hiệu Long Đằng', type: 'banner', banner: 'banner-dragon' }, premium: { id: 'premium-5', name: 'Thạch Sư Trấn Thành', type: 'guardian', guardian: 'guardian-lion' } },
+  { tier: 6, free: { id: 'free-6', name: '30 Mảnh Ngọc', type: 'jade', amount: 30 }, premium: { id: 'premium-6', name: '50 Long Tinh', type: 'crystals', amount: 50 } },
+  { tier: 7, free: { id: 'free-7', name: '100 XP Học Tập', type: 'xp', amount: 100 }, premium: { id: 'premium-7', name: 'Khí Tượng Đèn Lồng', type: 'weather', weather: 'weather-lanterns' } },
+  { tier: 8, free: { id: 'free-8', name: '40 Mảnh Ngọc', type: 'jade', amount: 40 }, premium: { id: 'premium-8', name: 'Kỳ Lân Hiến Thụy', type: 'guardian', guardian: 'guardian-qilin' } },
+  { tier: 9, free: { id: 'free-9', name: '150 XP Học Tập', type: 'xp', amount: 150 }, premium: { id: 'premium-9', name: '60 Long Tinh', type: 'crystals', amount: 60 } },
+  { tier: 10, free: { id: 'free-10', name: 'Theme Bích Ngọc Cung', type: 'theme', theme: 'theme-jade' }, premium: { id: 'premium-10', name: 'Thanh Long & Đan Hà Thu Cảnh', type: 'guardian_theme', guardian: 'guardian-dragon', theme: 'theme-crimson' } },
+] as const;
 
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -203,19 +236,29 @@ const loadProgression = async (uid: string, name: string) => {
   const key = `hanzibeat:progression:${uid}`;
   const stored = await redis.get<Progression>(key);
   const date = bangkokDate();
+  const passSeason = new Date().toISOString().slice(0, 7);
   const progression: Progression = stored ?? {
-    uid, name, xp: 0, level: 1, jade: 0, dragonCrystals: 0, coins: 0, streak: 0,
+    uid, name, xp: 0, level: 1, jade: 0, dragonCrystals: 150, coins: 0, streak: 0,
     lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
-    castle: { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } },
+    castle: {
+      wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0,
+      theme: 'classic', ownedThemes: ['classic'],
+      decorations: { theme: 'classic', weather: null, guardian: null, banner: null },
+      ownedDecorations: ['classic'],
+      attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0,
+      newbieUntil: Date.now() + 7 * 86_400_000,
+      buildings: { main: 1, library: 1, listening: 1 },
+    },
     daily: emptyDaily(date),
-    battlePass: { season: new Date().toISOString().slice(0, 7), xp: 0, premium: false, claimed: [] },
+    battlePass: { season: passSeason, xp: 0, premium: false, claimed: [] },
   };
   progression.name = name || progression.name;
   progression.coins = Math.max(0, Math.floor(Number(progression.coins ?? 0)));
-  progression.dragonCrystals = Math.max(0, Math.floor(Number(progression.dragonCrystals ?? 0)));
+  const storedCrystals = Number(progression.dragonCrystals ?? 0);
+  progression.dragonCrystals = storedCrystals > 0 ? storedCrystals : 150;
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
@@ -225,7 +268,15 @@ const loadProgression = async (uid: string, name: string) => {
   progression.discoveries = progression.discoveries ?? [];
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
-  progression.castle = progression.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Date.now() + 7 * 86_400_000, buildings: { main: 1, library: 1, listening: 1 } };
+  progression.castle = progression.castle ?? {
+    wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0,
+    theme: 'classic', ownedThemes: ['classic'],
+    decorations: { theme: 'classic', weather: null, guardian: null, banner: null },
+    ownedDecorations: ['classic'],
+    attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0,
+    newbieUntil: Date.now() + 7 * 86_400_000,
+    buildings: { main: 1, library: 1, listening: 1 },
+  };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
   progression.castle.ink = Number(progression.castle.ink ?? 0);
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
@@ -234,6 +285,17 @@ const loadProgression = async (uid: string, name: string) => {
   progression.castle.likes = Math.max(0, Number(progression.castle.likes ?? 0));
   progression.castle.theme = String(progression.castle.theme ?? 'classic');
   progression.castle.ownedThemes = Array.from(new Set(['classic', ...(progression.castle.ownedThemes ?? [])]));
+  progression.castle.decorations = progression.castle.decorations ?? {
+    theme: progression.castle.theme || 'classic',
+    weather: null,
+    guardian: null,
+    banner: null,
+  };
+  progression.castle.ownedDecorations = Array.from(new Set([
+    'classic',
+    ...(progression.castle.ownedThemes ?? []),
+    ...(progression.castle.ownedDecorations ?? []),
+  ]));
   progression.castle.attackEnergy = Math.max(0, Math.min(5, Number(progression.castle.attackEnergy ?? 5)));
   progression.castle.attackUpdatedAt = Number(progression.castle.attackUpdatedAt ?? Date.now());
   const recoveredEnergy = Math.floor((Date.now() - progression.castle.attackUpdatedAt) / 7_200_000);
@@ -243,7 +305,6 @@ const loadProgression = async (uid: string, name: string) => {
   }
   progression.castle.peaceUntil = Number(progression.castle.peaceUntil ?? 0);
   progression.castle.newbieUntil = Number(progression.castle.newbieUntil ?? 0);
-  const passSeason = new Date().toISOString().slice(0, 7);
   progression.battlePass = progression.battlePass?.season === passSeason ? progression.battlePass : { season: passSeason, xp: 0, premium: false, claimed: [] };
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
@@ -310,33 +371,112 @@ export default async function handler(request: any, response: any) {
   const action = String(request.body?.action ?? '');
   if (action === 'castle-commerce') {
     const operation = String(request.body?.operation ?? 'list');
+    if (operation === 'topup') {
+      const packageId = String(request.body?.packageId ?? '');
+      const item = castleCommerceCatalog[packageId as keyof typeof castleCommerceCatalog];
+      if (!item || item.kind !== 'topup') {
+        return response.status(400).json({ error: 'Gói nạp Long Tinh không hợp lệ.' });
+      }
+      const crystalsToAdd = 'crystals' in item ? Number(item.crystals) : 60;
+      progression.dragonCrystals = Math.min(99_999, (progression.dragonCrystals ?? 0) + crystalsToAdd);
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
+      return response.status(200).json({
+        progression: publicProgression(progression),
+        commerce: { catalog: castleCommerceCatalog, tiers: BATTLE_PASS_TIERS },
+        topupSuccess: true,
+      });
+    }
+
     if (operation === 'buy') {
       const itemId = String(request.body?.itemId ?? '') as keyof typeof castleCommerceCatalog;
       const item = castleCommerceCatalog[itemId];
       if (!item) return response.status(400).json({ error: 'Sản phẩm không tồn tại.' });
+      // Strict rule: NO selling building resources, defense shields, or combat energy
+      if (['wood', 'ink', 'coins', 'shields', 'energy'].includes(item.kind)) {
+        return response.status(403).json({ error: 'Tuyệt đối không bán tài nguyên xây dựng hoặc phòng thủ.' });
+      }
       if (progression.dragonCrystals < item.price) return response.status(409).json({ error: 'Không đủ Long Tinh.' });
-      if (item.kind === 'pass' && progression.battlePass.premium) return response.status(409).json({ error: 'Bạn đã sở hữu Premium Pass mùa này.' });
-      if (item.theme && progression.castle.ownedThemes.includes(item.theme)) return response.status(409).json({ error: 'Bạn đã sở hữu trang trí này.' });
+      if (item.kind === 'pass' && progression.battlePass.premium) {
+        return response.status(409).json({ error: 'Bạn đã sở hữu Long Vân Pass mùa này.' });
+      }
+      const targetId = item.theme || itemId;
+      const alreadyOwned = progression.castle.ownedDecorations.includes(targetId) || progression.castle.ownedThemes.includes(targetId);
+      if (item.kind !== 'pass' && alreadyOwned) {
+        return response.status(409).json({ error: 'Bạn đã sở hữu trang trí này.' });
+      }
       progression.dragonCrystals -= item.price;
-      if (item.kind === 'pass') progression.battlePass.premium = true;
-      else progression.castle.ownedThemes.push(item.theme);
-    } else if (operation === 'equip') {
-      const theme = String(request.body?.theme ?? 'classic');
-      if (!progression.castle.ownedThemes.includes(theme)) return response.status(403).json({ error: 'Bạn chưa sở hữu Theme này.' });
-      progression.castle.theme = theme;
-    } else if (operation === 'claim') {
-      const tier = Math.max(1, Math.min(5, Number(request.body?.tier ?? 1)));
-      const premium = Boolean(request.body?.premium);
-      const claimId = `${premium ? 'premium' : 'free'}-${tier}`;
-      if (progression.battlePass.xp < tier * 100) return response.status(409).json({ error: 'Chưa đủ XP Battle Pass.' });
-      if (premium && !progression.battlePass.premium) return response.status(403).json({ error: 'Cần Premium Pass.' });
+      if (item.kind === 'pass') {
+        progression.battlePass.premium = true;
+      } else {
+        if (!progression.castle.ownedDecorations.includes(targetId)) {
+          progression.castle.ownedDecorations.push(targetId);
+        }
+        if (item.kind === 'theme' && !progression.castle.ownedThemes.includes(targetId)) {
+          progression.castle.ownedThemes.push(targetId);
+        }
+      }
+    } else if (operation === 'equip-decoration' || operation === 'equip') {
+      const slot = String(request.body?.slot ?? 'theme') as 'theme' | 'weather' | 'guardian' | 'banner';
+      const decoId = request.body?.id ? String(request.body.id) : request.body?.theme ? String(request.body.theme) : null;
+      if (decoId && !progression.castle.ownedDecorations.includes(decoId) && !progression.castle.ownedThemes.includes(decoId)) {
+        return response.status(403).json({ error: 'Bạn chưa sở hữu trang trí này.' });
+      }
+      if (slot === 'theme') {
+        const nextTheme = decoId || 'classic';
+        progression.castle.theme = nextTheme;
+        progression.castle.decorations.theme = nextTheme;
+      } else if (slot === 'weather') {
+        progression.castle.decorations.weather = progression.castle.decorations.weather === decoId ? null : decoId;
+      } else if (slot === 'guardian') {
+        progression.castle.decorations.guardian = progression.castle.decorations.guardian === decoId ? null : decoId;
+      } else if (slot === 'banner') {
+        progression.castle.decorations.banner = progression.castle.decorations.banner === decoId ? null : decoId;
+      }
+    } else if (operation === 'claim-pass' || operation === 'claim') {
+      const tierNum = Math.max(1, Math.min(10, Number(request.body?.tier ?? 1)));
+      const isPremium = Boolean(request.body?.premium);
+      const claimId = `${isPremium ? 'premium' : 'free'}-${tierNum}`;
+      const requiredXp = tierNum * 100;
+      if (progression.battlePass.xp < requiredXp) return response.status(409).json({ error: 'Chưa đủ XP Battle Pass.' });
+      if (isPremium && !progression.battlePass.premium) return response.status(403).json({ error: 'Cần mở khóa Long Vân Pass (Premium).' });
       if (progression.battlePass.claimed.includes(claimId)) return response.status(409).json({ error: 'Đã nhận phần thưởng này.' });
-      const rewardTheme = premium ? `pass-dragon-${tier}` : `pass-banner-${tier}`;
-      progression.castle.ownedThemes.push(rewardTheme);
+
+      const tierDef = BATTLE_PASS_TIERS.find((t) => t.tier === tierNum);
+      if (tierDef) {
+        const reward = isPremium ? tierDef.premium : tierDef.free;
+        if (reward.type === 'jade') {
+          progression.jade += reward.amount;
+        } else if (reward.type === 'xp') {
+          progression.xp += reward.amount;
+          progression.level = levelFromXp(progression.xp).level;
+        } else if (reward.type === 'crystals') {
+          progression.dragonCrystals += reward.amount;
+        } else if (reward.type === 'banner' && 'banner' in reward) {
+          if (!progression.castle.ownedDecorations.includes(reward.banner)) progression.castle.ownedDecorations.push(reward.banner);
+        } else if (reward.type === 'weather' && 'weather' in reward) {
+          if (!progression.castle.ownedDecorations.includes(reward.weather)) progression.castle.ownedDecorations.push(reward.weather);
+        } else if (reward.type === 'guardian' && 'guardian' in reward) {
+          if (!progression.castle.ownedDecorations.includes(reward.guardian)) progression.castle.ownedDecorations.push(reward.guardian);
+        } else if (reward.type === 'theme' && 'theme' in reward) {
+          if (!progression.castle.ownedDecorations.includes(reward.theme)) progression.castle.ownedDecorations.push(reward.theme);
+          if (!progression.castle.ownedThemes.includes(reward.theme)) progression.castle.ownedThemes.push(reward.theme);
+        } else if (reward.type === 'guardian_theme') {
+          if ('guardian' in reward && !progression.castle.ownedDecorations.includes(reward.guardian)) {
+            progression.castle.ownedDecorations.push(reward.guardian);
+          }
+          if ('theme' in reward) {
+            if (!progression.castle.ownedDecorations.includes(reward.theme)) progression.castle.ownedDecorations.push(reward.theme);
+            if (!progression.castle.ownedThemes.includes(reward.theme)) progression.castle.ownedThemes.push(reward.theme);
+          }
+        }
+      }
       progression.battlePass.claimed.push(claimId);
     }
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
-    return response.status(200).json({ progression: publicProgression(progression), commerce: { catalog: castleCommerceCatalog } });
+    return response.status(200).json({
+      progression: publicProgression(progression),
+      commerce: { catalog: castleCommerceCatalog, tiers: BATTLE_PASS_TIERS },
+    });
   }
   if (action === 'castle-combat') {
     const operation = String(request.body?.operation ?? 'logs');
@@ -622,7 +762,7 @@ export default async function handler(request: any, response: any) {
     const questionXp = Math.min(correct * 2, availableQuestionXp);
     daily.questionXp += questionXp;
     daily.correct += correct;
-    progression.battlePass.xp = Math.min(500, progression.battlePass.xp + 10 + correct);
+    progression.battlePass.xp = Math.min(1000, Number(progression.battlePass.xp ?? 0) + 15 + correct + (session.kind === 'daily' ? 25 : 0));
     let requestedBonusXp = 10;
     let jadeEarned = 0;
     if (session.kind === 'daily') {
