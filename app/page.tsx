@@ -52,6 +52,35 @@ const normalizeAnswer = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd');
 
+const playAnswerSound = (result: 'correct' | 'wrong') => {
+  const context = new AudioContext();
+  const gain = context.createGain();
+  gain.connect(context.destination);
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.015);
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    context.currentTime + (result === 'correct' ? 0.32 : 0.24),
+  );
+
+  const tones = result === 'correct' ? [660, 880] : [190, 145];
+  tones.forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = result === 'correct' ? 'sine' : 'triangle';
+    oscillator.frequency.setValueAtTime(
+      frequency,
+      context.currentTime + index * 0.09,
+    );
+    oscillator.connect(gain);
+    oscillator.start(context.currentTime + index * 0.09);
+    oscillator.stop(
+      context.currentTime + index * 0.09 + (result === 'correct' ? 0.15 : 0.12),
+    );
+  });
+
+  window.setTimeout(() => void context.close(), 450);
+};
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('home');
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
@@ -187,6 +216,7 @@ export default function Home() {
     setTypingLocked(true);
     const target = vocab[word][round % 2 === 0 ? 2 : 3];
     if (normalizeAnswer(typingInput) === normalizeAnswer(target)) {
+      playAnswerSound('correct');
       const nextCombo = combo + 1;
       const speedBonus = typingTime * 70;
       const chainBonus = Math.min(nextCombo, 10) * 100;
@@ -197,6 +227,7 @@ export default function Home() {
         nextCombo >= 3 ? `PERFECT ×${nextCombo}` : 'CHÍNH XÁC!',
       );
     } else {
+      playAnswerSound('wrong');
       setCombo(0);
       setTypingFeedback(`ĐÁP ÁN: ${target}`);
     }
@@ -207,11 +238,13 @@ export default function Home() {
       if (phase !== 'answer') return;
       const target = vocab[word][round % 3 === 0 ? 2 : 3];
       if (answer === target) {
+        playAnswerSound('correct');
         setCorrect((c) => c + 1);
         setScore((s) => s + 500);
         setJudgment('CHÍNH XÁC!');
         setPhase('sequence');
       } else {
+        playAnswerSound('wrong');
         setCombo(0);
         setJudgment('SAI NGHĨA');
         setTimeout(() => setPhase('sequence'), 450);
