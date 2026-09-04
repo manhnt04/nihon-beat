@@ -5255,9 +5255,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
               <article className="crystal-wallet"><span className="currency-gem">晶</span><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Tinh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
-              <article className="coin-wallet"><img src="/items/coin.png" alt="Coin"/><span><small>XÂY DỰNG</small><b>{progression?.coins ?? 0} Coin</b><p>Dùng nâng cấp Hán Tự Thành</p></span></article>
-              <article className="wood-wallet"><img src="/items/spin-wood.png" alt="Gỗ" /><span><small>VẬT LIỆU</small><b>{progression?.castle.wood ?? 0} Gỗ</b><p>Gỗ xây kết cấu</p></span></article>
-              <article className="ink-wallet"><img src="/items/spin-ink.png" alt="Mực" /><span><small>HỌC THUẬT</small><b>{progression?.castle.ink ?? 0} Mực</b><p>Mực điển tịch & thư các</p></span></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
               <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>
@@ -5313,7 +5310,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Cosmetic shop</small></b></button>
-          <div className="reward-header-actions"><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}>🔮 Nạp Tinh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
           <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
@@ -5343,6 +5340,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </div>
           </>}
         </section>
+        {topupOpen && <div className="topup-modal-backdrop" onClick={() => setTopupOpen(false)}><section className="topup-modal" role="dialog" aria-modal="true" aria-label="Tiệm Tinh Thạch" onClick={(event) => event.stopPropagation()}><header><button className="close-btn" onClick={() => setTopupOpen(false)}>×</button><span>晶石阁 · TIỆM TINH THẠCH</span><h2>Nạp Tinh Thạch</h2><p>Mở khóa cosmetic, Theme Pack và Long Vân Pass.</p></header><div className="topup-grid">{[
+          { id: 'topup-60', name: 'Túi Tinh Thạch', crystals: 60, tag: '29.000đ', desc: 'Phù hợp cho cosmetic và tiện ích nhỏ.' },
+          { id: 'topup-180', name: 'Hòm Tinh Thạch', crystals: 180, tag: '79.000đ', desc: 'Tặng thêm 20 Tinh Thạch · đủ mở Premium Pass.' },
+          { id: 'topup-450', name: 'Rương Tinh Thạch', crystals: 450, tag: '179.000đ', desc: 'Tặng thêm 60 Tinh Thạch cho bộ sưu tập.' },
+        ].map((pack) => <article key={pack.id} className="topup-card"><h4>{pack.name}</h4><b className="crystals">🔮 +{pack.crystals}</b><small>{pack.desc}</small><button onClick={() => { void runCastleCommerce('topup', { packageId: pack.id }); setTopupOpen(false); }}>Nhận ngay ({pack.tag})</button></article>)}</div><div className="topup-policy-note">Tinh Thạch không thể đổi thành Mảnh Ngọc, XP, Rank hay tài nguyên xây dựng.</div></section></div>}
       </main>
     );
   if (screen === 'pvp')
