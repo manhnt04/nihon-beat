@@ -754,6 +754,12 @@ const BUILDING_CATALOG: BuildingCatalogItem[] = [
   },
 ];
 
+export const getDifficultyTime = (diff?: 'easy' | 'normal' | 'hard'): number => {
+  if (diff === 'hard') return 16;
+  if (diff === 'normal') return 11;
+  return 8;
+};
+
 export default function Home({ initialScreen }: { initialScreen?: Screen } = {}) {
   const [screen, setScreen] = useState<Screen>(() => {
     if (initialScreen) return initialScreen;
@@ -1612,7 +1618,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setProgress((round / vocab.length) * 100);
     setPhase('answer');
     setEntered([]);
-    setRoundTime(8);
+    setRoundTime(getDifficultyTime(difficultyTab));
     setJudgment('CHỌN ĐÁP ÁN');
     setSequence(
       Array.from(
@@ -1620,7 +1626,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         (_, i) => (round * 3 + i * 2) % 4,
       ),
     );
-  }, [round, vocab.length, directionBreakDone]);
+  }, [round, vocab.length, directionBreakDone, difficultyTab]);
   const playDefaultTrack = (trackIndex?: number) => {
     const index =
       trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
@@ -1727,13 +1733,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setWord(0);
     setCorrect(0);
     setRound(1);
-    setRoundTime(8);
+    const currentDiffTime = getDifficultyTime(difficultyTab);
+    setRoundTime(currentDiffTime);
     setSequence([0, 1, 3]);
     setEntered([]);
     setPhase('answer');
     setJudgment('CHỌN ĐÁP ÁN');
     setTypingInput('');
-    setTypingTime(8);
+    setTypingTime(currentDiffTime);
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
     setDirectionCountdown(0);
@@ -2262,10 +2269,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setRound((r) => r + 1);
     setProgress((round / vocab.length) * 100);
     setTypingInput('');
-    setTypingTime(8);
+    setTypingTime(getDifficultyTime(difficultyTab));
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
-  }, [round, vocab.length, directionBreakDone]);
+  }, [round, vocab.length, directionBreakDone, difficultyTab]);
   const triggerCosmeticEffect = useCallback(() => {
     const effect = progression?.equipped.effect;
     if (!effect) return;
@@ -2401,14 +2408,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             setCombo(0);
             setJudgment('TIME OUT');
             setTimeout(makeRound, 650);
-            return 8;
+            return getDifficultyTime(difficultyTab);
           }
           return v - 1;
         }),
       1000,
     );
     return () => clearInterval(t);
-  }, [screen, mode, phase, makeRound]);
+  }, [screen, mode, phase, makeRound, difficultyTab]);
   useEffect(() => {
     if (screen !== 'game' || mode !== 'typing' || typingLocked) return;
     const t = setInterval(
@@ -2609,7 +2616,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div
               className="time-ring"
               style={
-                { '--time': `${(typingTime / 8) * 360}deg` } as CSSProperties
+                { '--time': `${(typingTime / getDifficultyTime(difficultyTab)) * 360}deg` } as CSSProperties
               }
             >
               <span>{typingTime}</span>

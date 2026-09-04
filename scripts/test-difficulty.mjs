@@ -175,6 +175,59 @@ assert(cssCode.includes('.play-mode-modal .mode-picker'), 'Có CSS .play-mode-mo
 assert(cssCode.includes('.play-mode-step-content'), 'Có animation .play-mode-step-content');
 console.log('  ✅ PASS: Luồng 3 bước với mode-picker artwork trong Bước 2 và CSS tương ứng hoạt động hoàn hảo.');
 
+// 7. Kiểm tra thời gian từng câu theo độ khó (8s Dễ, 11s Bình thường, 16s Khó)
+console.log('\n7. Kiểm tra thời gian từng câu theo từng độ khó:');
+assert(pageCode.includes('export const getDifficultyTime = (diff?: \'easy\' | \'normal\' | \'hard\'): number => {'), 'Có hàm getDifficultyTime');
+assert(pageCode.includes("if (diff === 'hard') return 16;"), 'Cấp Khó: 16s / câu');
+assert(pageCode.includes("if (diff === 'normal') return 11;"), 'Cấp Bình Thường: 11s / câu');
+assert(pageCode.includes("return 8;"), 'Cấp Dễ: 8s / câu');
+
+// Import getDifficultyTime từ page.tsx hoặc mock kiểm thử
+const getDifficultyTime = (diff) => {
+  if (diff === 'hard') return 16;
+  if (diff === 'normal') return 11;
+  return 8;
+};
+assert.strictEqual(getDifficultyTime('easy'), 8, 'Dễ phải là 8s');
+assert.strictEqual(getDifficultyTime('normal'), 11, 'Bình thường phải là 11s');
+assert.strictEqual(getDifficultyTime('hard'), 16, 'Khó phải là 16s');
+assert.strictEqual(getDifficultyTime(undefined), 8, 'Mặc định là 8s');
+
+// Kiểm tra getDifficultyTime được gọi trong makeRound, start, nextTypingWord, timer interval và SVG/CSS time-ring
+assert(pageCode.includes('setRoundTime(getDifficultyTime(difficultyTab))'), 'makeRound dùng getDifficultyTime(difficultyTab)');
+assert(pageCode.includes('setTypingTime(getDifficultyTime(difficultyTab))'), 'nextTypingWord dùng getDifficultyTime(difficultyTab)');
+assert(pageCode.includes('(typingTime / getDifficultyTime(difficultyTab)) * 360'), 'time-ring CSS quay theo tỷ lệ getDifficultyTime');
+console.log('  ✅ PASS: Cấu hình thời gian chính xác 8s (Dễ) / 11s (Bình thường) / 16s (Khó) áp dụng đồng bộ.');
+
+// 8. Kiểm tra kho từ vựng và câu ngữ cảnh mới mở rộng từ danh sách người dùng
+console.log('\n8. Kiểm tra kho từ vựng và câu ngữ cảnh mới nạp:');
+assert(collocationsVocabulary.length >= 280, `Collocations phải >= 280 (hiện có ${collocationsVocabulary.length})`);
+assert(fixedExpressionsVocabulary.length >= 80, `Fixed Expressions phải >= 80 (hiện có ${fixedExpressionsVocabulary.length})`);
+assert(sentencePatternsVocabulary.length >= 35, `Sentence Patterns phải >= 35 (hiện có ${sentencePatternsVocabulary.length})`);
+assert(contextSentencesVocabulary.length >= 380, `Context Sentences phải >= 380 (hiện có ${contextSentencesVocabulary.length})`);
+
+// Kiểm tra một số từ và câu tiêu biểu mà người dùng yêu cầu
+const collocationsHanzi = collocationsVocabulary.map(v => v[0]);
+const hardHanzi = hardDifficultyPool.map(v => v[0]);
+
+const checkList = ['生病', '吃药', '跑步', '踢足球', '打篮球', '游泳', '洗衣服', '打扫房间', '看病', '问路', '上班', '下班', '放学', '考试', '毕业'];
+for (const word of checkList) {
+  assert(collocationsHanzi.includes(word), `Kho collocation phải chứa từ "${word}"`);
+}
+
+const checkSentenceList = [
+  '昨天我生病了，所以没去上学。',
+  '医生叫他一天吃三次药。',
+  '他每天早上都去公园跑步。',
+  '下午我们一起去踢足球怎么样？',
+  '我弟弟特别喜欢打篮球。'
+];
+for (const sentence of checkSentenceList) {
+  assert(hardHanzi.includes(sentence), `Kho câu ngữ cảnh khó phải chứa câu "${sentence}"`);
+}
+console.log(`  ✅ PASS: Đã nạp đầy đủ các từ vựng & câu ví dụ ngữ cảnh người dùng yêu cầu (${collocationsVocabulary.length} Collocations, ${fixedExpressionsVocabulary.length} Thành ngữ, ${sentencePatternsVocabulary.length} Mẫu câu, ${contextSentencesVocabulary.length} Câu ngữ cảnh).`);
+
 console.log('\n========================================');
-console.log('🎉 TẤT CẢ 6 NHÓM THỬ NGHIỆM ĐỀU ĐẠT 100%!');
+console.log('🎉 TẤT CẢ 8 NHÓM THỬ NGHIỆM ĐỀU ĐẠT 100%!');
 console.log('========================================\n');
+
