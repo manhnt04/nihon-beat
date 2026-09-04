@@ -126,6 +126,12 @@ type LeaderboardEntry = {
 type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null; liveScore?: number; liveCorrect?: number; submittedAt?: number | null; mmr?: number; rank?: string };
 type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null; startedAt?: number | null; completedAt?: number | null; integrity?: { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean } | null; rankChanges?: Record<string, number> | null };
 type PvpRank = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
+const PVP_RANK_BADGES: Record<string, string> = {
+  'Đồng': '/ranks/rank-bronze.png',
+  'Bạc': '/ranks/rank-silver.png',
+  'Vàng': '/ranks/rank-gold.png',
+  'Bạch Kim': '/ranks/rank-platinum.png',
+};
 type Progression = {
   xp: number;
   level: number;
@@ -5330,7 +5336,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         </header>
         <section className="pvp-panel">
           <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng chế độ, cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
-          {authUser && pvpRank && <div className="pvp-rank-card"><div><span>赛季 {pvpRank.season}</span><h2>{pvpRank.rank}</h2><small>PvP Rank theo mùa</small></div><strong>{pvpRank.mmr}<small>MMR</small></strong><ul><li><b>{pvpRank.wins}</b>Thắng</li><li><b>{pvpRank.losses}</b>Thua</li><li><b>{pvpRank.draws}</b>Hòa</li></ul></div>}
+          {authUser && pvpRank && <div className="pvp-rank-card">
+            <div className="pvp-rank-identity">
+              {PVP_RANK_BADGES[pvpRank.rank] && <img src={PVP_RANK_BADGES[pvpRank.rank]} alt={`Huy hiệu rank ${pvpRank.rank}`} />}
+              <div><span>赛季 {pvpRank.season}</span><h2>{pvpRank.rank}</h2><small>PvP Rank theo mùa</small></div>
+            </div>
+            <strong>{pvpRank.mmr}<small>MMR</small></strong>
+            <ul><li><b>{pvpRank.wins}</b>Thắng</li><li><b>{pvpRank.losses}</b>Thua</li><li><b>{pvpRank.draws}</b>Hòa</li></ul>
+          </div>}
           {!authUser ? <div className="pvp-login-required"><Trophy /><h2>Đăng nhập để đấu Rank</h2><p>Rank, lịch sử và kiểm tra công bằng được gắn với tài khoản Firebase.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : !pvpRoom && !pvpWaiting ? <>
             <label className="pvp-name">Tên thi đấu<input value={authUser.name} disabled /></label>
             <div className="pvp-mode-picker">

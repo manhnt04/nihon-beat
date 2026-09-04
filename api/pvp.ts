@@ -31,7 +31,7 @@ type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'p
 
 const botNames = ['Minh Châu', 'Gia Hân', 'Tuấn Kiệt', 'Hải Đăng', 'An Nhiên', 'Khánh Linh', 'Thiên Vũ', 'Ngọc Anh', 'Yến Nhi', 'Đức Minh'];
 const makeBot = (mmr: number, seed: number): Player => {
-  const difficulty = mmr >= 1500 ? .84 : mmr >= 1250 ? .7 : mmr >= 1050 ? .6 : .5;
+  const difficulty = mmr >= 1500 ? .84 : mmr >= 1225 ? .7 : mmr >= 1100 ? .52 : .42;
   const variance = ((seed % 17) - 8) / 100;
   const correct = Math.max(6, Math.min(24, Math.round(25 * (difficulty + variance))));
   const score = correct * (1150 + seed % 451);
