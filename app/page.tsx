@@ -778,13 +778,9 @@ export const getDifficultyTime = (diff?: 'easy' | 'normal' | 'hard'): number => 
 };
 
 export default function Home({ initialScreen }: { initialScreen?: Screen } = {}) {
-  const [screen, setScreen] = useState<Screen>(() => {
-    if (initialScreen) return initialScreen;
-    if (typeof window !== 'undefined') {
-      return screenFromPath(window.location.pathname);
-    }
-    return 'home';
-  });
+  // Keep the first client render identical to the server render. The URL is
+  // applied after hydration by the navigation effect below.
+  const [screen, setScreen] = useState<Screen>(initialScreen ?? 'home');
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
   const [selected, setSelected] = useState(0);
   const [difficultyTab, setDifficultyTab] = useState<'easy' | 'normal' | 'hard'>('easy');
@@ -990,7 +986,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     castleSaveTimeoutRef.current = setTimeout(async () => {
       try {
         await setDoc(
-          doc(firebaseDb, 'castles', uid),
+          doc(firebaseDb, 'users', uid, 'castle', 'state'),
           {
             buildingsLayout: layout,
             updatedAt: serverTimestamp(),
@@ -1012,7 +1008,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     castleCoreSaveTimeoutRef.current = setTimeout(async () => {
       try {
         await setDoc(
-          doc(firebaseDb, 'castles', uid),
+          doc(firebaseDb, 'users', uid, 'castle', 'state'),
           {
             corePositions: positions,
             updatedAt: serverTimestamp(),
@@ -1407,7 +1403,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
 
     // Cloud Firestore Layout & Core Positions Sync
     if (authUser?.id && authUser.id !== 'guest') {
-      getDoc(doc(firebaseDb, 'castles', authUser.id))
+      getDoc(doc(firebaseDb, 'users', authUser.id, 'castle', 'state'))
         .then((docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
@@ -1931,16 +1927,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (data.castleSocial) setCastleSocial(data.castleSocial);
       if (data.visitedCastle) {
         let layout = data.visitedCastle.buildingsLayout;
-        if (!layout || layout.length === 0) {
-          try {
-            const snap = await getDoc(doc(firebaseDb, 'castles', data.visitedCastle.uid));
-            if (snap.exists() && snap.data()?.buildingsLayout) {
-              layout = snap.data().buildingsLayout;
-            }
-          } catch {
-            /* ignore */
-          }
-        }
+        // Another player's private Firestore tree is intentionally not
+        // readable. Public castle layouts come from the authenticated API.
         const coreObstacles = [
           { id: 'main', col: 2, row: 2, w: 3, h: 3 },
           { id: 'library', col: 0, row: 0, w: 2, h: 2 },

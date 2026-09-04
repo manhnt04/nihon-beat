@@ -248,6 +248,9 @@ const loadProgression = async (uid: string, name: string) => {
   progression.coins = Math.max(0, Math.floor(Number(progression.coins ?? 0)));
   const storedCrystals = Number(progression.dragonCrystals ?? 0);
   progression.dragonCrystals = storedCrystals > 0 ? storedCrystals : 150;
+  // Accounts created by an older release may not have every nested object.
+  // Normalize before dereferencing so one legacy record cannot turn GET into 500.
+  progression.daily = progression.daily ?? emptyDaily(date);
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
@@ -302,6 +305,9 @@ const loadProgression = async (uid: string, name: string) => {
   progression.castle.peaceUntil = Number(progression.castle.peaceUntil ?? 0);
   progression.castle.newbieUntil = Number(progression.castle.newbieUntil ?? 0);
   progression.battlePass = progression.battlePass?.season === passSeason ? progression.battlePass : { season: passSeason, xp: 0, premium: false, claimed: [] };
+  progression.battlePass.xp = Math.max(0, Number(progression.battlePass.xp ?? 0));
+  progression.battlePass.premium = Boolean(progression.battlePass.premium);
+  progression.battlePass.claimed = Array.isArray(progression.battlePass.claimed) ? progression.battlePass.claimed : [];
   progression.castle.buildings = progression.castle.buildings ?? { main: 1, library: 1, listening: 1 };
   return progression;
 };
