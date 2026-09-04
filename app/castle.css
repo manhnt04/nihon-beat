@@ -1053,6 +1053,27 @@
   transform: scale(1.04);
 }
 
+.placement-flip-btn {
+  padding: 6px 14px;
+  border: 1px solid #ffd43b;
+  border-radius: 20px;
+  background: linear-gradient(#d97706, #92400e);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.placement-flip-btn:hover {
+  background: #f59e0b;
+  transform: scale(1.04);
+}
+
 /* --- Building Construction Workshop Modal --- */
 .castle-build-panel {
   padding: 24px;
@@ -1438,3 +1459,448 @@
     overflow-y: auto;
   }
 }
+
+/* Combat & Defense Shield Sandbox Controls */
+.sandbox-combat-btn-cannon {
+  background: linear-gradient(135deg, #e03131, #c92a2a) !important;
+  border-color: #ff8787 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 8px rgba(224, 49, 49, 0.4);
+}
+
+.sandbox-combat-btn-shield {
+  border-color: #38d9a9 !important;
+  font-weight: 800 !important;
+}
+
+.sandbox-combat-btn-shield.active {
+  background: linear-gradient(135deg, #12b886, #0ca678) !important;
+  border-color: #63e6be !important;
+  color: #fff !important;
+  box-shadow: 0 0 10px rgba(18, 184, 134, 0.6) !important;
+}
+
+.sandbox-combat-btn-hit {
+  background: linear-gradient(135deg, #099268, #087f5b) !important;
+  border-color: #38d9a9 !important;
+  color: #fff !important;
+}
+
+.sandbox-combat-btn-shatter {
+  background: linear-gradient(135deg, #495057, #343a40) !important;
+  border-color: #ced4da !important;
+  color: #fff !important;
+}
+
+/* =========================================================
+   Home Castle Showcase Widget
+   ========================================================= */
+.home-castle-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 22px;
+  align-items: center;
+  padding: 22px 26px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fffcf6 0%, #f6edd9 100%);
+  border: 1px solid #dbc296;
+  border-left: 6px solid #a72b31;
+  box-shadow: 0 14px 38px rgba(60, 24, 16, 0.08);
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.home-castle-card:hover {
+  box-shadow: 0 18px 45px rgba(60, 24, 16, 0.12);
+}
+
+.home-castle-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-castle-badge-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-castle-chinese-seal {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #a72b31, #841b21);
+  border: 2px solid #efcd68;
+  color: #fff4dc;
+  font: 700 28px "Songti SC", "SimSun", serif;
+  box-shadow: 0 6px 16px rgba(132, 27, 33, 0.35);
+}
+
+.home-castle-level-pill {
+  padding: 2px 9px;
+  border-radius: 12px;
+  background: #3c1e18;
+  color: #efcd68;
+  font-size: 11px;
+  font-weight: 900;
+  border: 1px solid #d4b46c;
+  letter-spacing: 0.04em;
+}
+
+.home-castle-center {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.home-castle-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.home-castle-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #a72b31;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.home-castle-prosperity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: #fbf5e6;
+  border: 1px solid #e2cb9c;
+  color: #7b5921;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.home-castle-title {
+  margin: 0;
+  font: 700 22px "Songti SC", "SimSun", serif;
+  color: #2e1611;
+  letter-spacing: -0.01em;
+}
+
+.home-castle-desc {
+  margin: 0;
+  color: #796155;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.home-castle-resources-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.home-castle-res-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: #ffffff99;
+  border: 1px solid #dec8a2;
+  font-size: 12px;
+  color: #553e34;
+}
+
+.home-castle-res-chip b {
+  color: #2b1712;
+  font-weight: 800;
+}
+
+.home-castle-shield-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.home-castle-shield-chip.active {
+  background: #e6fcf5;
+  border: 1px solid #63e6be;
+  color: #0ca678;
+}
+
+.home-castle-shield-chip.inactive {
+  background: #fff4e6;
+  border: 1px solid #ffd8a8;
+  color: #d9480f;
+}
+
+.home-castle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.home-castle-harvest-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #ffd43b;
+  background: linear-gradient(135deg, #fff3bf, #ffec99);
+  color: #855b00;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.home-castle-harvest-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+
+.home-castle-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid #efcd68;
+  background: linear-gradient(135deg, #a72b31, #841b21);
+  color: #fff5df;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(167, 43, 49, 0.3);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  white-space: nowrap;
+}
+
+.home-castle-cta-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(167, 43, 49, 0.45);
+}
+
+@media (max-width: 768px) {
+  .home-castle-card {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 18px 16px;
+  }
+  .home-castle-left {
+    justify-content: flex-start;
+  }
+  .home-castle-badge-icon {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .home-castle-chinese-seal {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+  .home-castle-actions {
+    flex-direction: column;
+  }
+}
+
+/* =========================================================
+   Result Screen Castle CTA & Hint
+   ========================================================= */
+.result-castle-cta {
+  background: linear-gradient(135deg, #a72b31, #841b21) !important;
+  color: #fff4dc !important;
+  border: 1px solid #efcd68 !important;
+  box-shadow: 0 4px 14px rgba(167, 43, 49, 0.3) !important;
+}
+
+.result-castle-cta:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
+.result-castle-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 16px;
+  border-radius: 9px;
+  background: #fff8e7;
+  border: 1px solid #e5ce9e;
+  border-left: 4px solid #a72b31;
+  font-size: 12px;
+  color: #5c3c2e;
+}
+
+.result-castle-hint button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 0;
+  background: #a72b31;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.result-castle-hint button:hover {
+  background: #841b21;
+}
+
+/* =========================================================
+   Inventory Wood & Ink Wallets
+   ========================================================= */
+.inventory-wallet .wood-wallet span,
+.inventory-wallet .ink-wallet span {
+  font-size: 28px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+.inv-castle-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: #a72b31;
+  color: #fff;
+  border: 1px solid #efcd68;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(167, 43, 49, 0.25);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.inv-castle-cta-btn:hover {
+  background: #841b21;
+  transform: translateY(-2px);
+}
+
+/* =========================================================
+   Castle Buff Banner (Dictionary & Learning)
+   ========================================================= */
+.castle-buff-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 12px 0 18px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #fdfbf7, #f6eedb);
+  border: 1px solid #dfcca6;
+  border-left: 4px solid #b87b28;
+}
+
+.castle-buff-banner .buff-icon {
+  font-size: 22px;
+}
+
+.castle-buff-banner div b {
+  display: block;
+  font-size: 13px;
+  color: #3b221a;
+}
+
+.castle-buff-banner div p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #7d6554;
+}
+
+.castle-buff-banner button {
+  margin-left: auto;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #d4b46c;
+  background: #fff8e8;
+  color: #8c5b1b;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.castle-buff-banner button:hover {
+  background: #f5e4bd;
+}
+
+/* =========================================================
+   Leaderboard Castle Prosperity Ranking Tabs
+   ========================================================= */
+.leaderboard-category-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+
+.leaderboard-category-tabs button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #d4bd91;
+  background: #fffdf8;
+  color: #7b6255;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.leaderboard-category-tabs button.on {
+  background: linear-gradient(135deg, #a72b31, #841b21);
+  color: #fff4dc;
+  border-color: #efcd68;
+  box-shadow: 0 4px 12px rgba(167, 43, 49, 0.25);
+}
+
+.leaderboard-castle-visit-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #d4b46c;
+  background: #fff8e8;
+  color: #8c5b1b;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.leaderboard-castle-visit-btn:hover {
+  background: #f5e4bd;
+  transform: translateY(-1px);
+}
+
+
+
+
+
+

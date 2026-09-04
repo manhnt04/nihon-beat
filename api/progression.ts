@@ -530,11 +530,17 @@ export default async function handler(request: any, response: any) {
     const season = new Date().toISOString().slice(0, 7);
     const score = Object.values(progression.castle.buildings).reduce((sum, level) => sum + level, 0) * 1_000
       + progression.discoveries.length * 5 + progression.streak * 20;
+    const existingSnap = await redis.get<any>(`hanzibeat:castle-public:${user.localId}`);
+    const buildingsLayout = Array.isArray(request.body?.buildingsLayout)
+      ? request.body.buildingsLayout
+      : (existingSnap?.buildingsLayout ?? []);
     const snapshot = {
       uid: user.localId, name: progression.name, level: progression.level, score,
       likes: progression.castle.likes, theme: progression.castle.theme,
       shieldActiveUntil: progression.castle.shieldActiveUntil,
-      buildings: progression.castle.buildings, updatedAt: Date.now(),
+      buildings: progression.castle.buildings,
+      buildingsLayout,
+      updatedAt: Date.now(),
     };
     await redis.set(`hanzibeat:castle-public:${user.localId}`, snapshot);
     await redis.zadd(`hanzibeat:castle-rank:${season}`, { score, member: user.localId });

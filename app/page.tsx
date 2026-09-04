@@ -2,7 +2,30 @@
 
 import './castle.css';
 import './spin.css';
-import CastleIsoCanvas, { IsoBuildingData, PendingBuildingTemplate } from './components/CastleIsoCanvas';
+import CastleIsoCanvas, {
+  IsoBuildingData,
+  PendingBuildingTemplate,
+  CombatFxTrigger,
+  CoreBuildingPositions,
+  BuildingAnimState,
+} from './components/CastleIsoCanvas';
+import CastleHomeWidget from './components/castle/CastleHomeWidget';
+import {
+  FootprintCell,
+  rectFootprint,
+  lShapeFootprint,
+  tShapeFootprint,
+  GridManager,
+  sanitizeBuildingsLayout,
+  flipFootprintCells,
+  getEffectiveFootprint,
+} from './utils/castleGrid';
+import {
+  IslandCalibration,
+  RIM_ISLAND_CALIBRATION,
+  NATURAL_ISLAND_CALIBRATION,
+  DEFAULT_ISLAND_CALIBRATION,
+} from './utils/islandCalibration';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
@@ -76,11 +99,12 @@ type Screen =
 const screenPaths: Record<Screen, string> = {
   home: '/', songs: '/lessons', game: '/play', result: '/result',
   dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
-  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/profile/castle',
+  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/castle',
   'castle-test': '/castle-test', auth: '/profile',
 };
 const screenFromPath = (pathname: string): Screen => {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (normalized === '/profile/castle') return 'castle';
   return (Object.entries(screenPaths).find(([, path]) => path === normalized)?.[0] as Screen | undefined) ?? 'home';
 };
 type AuthUser = { id: string; name: string; email: string };
@@ -246,7 +270,7 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 type CastleBuildingKind = 'main' | 'library' | 'listening';
 type SlotRewards = { coins: number; spins: number; wood: number; ink: number; jade: number; chests: number; shields: number; tickets: number; fragments: number; jackpots: number };
 type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean };
-type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; buildings: { main: number; library: number; listening: number } };
+type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; buildings: { main: number; library: number; listening: number }; buildingsLayout?: IsoBuildingData[]; corePositions?: CoreBuildingPositions };
 type CastleVisitor = { uid: string; name: string; visitedAt: number };
 type CombatLog = { id: string; attackerId: string; attackerName: string; defenderId: string; defenderName: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
 const slotSymbols = [
@@ -283,6 +307,22 @@ const CastleMapBuilding = ({ kind, level, label, onSelect }: { kind: CastleBuild
   const assetStage = kind === 'main' ? stage : 1;
   return <button className={`map-building map-building-${kind} visual-stage-${stage}`} onClick={() => onSelect(kind)} aria-label={`${label}, cấp ${level}, hình thái ${stage}`}><img src={`/castle/buildings/${kind}/stage-${assetStage}.webp`} alt=""/><span><b>{label}</b><small>Lv.{level} · Hình thái {stage}/5</small></span></button>;
 };
+
+export const DEFAULT_CORE_POSITIONS: CoreBuildingPositions = {
+  main: { col: 4, row: 4, flipX: false },
+  library: { col: 1, row: 4, flipX: false },
+  listening: { col: 8, row: 4, flipX: false },
+};
+
+export interface ActiveConstruction {
+  id: string;
+  name: string;
+  startTime: number;
+  duration: number; // ms, default 10000
+  type: 'build' | 'upgrade';
+  targetLevel?: number;
+  newBuildingData?: IsoBuildingData;
+}
 
 const DEFAULT_EXTRA_BUILDINGS: IsoBuildingData[] = [
   {
@@ -360,8 +400,8 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         name: 'Dương Quan Cung',
         hanzi: '殿',
         icon: '🏛️',
-        col: 5,
-        row: 1,
+        col: 4,
+        row: 0,
         w: 3,
         h: 3,
         height: 110,
@@ -379,8 +419,8 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         name: 'Văn Khúc Viện',
         hanzi: '阁',
         icon: '📚',
-        col: 0,
-        row: 3,
+        col: 1,
+        row: 1,
         w: 2,
         h: 2,
         height: 75,
@@ -423,7 +463,7 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         hanzi: '哨',
         icon: '🏹',
         col: 0,
-        row: 7,
+        row: 11,
         w: 1,
         h: 1,
         height: 52,
@@ -441,8 +481,8 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         name: 'Phong Hỏa Đài',
         hanzi: '烽',
         icon: '🔥',
-        col: 7,
-        row: 7,
+        col: 11,
+        row: 11,
         w: 1,
         h: 1,
         height: 60,
@@ -465,8 +505,8 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         name: 'Đào Hoa Tiên Thụ',
         hanzi: '桃',
         icon: '🌸',
-        col: 0,
-        row: 6,
+        col: 1,
+        row: 8,
         w: 1,
         h: 1,
         height: 48,
@@ -482,8 +522,8 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         name: 'Đào Hoa Tiên Thụ',
         hanzi: '桃',
         icon: '🌸',
-        col: 6,
-        row: 0,
+        col: 10,
+        row: 1,
         w: 1,
         h: 1,
         height: 48,
@@ -500,7 +540,7 @@ const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingDat
         hanzi: '石',
         icon: '🪨',
         col: 1,
-        row: 6,
+        row: 10,
         w: 1,
         h: 1,
         height: 38,
@@ -636,6 +676,26 @@ const BUILDING_CATALOG: BuildingCatalogItem[] = [
     cost: { wood: 1500, ink: 800, coin: 10000 },
   },
   {
+    templateId: 'lac-ha-corridor',
+    name: 'Lạc Hà Hành Lang',
+    hanzi: '廊',
+    icon: '⛩️',
+    category: 'palace',
+    desc: 'Hành lang uốn lượn chữ L nối liền các điện các, tạo thế tụ linh tụ khí (5 ô).',
+    w: 2,
+    h: 3,
+    cells: lShapeFootprint(),
+    height: 56,
+    imageSrc: '/castle/buildings/library/stage-1.webp',
+    imageScale: 0.95,
+    top: '#ffec99',
+    left: '#f59f00',
+    right: '#d9480f',
+    outline: '#bf360c',
+    prosperity: 350,
+    cost: { wood: 280, ink: 120, coin: 1200 },
+  },
+  {
     templateId: 'sacred-tree',
     name: 'Cổ Thụ Linh Mộc',
     hanzi: '木',
@@ -725,6 +785,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [scoreStatus, setScoreStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [leaderboardLevel, setLeaderboardLevel] = useState(0);
   const [leaderboardMode, setLeaderboardMode] = useState<'audition' | 'typing'>('audition');
+  const [leaderboardTab, setLeaderboardTab] = useState<'songs' | 'castle'>('songs');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [pvpName, setPvpName] = useState('');
@@ -762,11 +823,27 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [castleCombatOpen, setCastleCombatOpen] = useState(false);
   const [castleCommerceOpen, setCastleCommerceOpen] = useState(false);
   const [castleShowGrid, setCastleShowGrid] = useState(false);
+  const [islandCalibration, setIslandCalibration] = useState<IslandCalibration>(DEFAULT_ISLAND_CALIBRATION);
+  const [showDebugGrid, setShowDebugGrid] = useState(false);
+  const [calibrationModalOpen, setCalibrationModalOpen] = useState(false);
   const [castleBuildCatalogOpen, setCastleBuildCatalogOpen] = useState(false);
   const [pendingBuildingToPlace, setPendingBuildingToPlace] = useState<BuildingCatalogItem | null>(null);
+  const [movingBuildingToPlace, setMovingBuildingToPlace] = useState<IsoBuildingData | null>(null);
   const [extraBuildings, setExtraBuildings] = useState<IsoBuildingData[]>(DEFAULT_EXTRA_BUILDINGS);
   const [catalogCategory, setCatalogCategory] = useState<'all' | 'palace' | 'study' | 'defense' | 'nature'>('all');
   const [castleToast, setCastleToast] = useState<{ msg: string; kind?: 'ok' | 'bad' } | null>(null);
+  const [corePositions, setCorePositions] = useState<CoreBuildingPositions>(DEFAULT_CORE_POSITIONS);
+  const [sandboxCorePositions, setSandboxCorePositions] = useState<CoreBuildingPositions>(DEFAULT_CORE_POSITIONS);
+  const [activeConstructions, setActiveConstructions] = useState<Record<string, ActiveConstruction>>({});
+  const [sandboxActiveConstructions, setSandboxActiveConstructions] = useState<Record<string, ActiveConstruction>>({});
+  const [constructionTick, setConstructionTick] = useState<number>(0);
+  const [lastHarvestTime, setLastHarvestTime] = useState<number>(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('castle_last_harvest');
+    setLastHarvestTime(saved ? Number(saved) : Date.now() - 3600 * 1000);
+  }, []);
 
   // Sandbox Test States (100% Isolated from production user data)
   const [sandboxMainLevel, setSandboxMainLevel] = useState<number>(1);
@@ -782,6 +859,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [castleBurstText, setCastleBurstText] = useState<string>('');
   const [sandboxAnimState, setSandboxAnimState] = useState<'idle' | 'upgrading'>('idle');
   const [sandboxIdleFx, setSandboxIdleFx] = useState<boolean>(true);
+  const [castleCombatTrigger, setCastleCombatTrigger] = useState<CombatFxTrigger | null>(null);
+  const [sandboxShieldActive, setSandboxShieldActive] = useState<boolean>(false);
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
@@ -823,30 +902,527 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     }, 2200);
   }, []);
 
+  const handleHarvest = useCallback(() => {
+    const homeCastle = progression?.castle ?? { wood: 0, ink: 0, shieldActiveUntil: 0, theme: 'classic', buildings: { main: 1, library: 1, listening: 1 } };
+    const homeMainLevel = homeCastle.buildings.main ?? 1;
+    const elapsedHarvestMs = lastHarvestTime > 0
+      ? Math.min(12 * 3600 * 1000, Math.max(0, Date.now() - lastHarvestTime))
+      : 0;
+    const elapsedHarvestHours = elapsedHarvestMs / (3600 * 1000);
+    const hWood = Math.floor(elapsedHarvestHours * (4 + homeMainLevel * 1.5));
+    const hInk = Math.floor(elapsedHarvestHours * (2 + homeMainLevel * 0.8));
+    const hCoins = Math.floor(elapsedHarvestHours * (100 + homeMainLevel * 50));
+
+    if (hWood <= 0 && hInk <= 0) {
+      showCastleToast('Tài nguyên nhàn rỗi đang tích lũy, hãy quay lại sau ít phút!', 'bad');
+      return;
+    }
+    setProgression((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        coins: (prev.coins ?? 0) + hCoins,
+        castle: {
+          ...prev.castle,
+          wood: prev.castle.wood + hWood,
+          ink: prev.castle.ink + hInk,
+        },
+      };
+    });
+    const now = Date.now();
+    setLastHarvestTime(now);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('castle_last_harvest', String(now));
+    }
+    showCastleToast(`🌾 Thu hoạch thành công! +${hWood} 🪵, +${hInk} 🖌, +${hCoins} 🪙`, 'ok');
+  }, [progression, lastHarvestTime, showCastleToast]);
+
+  const castleSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedSaveCastleLayout = useCallback((uid: string | undefined, layout: IsoBuildingData[]) => {
+    if (!uid || uid === 'guest') return;
+    if (castleSaveTimeoutRef.current) {
+      clearTimeout(castleSaveTimeoutRef.current);
+    }
+    castleSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(firebaseDb, 'castles', uid),
+          {
+            buildingsLayout: layout,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('[Castle Cloud Sync] Failed to save layout to Firestore:', e);
+      }
+    }, 800);
+  }, []);
+
+  const castleCoreSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedSaveCastleCorePositions = useCallback((uid: string | undefined, positions: CoreBuildingPositions) => {
+    if (!uid || uid === 'guest') return;
+    if (castleCoreSaveTimeoutRef.current) {
+      clearTimeout(castleCoreSaveTimeoutRef.current);
+    }
+    castleCoreSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(firebaseDb, 'castles', uid),
+          {
+            corePositions: positions,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('[Castle Cloud Sync] Failed to save core positions to Firestore:', e);
+      }
+    }, 800);
+  }, []);
+
+  const handleTogglePendingFlip = useCallback(() => {
+    setPendingBuildingToPlace((prev) => {
+      if (!prev) return null;
+      const nextFlip = !prev.flipX;
+      showCastleToast(nextFlip ? '🔄 Đã lật hướng (Nghịch)' : '🔄 Đã lật hướng (Thuận)', 'ok');
+      return { ...prev, flipX: nextFlip };
+    });
+  }, [showCastleToast]);
+
+  const handleToggleMovingFlip = useCallback(() => {
+    setMovingBuildingToPlace((prev) => {
+      if (!prev) return null;
+      const nextFlip = !prev.flipX;
+      showCastleToast(nextFlip ? '🔄 Đã lật hướng (Nghịch)' : '🔄 Đã lật hướng (Thuận)', 'ok');
+      return { ...prev, flipX: nextFlip };
+    });
+  }, [showCastleToast]);
+
+  const handleToggleSelectedBuildingFlip = useCallback((isSandbox = false) => {
+    const list = isSandbox ? sandboxExtraBuildings : extraBuildings;
+    const setList = isSandbox ? setSandboxExtraBuildings : setExtraBuildings;
+    const currentCorePos = isSandbox ? sandboxCorePositions : corePositions;
+    const setCorePos = isSandbox ? setSandboxCorePositions : setCorePositions;
+
+    // Check if target is a core building ('main', 'library', 'listening')
+    if (selectedCastleBuilding === 'main' || selectedCastleBuilding === 'library' || selectedCastleBuilding === 'listening') {
+      const coreKey = selectedCastleBuilding;
+      const currentPos = currentCorePos[coreKey];
+      const curCol = currentPos?.col ?? (coreKey === 'main' ? 4 : coreKey === 'library' ? 1 : 8);
+      const curRow = currentPos?.row ?? 4;
+      const curFlip = currentPos?.flipX ?? false;
+      const nextFlip = !curFlip;
+      const w = coreKey === 'main' ? 3 : 2;
+      const h = coreKey === 'main' ? 3 : 2;
+
+      const gm = new GridManager(12, 12);
+      const allCores = [
+        { id: 'main', col: currentCorePos.main?.col ?? 4, row: currentCorePos.main?.row ?? 4, w: 3, h: 3 },
+        { id: 'library', col: currentCorePos.library?.col ?? 1, row: currentCorePos.library?.row ?? 4, w: 2, h: 2 },
+        { id: 'listening', col: currentCorePos.listening?.col ?? 8, row: currentCorePos.listening?.row ?? 4, w: 2, h: 2 },
+        { id: 'guardian-statue', col: 5, row: 8, w: 1, h: 1 },
+      ];
+      for (const core of allCores) {
+        if (core.id !== coreKey) {
+          gm.placeBuilding(core.id, rectFootprint(core.w, core.h), core.col, core.row, 1, false);
+        }
+      }
+      for (const b of list) {
+        gm.placeBuilding(b.id, getEffectiveFootprint(b), b.col, b.row, 1, false);
+      }
+
+      const nextTarget = { id: coreKey, col: curCol, row: curRow, w, h, flipX: nextFlip };
+      const nextCells = getEffectiveFootprint(nextTarget);
+      const check = gm.canPlace(nextCells, curCol, curRow, coreKey, true);
+      if (!check.ok) {
+        if (check.reason === 'buffer_violation') {
+          showCastleToast('Không thể lật hướng: Vi phạm khoảng cách đệm 1 ô với công trình khác!', 'bad');
+        } else {
+          showCastleToast('Không thể lật hướng do va chạm với công trình khác!', 'bad');
+        }
+        return;
+      }
+
+      const nextPositions: CoreBuildingPositions = {
+        ...currentCorePos,
+        [coreKey]: {
+          col: curCol,
+          row: curRow,
+          flipX: nextFlip,
+        },
+      };
+      setCorePos(nextPositions);
+      if (!isSandbox) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`castle_core_positions_${authUser?.id ?? 'guest'}`, JSON.stringify(nextPositions));
+        }
+        debouncedSaveCastleCorePositions(authUser?.id, nextPositions);
+      } else {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('castle_sandbox_core_positions', JSON.stringify(nextPositions));
+        }
+      }
+      showCastleToast(nextFlip ? '🔄 Đã lật hướng công trình (Nghịch)' : '🔄 Đã lật hướng công trình (Thuận)', 'ok');
+      return;
+    }
+
+    const target = list.find((b) => b.id === selectedCastleBuilding);
+    if (!target) return;
+
+    const nextFlip = !target.flipX;
+    const nextTarget = { ...target, flipX: nextFlip };
+    const nextCells = getEffectiveFootprint(nextTarget);
+
+    const gm = new GridManager(12, 12);
+    const coreObstacles = [
+      { id: 'main', col: currentCorePos.main?.col ?? 4, row: currentCorePos.main?.row ?? 4, w: 3, h: 3 },
+      { id: 'library', col: currentCorePos.library?.col ?? 1, row: currentCorePos.library?.row ?? 4, w: 2, h: 2 },
+      { id: 'listening', col: currentCorePos.listening?.col ?? 8, row: currentCorePos.listening?.row ?? 4, w: 2, h: 2 },
+      { id: 'guardian-statue', col: 5, row: 8, w: 1, h: 1 },
+    ];
+    for (const core of coreObstacles) {
+      gm.placeBuilding(core.id, rectFootprint(core.w, core.h), core.col, core.row, 1, false);
+    }
+    for (const b of list) {
+      if (b.id !== target.id) {
+        gm.placeBuilding(b.id, getEffectiveFootprint(b), b.col, b.row, 1, false);
+      }
+    }
+
+    const check = gm.canPlace(nextCells, target.col, target.row, target.id, true);
+    if (!check.ok) {
+      if (check.reason === 'buffer_violation') {
+        showCastleToast('Không thể lật hướng: Vi phạm khoảng cách đệm 1 ô với công trình khác!', 'bad');
+      } else {
+        showCastleToast('Không thể lật hướng do va chạm với công trình khác!', 'bad');
+      }
+      return;
+    }
+
+    const updated = list.map((b) => (b.id === target.id ? { ...b, flipX: nextFlip } : b));
+    setList(updated);
+    if (!isSandbox) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
+      }
+      debouncedSaveCastleLayout(authUser?.id, updated);
+    } else {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
+      }
+    }
+    showCastleToast(nextFlip ? '🔄 Đã lật hướng công trình (Nghịch)' : '🔄 Đã lật hướng công trình (Thuận)', 'ok');
+  }, [selectedCastleBuilding, sandboxExtraBuildings, extraBuildings, sandboxCorePositions, corePositions, authUser?.id, debouncedSaveCastleLayout, debouncedSaveCastleCorePositions, showCastleToast]);
+
+  // 10s Construction State Machine & Animation Tick Loop
+  useEffect(() => {
+    const hasActive =
+      Object.keys(activeConstructions).length > 0 ||
+      Object.keys(sandboxActiveConstructions).length > 0;
+    if (!hasActive) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setConstructionTick((t) => (t + 1) % 10000);
+
+      // Check main game constructions
+      setActiveConstructions((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, item] of Object.entries(prev)) {
+          if (now >= item.startTime + item.duration) {
+            changed = true;
+            delete next[id];
+            setCastleBurstBuildingId(id);
+            setCastleBurstText(
+              item.type === 'upgrade'
+                ? item.targetLevel ? `Lv.${item.targetLevel} · THĂNG CẤP!` : 'THĂNG CẤP HOÀN TẤT!'
+                : 'XÂY DỰNG HOÀN TẤT!'
+            );
+            showCastleToast(`🎉 [${item.name}] đã hoàn thành thi công!`, 'ok');
+
+            if (item.type === 'upgrade') {
+              if (id === 'main' || id === 'library' || id === 'listening') {
+                runProgressionAction('upgrade-castle', id);
+              } else {
+                setExtraBuildings((ebs) =>
+                  ebs.map((b) => (b.id === id ? { ...b, level: (b.level ?? 1) + 1 } : b))
+                );
+              }
+            } else if (item.type === 'build' && item.newBuildingData) {
+              setExtraBuildings((ebs) => {
+                if (ebs.some((b) => b.id === id)) return ebs;
+                return [...ebs, item.newBuildingData!];
+              });
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+
+      // Check sandbox constructions
+      setSandboxActiveConstructions((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, item] of Object.entries(prev)) {
+          if (now >= item.startTime + item.duration) {
+            changed = true;
+            delete next[id];
+            setCastleBurstBuildingId(id);
+            setCastleBurstText(
+              item.type === 'upgrade'
+                ? item.targetLevel ? `Lv.${item.targetLevel} · THĂNG CẤP!` : 'THĂNG CẤP HOÀN TẤT!'
+                : 'XÂY DỰNG HOÀN TẤT!'
+            );
+            showCastleToast(`🎉 [Sandbox] [${item.name}] đã hoàn thành thi công!`, 'ok');
+
+            if (item.type === 'upgrade') {
+              if (id === 'main') setSandboxMainLevel((l) => Math.min(10, l + 1));
+              else if (id === 'library') setSandboxLibraryLevel((l) => Math.min(10, l + 1));
+              else if (id === 'listening') setSandboxListeningLevel((l) => Math.min(10, l + 1));
+              else {
+                setSandboxExtraBuildings((ebs) =>
+                  ebs.map((b) => (b.id === id ? { ...b, level: (b.level ?? 1) + 1 } : b))
+                );
+              }
+            } else if (item.type === 'build' && item.newBuildingData) {
+              setSandboxExtraBuildings((ebs) => {
+                if (ebs.some((b) => b.id === id)) return ebs;
+                return [...ebs, item.newBuildingData!];
+              });
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 150);
+
+    return () => clearInterval(interval);
+  }, [activeConstructions, sandboxActiveConstructions, showCastleToast]);
+
+  const handleInstantCompleteConstruction = useCallback((id: string, isSandbox = false) => {
+    if (!isSandbox) {
+      const item = activeConstructions[id];
+      if (!item) return;
+      setActiveConstructions((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setCastleBurstBuildingId(id);
+      setCastleBurstText(
+        item.type === 'upgrade'
+          ? item.targetLevel ? `Lv.${item.targetLevel} · THĂNG CẤP!` : 'THĂNG CẤP HOÀN TẤT!'
+          : 'XÂY DỰNG HOÀN TẤT!'
+      );
+      if (item.type === 'upgrade') {
+        if (id === 'main' || id === 'library' || id === 'listening') {
+          runProgressionAction('upgrade-castle', id);
+        } else {
+          setExtraBuildings((ebs) =>
+            ebs.map((b) => (b.id === id ? { ...b, level: (b.level ?? 1) + 1 } : b))
+          );
+        }
+      } else if (item.type === 'build' && item.newBuildingData) {
+        setExtraBuildings((ebs) => {
+          if (ebs.some((b) => b.id === id)) return ebs;
+          return [...ebs, item.newBuildingData!];
+        });
+      }
+      showCastleToast(`⚡ [${item.name}] đã hoàn thành thi công ngay lập tức!`, 'ok');
+    } else {
+      const item = sandboxActiveConstructions[id];
+      if (!item) return;
+      setSandboxActiveConstructions((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setCastleBurstBuildingId(id);
+      setCastleBurstText(
+        item.type === 'upgrade'
+          ? item.targetLevel ? `Lv.${item.targetLevel} · THĂNG CẤP!` : 'THĂNG CẤP HOÀN TẤT!'
+          : 'XÂY DỰNG HOÀN TẤT!'
+      );
+      if (item.type === 'upgrade') {
+        if (id === 'main') setSandboxMainLevel((l) => Math.min(10, l + 1));
+        else if (id === 'library') setSandboxLibraryLevel((l) => Math.min(10, l + 1));
+        else if (id === 'listening') setSandboxListeningLevel((l) => Math.min(10, l + 1));
+        else {
+          setSandboxExtraBuildings((ebs) =>
+            ebs.map((b) => (b.id === id ? { ...b, level: (b.level ?? 1) + 1 } : b))
+          );
+        }
+      } else if (item.type === 'build' && item.newBuildingData) {
+        setSandboxExtraBuildings((ebs) => {
+          if (ebs.some((b) => b.id === id)) return ebs;
+          return [...ebs, item.newBuildingData!];
+        });
+      }
+      showCastleToast(`⚡ [Sandbox] [${item.name}] đã hoàn thành thi công ngay lập tức!`, 'ok');
+    }
+  }, [activeConstructions, sandboxActiveConstructions, showCastleToast]);
+
+  const mainBuildingAnimStates = useMemo(() => {
+    const states: Record<string, { state: BuildingAnimState; progress?: number }> = {};
+    const now = Date.now();
+    for (const [id, constr] of Object.entries(activeConstructions)) {
+      const elapsed = Math.max(0, now - constr.startTime);
+      const progress = Math.min(1, elapsed / constr.duration);
+      states[id] = { state: 'upgrading', progress };
+    }
+    return states;
+  }, [activeConstructions, constructionTick]);
+
+  const sandboxBuildingAnimStates = useMemo(() => {
+    const states: Record<string, { state: BuildingAnimState; progress?: number }> = {};
+    const now = Date.now();
+    for (const [id, constr] of Object.entries(sandboxActiveConstructions)) {
+      const elapsed = Math.max(0, now - constr.startTime);
+      const progress = Math.min(1, elapsed / constr.duration);
+      states[id] = { state: 'upgrading', progress };
+    }
+    if (sandboxAnimState === 'upgrading') {
+      const target = selectedCastleBuilding || 'main';
+      if (!states[target]) {
+        states[target] = { state: 'upgrading', progress: 0.65 };
+      }
+    }
+    return states;
+  }, [sandboxActiveConstructions, sandboxAnimState, selectedCastleBuilding, constructionTick]);
+
+  const handleGlobalToggleFlip = useCallback((isSandbox = false) => {
+    if (pendingBuildingToPlace) {
+      handleTogglePendingFlip();
+    } else if (movingBuildingToPlace) {
+      handleToggleMovingFlip();
+    } else if (selectedCastleBuilding) {
+      handleToggleSelectedBuildingFlip(isSandbox);
+    }
+  }, [pendingBuildingToPlace, movingBuildingToPlace, selectedCastleBuilding, handleTogglePendingFlip, handleToggleMovingFlip, handleToggleSelectedBuildingFlip]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'r' || e.key === 'R') {
+        if (screen === 'castle-test') {
+          handleGlobalToggleFlip(true);
+        } else if (screen === 'castle') {
+          handleGlobalToggleFlip(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [screen, handleGlobalToggleFlip]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const storageKey = `castle_extra_buildings_${authUser?.id ?? 'guest'}`;
+    const uid = authUser?.id ?? 'guest';
+    const storageKey = `castle_extra_buildings_${uid}`;
+    const coreKey = `castle_core_positions_${uid}`;
+
+    // Load saved core positions
+    let loadedCore = DEFAULT_CORE_POSITIONS;
+    const savedCore = localStorage.getItem(coreKey);
+    if (savedCore) {
+      try {
+        const parsed = JSON.parse(savedCore);
+        if (parsed && typeof parsed === 'object') {
+          loadedCore = {
+            main: parsed.main ?? DEFAULT_CORE_POSITIONS.main,
+            library: parsed.library ?? DEFAULT_CORE_POSITIONS.library,
+            listening: parsed.listening ?? DEFAULT_CORE_POSITIONS.listening,
+          };
+          setCorePositions(loadedCore);
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
+    const coreObstacles = [
+      { id: 'main', col: loadedCore.main?.col ?? 4, row: loadedCore.main?.row ?? 4, w: 3, h: 3 },
+      { id: 'library', col: loadedCore.library?.col ?? 1, row: loadedCore.library?.row ?? 4, w: 2, h: 2 },
+      { id: 'listening', col: loadedCore.listening?.col ?? 8, row: loadedCore.listening?.row ?? 4, w: 2, h: 2 },
+    ];
+
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setExtraBuildings(parsed);
+          const sanitized = sanitizeBuildingsLayout(parsed, coreObstacles);
+          setExtraBuildings(sanitized);
         }
       } catch {
         /* fallback to default */
       }
     }
+
+    // Cloud Firestore Layout & Core Positions Sync
+    if (authUser?.id && authUser.id !== 'guest') {
+      getDoc(doc(firebaseDb, 'castles', authUser.id))
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data?.corePositions) {
+              setCorePositions(data.corePositions);
+              localStorage.setItem(coreKey, JSON.stringify(data.corePositions));
+            }
+            if (data?.buildingsLayout && Array.isArray(data.buildingsLayout)) {
+              const currentCores = data.corePositions ?? loadedCore;
+              const obs = [
+                { id: 'main', col: currentCores.main?.col ?? 4, row: currentCores.main?.row ?? 4, w: 3, h: 3 },
+                { id: 'library', col: currentCores.library?.col ?? 1, row: currentCores.library?.row ?? 4, w: 2, h: 2 },
+                { id: 'listening', col: currentCores.listening?.col ?? 8, row: currentCores.listening?.row ?? 4, w: 2, h: 2 },
+              ];
+              const sanitized = sanitizeBuildingsLayout(data.buildingsLayout, obs);
+              if (sanitized.length > 0) {
+                setExtraBuildings(sanitized);
+                localStorage.setItem(storageKey, JSON.stringify(sanitized));
+              }
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('[Castle Cloud Load] Failed to load layout:', err);
+        });
+    }
   }, [authUser?.id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let loadedSandboxCore = DEFAULT_CORE_POSITIONS;
+    const savedCore = localStorage.getItem('castle_sandbox_core_positions');
+    if (savedCore) {
+      try {
+        const parsed = JSON.parse(savedCore);
+        if (parsed && typeof parsed === 'object') {
+          loadedSandboxCore = {
+            main: parsed.main ?? DEFAULT_CORE_POSITIONS.main,
+            library: parsed.library ?? DEFAULT_CORE_POSITIONS.library,
+            listening: parsed.listening ?? DEFAULT_CORE_POSITIONS.listening,
+          };
+          setSandboxCorePositions(loadedSandboxCore);
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
     const saved = localStorage.getItem('castle_sandbox_extra_buildings');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setSandboxExtraBuildings(parsed);
+          const coreObstacles = [
+            { id: 'main', col: loadedSandboxCore.main?.col ?? 4, row: loadedSandboxCore.main?.row ?? 4, w: 3, h: 3 },
+            { id: 'library', col: loadedSandboxCore.library?.col ?? 1, row: loadedSandboxCore.library?.row ?? 4, w: 2, h: 2 },
+            { id: 'listening', col: loadedSandboxCore.listening?.col ?? 8, row: loadedSandboxCore.listening?.row ?? 4, w: 2, h: 2 },
+          ];
+          setSandboxExtraBuildings(sanitizeBuildingsLayout(parsed, coreObstacles));
         }
       } catch {
         /* fallback */
@@ -1236,12 +1812,31 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setRewardActionError('');
     try {
       const token = await user.getIdToken();
-      const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-social', operation, targetId, theme }) });
+      const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-social', operation, targetId, theme, buildingsLayout: extraBuildings }) });
       const data = await response.json() as { progression?: Progression; castleSocial?: { season: string; castles: PublicCastle[]; visitors: CastleVisitor[] }; visitedCastle?: PublicCastle; error?: string };
       if (!response.ok) throw new Error(data.error || 'Không thể kết nối Hán Tự Thành.');
       if (data.progression) setProgression(data.progression);
       if (data.castleSocial) setCastleSocial(data.castleSocial);
-      if (data.visitedCastle) setVisitedCastle(data.visitedCastle);
+      if (data.visitedCastle) {
+        let layout = data.visitedCastle.buildingsLayout;
+        if (!layout || layout.length === 0) {
+          try {
+            const snap = await getDoc(doc(firebaseDb, 'castles', data.visitedCastle.uid));
+            if (snap.exists() && snap.data()?.buildingsLayout) {
+              layout = snap.data().buildingsLayout;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        const coreObstacles = [
+          { id: 'main', col: 2, row: 2, w: 3, h: 3 },
+          { id: 'library', col: 0, row: 0, w: 2, h: 2 },
+          { id: 'listening', col: 6, row: 0, w: 2, h: 2 },
+        ];
+        const sanitized = sanitizeBuildingsLayout(layout || [], coreObstacles);
+        setVisitedCastle({ ...data.visitedCastle, buildingsLayout: sanitized });
+      }
     } catch (error) {
       setRewardActionError(error instanceof Error ? error.message : 'Không thể kết nối Hán Tự Thành.');
     }
@@ -1309,6 +1904,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       </button>
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
+      </button>
+      <button className={screen === 'castle' ? 'on' : ''} onClick={() => navigate('castle')}>
+        <MapIcon /><span>Thành trì</span>
       </button>
       <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
         <Trophy /><span>Xếp hạng</span>
@@ -2142,12 +2740,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </button>
           </div>}
           {!pvpRoom && scoreStatus === 'error' && <p className="score-error">Không thể đăng điểm. Hãy thử lại.</p>}
+          {((lastReward?.wood ?? 0) > 0 || (lastReward?.ink ?? 0) > 0) && (
+            <div className="result-castle-hint">
+              <span>🔨 Nhận được vật liệu xây thành! Ghé thăm <b>Hán Tự Thành</b> để xây dựng & nâng cấp.</span>
+              <button type="button" onClick={() => navigate('castle')}>Đến Thành Trì →</button>
+            </div>
+          )}
           <div className="actions">
             <button onClick={() => start()}>
               <Play /> Chơi lại
             </button>
             <button onClick={() => navigate('dictionary')}>
               <BookOpen /> Ôn từ
+            </button>
+            <button className="result-castle-cta" onClick={() => navigate('castle')}>
+              <MapIcon /> Vào Thành Trì
             </button>
             <button onClick={openLeaderboard}>
               <Trophy /> Xếp hạng
@@ -2244,8 +2851,22 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (typeof window !== 'undefined') {
         localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
       }
+      debouncedSaveCastleLayout(authUser?.id, updated);
       setPendingBuildingToPlace(null);
-      showCastleToast(`🎉 Đã xây dựng thành công [${newBuilding.name}]! +${newBuilding.prosperity ?? 100} 繁荣度`, 'ok');
+
+      // Trigger 10s construction state machine
+      setActiveConstructions((prev) => ({
+        ...prev,
+        [newBuilding.id]: {
+          id: newBuilding.id,
+          name: newBuilding.name,
+          startTime: Date.now(),
+          duration: 10000,
+          type: 'build',
+          newBuildingData: newBuilding,
+        },
+      }));
+      showCastleToast(`🔨 Bắt đầu thi công [${newBuilding.name}]! (Thời gian: 10s)`, 'ok');
     };
 
     const handleRemoveExtraBuilding = (id: string) => {
@@ -2269,7 +2890,49 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (typeof window !== 'undefined') {
         localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
       }
+      debouncedSaveCastleLayout(authUser?.id, updated);
       showCastleToast(`Đã thu hồi [${b.name}], hoàn lại 🪵 ${refundWood}, 🪙 ${refundCoin}`, 'ok');
+    };
+
+    const handleMoveBuilding = (buildingId: string, newCol: number, newRow: number, newFlipX?: boolean) => {
+      if (buildingId === 'main' || buildingId === 'library' || buildingId === 'listening') {
+        const nextCore: CoreBuildingPositions = {
+          ...corePositions,
+          [buildingId]: {
+            col: newCol,
+            row: newRow,
+            flipX: newFlipX !== undefined ? newFlipX : corePositions[buildingId]?.flipX ?? false,
+          },
+        };
+        setCorePositions(nextCore);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`castle_core_positions_${authUser?.id ?? 'guest'}`, JSON.stringify(nextCore));
+        }
+        debouncedSaveCastleCorePositions(authUser?.id, nextCore);
+        setMovingBuildingToPlace(null);
+        const nameMap: Record<string, string> = { main: 'Chủ Thành', library: 'Tàng Thư Các', listening: 'Thính Âm Các' };
+        showCastleToast(`✨ Đã di chuyển [${nameMap[buildingId] || buildingId}] đến vị trí mới (${newCol}, ${newRow})!`, 'ok');
+        return;
+      }
+
+      const updated = extraBuildings.map((b) => {
+        if (b.id === buildingId) {
+          return {
+            ...b,
+            col: newCol,
+            row: newRow,
+            flipX: newFlipX !== undefined ? newFlipX : b.flipX,
+          };
+        }
+        return b;
+      });
+      setExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
+      }
+      debouncedSaveCastleLayout(authUser?.id, updated);
+      setMovingBuildingToPlace(null);
+      showCastleToast('✨ Đã di chuyển công trình đến vị trí mới!', 'ok');
     };
 
     const filteredCatalog = catalogCategory === 'all'
@@ -2372,11 +3035,42 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <aside className="castle-placement-bar">
                 <div className="placement-bar-info">
                   <b>Đang xây: {pendingBuildingToPlace.name} ({pendingBuildingToPlace.w}×{pendingBuildingToPlace.h} ô)</b>
-                  <small>Chạm vào ô đất còn trống trên Tiên Đảo để xây dựng</small>
+                  <small>Chạm vào ô đất còn trống để xây · Phím R: Lật hướng {pendingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}</small>
                 </div>
-                <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
-                  ✕ Hủy bỏ
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    className="placement-flip-btn"
+                    onClick={handleTogglePendingFlip}
+                    title="Lật ngang hướng công trình (Phím R)"
+                  >
+                    🔄 Lật {pendingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}
+                  </button>
+                  <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
+                    ✕ Hủy bỏ
+                  </button>
+                </div>
+              </aside>
+            )}
+
+            {/* Floating Movement Helper Banner */}
+            {movingBuildingToPlace && (
+              <aside className="castle-placement-bar">
+                <div className="placement-bar-info">
+                  <b>Đang di chuyển: {movingBuildingToPlace.name} ({movingBuildingToPlace.w}×{movingBuildingToPlace.h} ô)</b>
+                  <small>Chạm vào ô đất mới để hạ đặt · Phím R: Lật hướng {movingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}</small>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    className="placement-flip-btn"
+                    onClick={handleToggleMovingFlip}
+                    title="Lật ngang hướng công trình (Phím R)"
+                  >
+                    🔄 Lật {movingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}
+                  </button>
+                  <button className="placement-cancel-btn" onClick={() => setMovingBuildingToPlace(null)}>
+                    ✕ Hủy bỏ
+                  </button>
+                </div>
               </aside>
             )}
 
@@ -2389,17 +3083,207 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 setSelectedCastleBuilding(id);
               }}
               showGrid={castleShowGrid}
+              calibration={islandCalibration}
+              showDebugGrid={showDebugGrid}
               extraBuildings={extraBuildings}
               onPlacedBuilding={handlePlaceBuilding}
               onRemoveBuilding={handleRemoveExtraBuilding}
               pendingBuilding={pendingBuildingToPlace}
               onCancelPlacement={() => setPendingBuildingToPlace(null)}
+              movingBuilding={movingBuildingToPlace}
+              onConfirmMove={handleMoveBuilding}
+              onCancelMove={() => setMovingBuildingToPlace(null)}
+              onToggleFlip={() => handleGlobalToggleFlip(false)}
               onToast={showCastleToast}
               burstBuildingId={castleBurstBuildingId}
               burstText={castleBurstText}
               onBurstComplete={() => setCastleBurstBuildingId(null)}
               enableIdleFx={true}
+              shieldActive={Boolean((castle.shieldActiveUntil && castle.shieldActiveUntil > Date.now()) || (castle.peaceUntil && castle.peaceUntil > Date.now()))}
+              combatFxTrigger={castleCombatTrigger}
+              corePositions={corePositions}
+              buildingAnimStates={mainBuildingAnimStates}
             />
+
+            {/* Bilinear Quad Calibration Panel */}
+            {calibrationModalOpen && (
+              <div
+                className="castle-calibration-panel"
+                style={{
+                  position: 'absolute',
+                  top: '72px',
+                  right: '16px',
+                  width: '320px',
+                  background: 'rgba(20, 14, 12, 0.95)',
+                  border: '1px solid #ffd43b',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  zIndex: 100,
+                  color: '#fff',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
+                  fontSize: '13px',
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px', color: '#ffd43b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯</span> Hiệu Chuẩn Lưới Đảo
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setCalibrationModalOpen(false);
+                      setShowDebugGrid(false);
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '16px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '6px' }}>
+                    <input
+                      type="checkbox"
+                      checked={showDebugGrid}
+                      onChange={(e) => setShowDebugGrid(e.target.checked)}
+                    />
+                    <b style={{ color: '#69db7c' }}>Hiện Lưới Điểm Đỏ Debug</b>
+                  </label>
+                  <div style={{ fontSize: '11px', color: '#bbb', lineHeight: '1.4' }}>
+                    Bilinear Quad nội suy 144 ô lưới theo đúng 4 đỉnh mặt cỏ: TOP, RIGHT, BOTTOM, LEFT.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#ffd43b', marginBottom: '4px' }}>
+                    Preset Địa Hình:
+                  </label>
+                  <select
+                    value={islandCalibration.id}
+                    onChange={(e) => {
+                      if (e.target.value === 'rim-12x12') {
+                        setIslandCalibration(RIM_ISLAND_CALIBRATION);
+                      } else if (e.target.value === 'natural-12x12') {
+                        setIslandCalibration(NATURAL_ISLAND_CALIBRATION);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      background: '#2b1b17',
+                      color: '#fff',
+                      border: '1px solid #5a3c30',
+                      borderRadius: '6px',
+                      padding: '6px 8px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <option value="rim-12x12">Đảo Thành Cổ Viền Đá (1024×1024)</option>
+                    <option value="natural-12x12">Đảo Tiên Tự Nhiên (1024×1024)</option>
+                  </select>
+                </div>
+
+                {/* 4 Corners Live Adjustment */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                  {(['top', 'right', 'bottom', 'left'] as const).map((cornerKey) => {
+                    const c = islandCalibration.plateauCorners[cornerKey];
+                    const colors: Record<string, string> = {
+                      top: '#ffd43b',
+                      right: '#69db7c',
+                      bottom: '#4dabf7',
+                      left: '#da77f2',
+                    };
+                    return (
+                      <div
+                        key={cornerKey}
+                        style={{
+                          background: 'rgba(255,255,255,0.06)',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          borderLeft: `3px solid ${colors[cornerKey]}`,
+                        }}
+                      >
+                        <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11px', color: colors[cornerKey] }}>
+                          {cornerKey}
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', color: '#888' }}>X:</span>
+                          <input
+                            type="number"
+                            value={c.x}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 0;
+                              setIslandCalibration((prev) => ({
+                                ...prev,
+                                plateauCorners: {
+                                  ...prev.plateauCorners,
+                                  [cornerKey]: { ...prev.plateauCorners[cornerKey], x: val },
+                                },
+                              }));
+                            }}
+                            style={{ width: '48px', background: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}
+                          />
+                          <span style={{ fontSize: '11px', color: '#888' }}>Y:</span>
+                          <input
+                            type="number"
+                            value={c.y}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 0;
+                              setIslandCalibration((prev) => ({
+                                ...prev,
+                                plateauCorners: {
+                                  ...prev.plateauCorners,
+                                  [cornerKey]: { ...prev.plateauCorners[cornerKey], y: val },
+                                },
+                              }));
+                            }}
+                            style={{ width: '48px', background: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(JSON.stringify(islandCalibration, null, 2));
+                      showCastleToast('Đã copy cấu hình Calibration JSON!', 'ok');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      background: '#e0a94d',
+                      color: '#1a0e08',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                    }}
+                  >
+                    📋 Copy JSON
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIslandCalibration(RIM_ISLAND_CALIBRATION);
+                      showCastleToast('Đã đặt lại về chuẩn mặc định', 'ok');
+                    }}
+                    style={{
+                      padding: '6px 10px',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#ccc',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                    }}
+                  >
+                    ↺ Đặt lại
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Bottom Floating Action Dock */}
             <footer className="castle-bottom-dock">
@@ -2415,6 +3299,19 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 >
                   <i>📐</i>
                   <span>Lưới</span>
+                </button>
+                <button
+                  className={`dock-item tool-item ${calibrationModalOpen ? 'active' : ''}`}
+                  onClick={() => {
+                    const next = !calibrationModalOpen;
+                    setCalibrationModalOpen(next);
+                    setShowDebugGrid(next);
+                    showCastleToast(next ? 'Đã mở bảng Hiệu Chuẩn Lưới Đảo' : 'Đã đóng bảng Hiệu Chuẩn');
+                  }}
+                  title="Hiệu Chuẩn Lưới Mặt Cỏ (Bilinear Quad Calibration)"
+                >
+                  <i>🎯</i>
+                  <span>Hiệu chuẩn</span>
                 </button>
                 <button
                   className={`dock-item tool-item highlight-gold ${castleBuildCatalogOpen ? 'active' : ''}`}
@@ -2822,7 +3719,49 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {castleShopOpen && <div className="castle-shop-backdrop" onClick={() => setCastleShopOpen(false)}><section className="castle-shop-modal" role="dialog" aria-modal="true" aria-label="Cửa hàng Thành" onClick={(event) => event.stopPropagation()}><header><small>建设商店</small><h2>Cửa hàng Thành</h2><button onClick={() => setCastleShopOpen(false)}>×</button></header><div className="castle-shop-list">{buildings.map((building) => { const level = castle.buildings[building.id]; const maxed = level >= 10; const stage = castleVisualStage(level); const nextStage = castleVisualStage(Math.min(10, level + 1)); const currentAsset = building.id === 'main' ? stage : 1; const nextAsset = building.id === 'main' ? nextStage : 1; const cost = castleUpgradeCost(building, level); const enough = castle.wood >= cost.wood && castle.ink >= cost.ink && (progression?.coins ?? 0) >= cost.coin; const supportReady = building.id !== 'main' || Math.min(castle.buildings.library, castle.buildings.listening) >= level; const playerReady = building.id !== 'main' || (progression?.level ?? 1) >= (mainCastleLevelRequirements[level + 1] ?? 100); const mainReady = building.id === 'main' || level < castle.buildings.main; const canBuy = !maxed && enough && supportReady && playerReady && mainReady; return <article key={building.id}><div className="castle-shop-art"><img src={`/castle/buildings/${building.id}/stage-${currentAsset}.webp`} alt=""/>{!maxed && <><i>›</i><img src={`/castle/buildings/${building.id}/stage-${nextAsset}.webp`} alt=""/></>}</div><div className="castle-shop-info"><span>{building.hanzi}</span><h3>{building.name}</h3><div className="castle-shop-stars">{Array.from({length:10},(_,index)=><i key={index} className={index < level ? 'on' : ''}>★</i>)}</div><small>Lv.{level}/10 · 🪵 {cost.wood} · 🖌 {cost.ink}</small></div>{maxed ? <strong>HOÀN TẤT!</strong> : <div className="castle-shop-buy"><b>🪙 {cost.coin.toLocaleString('vi-VN')}</b><button disabled={rewardActionStatus === 'loading' || !canBuy} onClick={() => void runProgressionAction('upgrade-castle', building.id)}>NÂNG CẤP</button></div>}</article>; })}</div></section></div>}
         {combatQuiz && (() => { const question = combatQuiz.questions[combatQuiz.index]; const options = [question[3], ...allVocabulary.filter((entry) => entry[3] !== question[3]).slice(combatQuiz.index * 3, combatQuiz.index * 3 + 3).map((entry) => entry[3])].sort((a,b)=>a.localeCompare(b)); return <div className="combat-quiz-backdrop"><section className="combat-quiz"><span>攻城挑战 · {combatQuiz.index + 1}/10</span><h2>{combatQuiz.targetName}</h2><div className="combat-quiz-progress"><i style={{width:`${combatQuiz.index * 10}%`}}/></div><strong>{question[0]}</strong><small>{question[1]}</small><div>{options.map((option)=><button key={option} onClick={() => answerCombatQuestion(option)}>{option}</button>)}</div><p>Đúng {combatQuiz.correct} · Cần ít nhất 7 câu</p></section></div>; })()}
         {combatResult && <div className="combat-result-backdrop" onClick={() => setCombatResult(null)}><section><b>{combatResult.shielded ? '🛡' : combatResult.won ? '🏆' : '⚔️'}</b><span>攻城结果</span><h2>{combatResult.shielded ? 'BỊ HỘ THÀNH PHÙ CHẶN' : combatResult.won ? 'CÔNG THÀNH THẮNG LỢI' : 'CÔNG THÀNH THẤT BẠI'}</h2><p>{combatResult.correct}/10 câu đúng</p>{combatResult.won && <strong>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</strong>}<button onClick={() => setCombatResult(null)}>Đóng</button></section></div>}
-        {visitedCastle && <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}><section className={`castle-visit-card castle-theme-${visitedCastle.theme}`} onClick={(event) => event.stopPropagation()}><button onClick={() => setVisitedCastle(null)}>×</button><span>拜访 · GHÉ THĂM</span><h2>Thành của {visitedCastle.name}</h2><div><img src="/castle/map-empty.webp" alt="Thành của người chơi"/><b>主城 Lv.{visitedCastle.buildings.main}</b></div><p>繁荣度 {visitedCastle.score.toLocaleString('vi-VN')} · ♥ {visitedCastle.likes}</p><button onClick={() => void runCastleSocial('like',visitedCastle.uid)}>♥ Like thành</button></section></div>}
+        {visitedCastle && (
+          <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}>
+            <section
+              className={`castle-visit-card castle-theme-${visitedCastle.theme}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button onClick={() => setVisitedCastle(null)}>×</button>
+              <span>拜访 · GHÉ THĂM</span>
+              <h2>Thành của {visitedCastle.name}</h2>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 280,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  margin: '10px 0',
+                  border: '1px solid rgba(255, 215, 100, 0.35)',
+                  background: 'rgba(15, 10, 8, 0.65)',
+                }}
+              >
+                <CastleIsoCanvas
+                  castle={{
+                    theme: visitedCastle.theme,
+                    buildings: visitedCastle.buildings,
+                  }}
+                  environmentStage={Math.min(5, Math.ceil(visitedCastle.level / 2))}
+                  selectedBuildingId={null}
+                  onSelectBuilding={() => {}}
+                  showGrid={false}
+                  extraBuildings={visitedCastle.buildingsLayout ?? []}
+                  pendingBuilding={null}
+                  onToast={showCastleToast}
+                  shieldActive={Boolean(visitedCastle.shieldActiveUntil && visitedCastle.shieldActiveUntil > Date.now())}
+                  combatFxTrigger={castleCombatTrigger}
+                  corePositions={visitedCastle.corePositions}
+                />
+              </div>
+              <p>繁荣度 {visitedCastle.score.toLocaleString('vi-VN')} · ♥ {visitedCastle.likes}</p>
+              <button onClick={() => void runCastleSocial('like', visitedCastle.uid)}>♥ Like thành</button>
+            </section>
+          </div>
+        )}
         {topupOpen && (
           <div className="topup-modal-backdrop" onClick={() => setTopupOpen(false)}>
             <section className="topup-modal" role="dialog" aria-modal="true" aria-label="Tiệm Long Tinh" onClick={(e) => e.stopPropagation()}>
@@ -2874,10 +3813,23 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           const currentBonus = mainCastleJadeBonusRates[level] ?? 10;
           const nextBonus = mainCastleJadeBonusRates[Math.min(10, level + 1)] ?? 10;
           const completedConditions = [!maxed, hasWood, hasInk, hasCoin, supportReady, playerLevelReady, mainCapReady].filter(Boolean).length;
+
+          const curPos = corePositions[selectedBuilding.id as keyof CoreBuildingPositions];
+          const curCol = curPos?.col ?? (selectedBuilding.id === 'main' ? 4 : selectedBuilding.id === 'library' ? 1 : 8);
+          const curRow = curPos?.row ?? 4;
+          const curFlipX = curPos?.flipX ?? false;
+          const constr = activeConstructions[selectedBuilding.id];
+          const isUpgrading = Boolean(constr);
+          const remainingSec = constr ? Math.max(0, Math.ceil((constr.startTime + constr.duration - Date.now()) / 1000)) : 0;
+          const upgradePct = constr ? Math.min(100, Math.round(((Date.now() - constr.startTime) / constr.duration) * 100)) : 0;
+
           return <div className="castle-upgrade-backdrop" onClick={() => setSelectedCastleBuilding(null)}><section className="castle-upgrade-modal" role="dialog" aria-modal="true" aria-label={`Nâng cấp ${selectedBuilding.name}`} onClick={(event) => event.stopPropagation()}>
             <button className="castle-upgrade-close" onClick={() => setSelectedCastleBuilding(null)} aria-label="Đóng">×</button>
             <header><span>Lv.{level}</span><div><small>{selectedBuilding.hanzi}</small><h2>{selectedBuilding.name}</h2></div></header>
-            <div className="castle-upgrade-preview"><img src={`/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`} alt={selectedBuilding.name}/><span>HÌNH THÁI {visualStage}/5</span></div>
+            <div className="castle-upgrade-preview">
+              <img src={`/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`} alt={selectedBuilding.name}/>
+              <span>VỊ TRÍ ({curCol}, {curRow}) · HÌNH THÁI {visualStage}/5</span>
+            </div>
             <div className="castle-upgrade-effect"><b>Hiệu quả nâng cấp</b>{isMain ? <><p className="castle-bonus-change"><span>玉片 sau trận</span><strong>+{currentBonus}% → +{nextBonus}%</strong></p><small>Bonus áp dụng cho Offline, Daily và PvP; tối đa 10%. Phần lẻ được tích lũy cho trận sau.</small></> : <><p>+250 繁荣度 · Mở đường nâng cấp Nhà Chính.</p>{nextVisualLevel && <small>Hình thái mới mở khi công trình đạt Lv.{nextVisualLevel}.</small>}</>}</div>
             <div className="castle-upgrade-requirements"><b>Điều kiện · {completedConditions}/7</b>
               <p className={!maxed ? 'ready' : 'missing'}><span>🏯 Cấp công trình</span><strong>{level}/10 {!maxed ? '✓' : 'MAX'}</strong></p>
@@ -2890,86 +3842,259 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </div>
             <div className="castle-condition-progress"><i><em style={{ width: `${completedConditions / 7 * 100}%` }} /></i><span>{completedConditions}/7 hoàn tất</span></div>
             {rewardActionError && <p className="castle-upgrade-error">{rewardActionError}</p>}
-            <button
-              className="castle-upgrade-submit"
-              disabled={rewardActionStatus === 'loading' || !canUpgrade}
-              onClick={() => {
-                setCastleBurstBuildingId(selectedBuilding.id);
-                setCastleBurstText(`Lv.${level + 1} · THĂNG CẤP!`);
-                runProgressionAction('upgrade-castle', selectedBuilding.id);
-              }}
-            >
-              {rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ điều kiện'}
-            </button>
-            <footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer>
-          </section></div>;
-        })()}
-        {/* Modal: Extra Building Inspector & Removal */}
-        {selectedExtraBuilding && (
-          <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
-            <section
-              className="castle-upgrade-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-label={selectedExtraBuilding.name}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                className="castle-upgrade-close"
-                onClick={() => setSelectedCastleBuilding(null)}
-                aria-label="Đóng"
-              >
-                ×
-              </button>
-              <header>
-                <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
-                <div>
-                  <small>{selectedExtraBuilding.hanzi}</small>
-                  <h2>{selectedExtraBuilding.name}</h2>
+
+            {isUpgrading ? (
+              <div style={{ margin: '14px 0', padding: '12px 14px', background: 'rgba(245, 159, 0, 0.15)', border: '1px solid #f59f00', borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <b style={{ color: '#ffd43b', fontSize: '14px' }}>🔨 Đang thi công nâng cấp...</b>
+                  <span style={{ color: '#ffe066', fontWeight: 700 }}>{upgradePct}% (còn {remainingSec}s)</span>
                 </div>
-              </header>
-              <div className="castle-upgrade-preview">
-                {selectedExtraBuilding.imageSrc ? (
-                  <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
-                ) : (
-                  <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
-                )}
-                <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
+                <div style={{ width: '100%', height: 10, background: 'rgba(0,0,0,0.5)', borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{ width: `${upgradePct}%`, height: '100%', background: 'linear-gradient(90deg, #f59f00, #ffd43b)', transition: 'width 0.15s linear' }} />
+                </div>
+                <button
+                  type="button"
+                  style={{
+                    marginTop: 10,
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    border: '1px solid #34d399',
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => handleInstantCompleteConstruction(selectedBuilding.id, false)}
+                >
+                  ⚡ Hoàn thành ngay (Miễn phí thử nghiệm)
+                </button>
               </div>
-              <div className="castle-upgrade-effect">
-                <b>Độ phồn vinh đóng góp</b>
-                <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
-                <small>Công trình độc lập trên Tiên Đảo. Bạn có thể thu hồi để giải phóng mặt bằng bất kỳ lúc nào.</small>
-              </div>
-              <div className="castle-upgrade-requirements">
-                <b>Thông tin tháo dỡ</b>
-                <p>
-                  <span>🪵 Hoàn trả 50% Gỗ</span>
-                  <strong>+{(Math.floor((selectedExtraBuilding.cost?.wood ?? 100) * 0.5)).toLocaleString('vi-VN')}</strong>
-                </p>
-                <p>
-                  <span>🪙 Hoàn trả 50% Coin</span>
-                  <strong>+{(Math.floor((selectedExtraBuilding.cost?.coin ?? 500) * 0.5)).toLocaleString('vi-VN')}</strong>
-                </p>
-              </div>
+            ) : (
+              <button
+                className="castle-upgrade-submit"
+                disabled={rewardActionStatus === 'loading' || !canUpgrade}
+                onClick={() => {
+                  setProgression((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      coins: Math.max(0, prev.coins - coinCost),
+                      castle: {
+                        ...prev.castle,
+                        wood: Math.max(0, prev.castle.wood - woodCost),
+                        ink: Math.max(0, prev.castle.ink - inkCost),
+                      },
+                    };
+                  });
+                  setActiveConstructions((prev) => ({
+                    ...prev,
+                    [selectedBuilding.id]: {
+                      id: selectedBuilding.id,
+                      name: selectedBuilding.name,
+                      startTime: Date.now(),
+                      duration: 10000,
+                      type: 'upgrade',
+                      targetLevel: level + 1,
+                    },
+                  }));
+                  showCastleToast(`🔨 Bắt đầu thi công nâng cấp [${selectedBuilding.name}] lên Lv.${level + 1} (10s)!`, 'ok');
+                }}
+              >
+                {rewardActionStatus === 'loading' ? 'Đang gửi yêu cầu…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1} (10s thi công)` : 'Chưa đủ điều kiện'}
+              </button>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
               <button
                 className="castle-upgrade-submit"
                 style={{
-                  background: 'linear-gradient(#d33636, #961b1b)',
-                  borderColor: '#ea5454',
-                  boxShadow: '0 4px 0 #6e1111',
-                  marginTop: '14px',
+                  flex: 1,
+                  background: 'linear-gradient(#f59f00, #d9480f)',
+                  borderColor: '#ffd43b',
+                  boxShadow: '0 4px 0 #bf360c',
+                  marginTop: 0,
+                }}
+                onClick={() => handleToggleSelectedBuildingFlip(false)}
+                title="Lật ngang hướng nhìn của công trình"
+              >
+                🔄 Lật {curFlipX ? '(Nghịch)' : '(Thuận)'}
+              </button>
+              <button
+                className="castle-upgrade-submit"
+                style={{
+                  flex: 1,
+                  background: 'linear-gradient(#4dabf7, #1c7ed6)',
+                  borderColor: '#74c0fc',
+                  boxShadow: '0 4px 0 #1864ab',
+                  marginTop: 0,
                 }}
                 onClick={() => {
-                  handleRemoveExtraBuilding(selectedExtraBuilding.id);
+                  const coreBuildingData: IsoBuildingData = {
+                    id: selectedBuilding.id,
+                    name: selectedBuilding.name,
+                    hanzi: selectedBuilding.hanzi,
+                    icon: selectedBuilding.icon,
+                    w: selectedBuilding.id === 'main' ? 3 : 2,
+                    h: selectedBuilding.id === 'main' ? 3 : 2,
+                    col: curCol,
+                    row: curRow,
+                    flipX: curFlipX,
+                    height: selectedBuilding.id === 'main' ? 100 : 70,
+                    top: selectedBuilding.id === 'main' ? '#ffd666' : selectedBuilding.id === 'library' ? '#74c0fc' : '#fcc2d7',
+                    left: selectedBuilding.id === 'main' ? '#c92a2a' : selectedBuilding.id === 'library' ? '#1c7ed6' : '#d6336c',
+                    right: selectedBuilding.id === 'main' ? '#961b1b' : selectedBuilding.id === 'library' ? '#1864ab' : '#a61e4d',
+                    outline: selectedBuilding.id === 'main' ? '#7a1f1d' : selectedBuilding.id === 'library' ? '#1971c2' : '#c2255c',
+                    imageSrc: `/castle/buildings/${selectedBuilding.id}/stage-${assetStage}.webp`,
+                  };
+                  setMovingBuildingToPlace(coreBuildingData);
                   setSelectedCastleBuilding(null);
+                  showCastleToast(`Đang di chuyển [${selectedBuilding.name}]. Chạm vào ô đất mới để hạ đặt!`, 'ok');
                 }}
               >
-                Thu Hồi Công Trình (Giải phóng ô đất)
+                🚚 Di chuyển
               </button>
-            </section>
-          </div>
-        )}
+            </div>
+            <footer>Thời gian thi công: 10 giây · Giàn giáo 3D, búa nhấp nhô, khói bụi & hiệu ứng Thăng cấp điện ảnh</footer>
+          </section></div>;
+        })()}
+        {/* Modal: Extra Building Inspector & Removal */}
+        {selectedExtraBuilding && (() => {
+          const constr = activeConstructions[selectedExtraBuilding.id];
+          const isUpgrading = Boolean(constr);
+          const remainingSec = constr ? Math.max(0, Math.ceil((constr.startTime + constr.duration - Date.now()) / 1000)) : 0;
+          const upgradePct = constr ? Math.min(100, Math.round(((Date.now() - constr.startTime) / constr.duration) * 100)) : 0;
+
+          return (
+            <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
+              <section
+                className="castle-upgrade-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={selectedExtraBuilding.name}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  className="castle-upgrade-close"
+                  onClick={() => setSelectedCastleBuilding(null)}
+                  aria-label="Đóng"
+                >
+                  ×
+                </button>
+                <header>
+                  <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
+                  <div>
+                    <small>{selectedExtraBuilding.hanzi}</small>
+                    <h2>{selectedExtraBuilding.name}</h2>
+                  </div>
+                </header>
+                <div className="castle-upgrade-preview">
+                  {selectedExtraBuilding.imageSrc ? (
+                    <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
+                  ) : (
+                    <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
+                  )}
+                  <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
+                </div>
+                <div className="castle-upgrade-effect">
+                  <b>Độ phồn vinh đóng góp</b>
+                  <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
+                  <small>Công trình độc lập trên Tiên Đảo. Bạn có thể thu hồi để giải phóng mặt bằng bất kỳ lúc nào.</small>
+                </div>
+
+                {isUpgrading && (
+                  <div style={{ margin: '14px 0', padding: '12px 14px', background: 'rgba(245, 159, 0, 0.15)', border: '1px solid #f59f00', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <b style={{ color: '#ffd43b', fontSize: '14px' }}>🔨 Đang thi công xây dựng...</b>
+                      <span style={{ color: '#ffe066', fontWeight: 700 }}>{upgradePct}% (còn {remainingSec}s)</span>
+                    </div>
+                    <div style={{ width: '100%', height: 10, background: 'rgba(0,0,0,0.5)', borderRadius: 5, overflow: 'hidden' }}>
+                      <div style={{ width: `${upgradePct}%`, height: '100%', background: 'linear-gradient(90deg, #f59f00, #ffd43b)', transition: 'width 0.15s linear' }} />
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        marginTop: 10,
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        border: '1px solid #34d399',
+                        borderRadius: 8,
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleInstantCompleteConstruction(selectedExtraBuilding.id, false)}
+                    >
+                      ⚡ Hoàn thành ngay (Miễn phí thử nghiệm)
+                    </button>
+                  </div>
+                )}
+
+                <div className="castle-upgrade-requirements">
+                  <b>Thông tin tháo dỡ</b>
+                  <p>
+                    <span>🪵 Hoàn trả 50% Gỗ</span>
+                    <strong>+{(Math.floor((selectedExtraBuilding.cost?.wood ?? 100) * 0.5)).toLocaleString('vi-VN')}</strong>
+                  </p>
+                  <p>
+                    <span>🪙 Hoàn trả 50% Coin</span>
+                    <strong>+{(Math.floor((selectedExtraBuilding.cost?.coin ?? 500) * 0.5)).toLocaleString('vi-VN')}</strong>
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#f59f00, #d9480f)',
+                      borderColor: '#ffd43b',
+                      boxShadow: '0 4px 0 #bf360c',
+                      marginTop: 0,
+                    }}
+                    onClick={() => handleToggleSelectedBuildingFlip(false)}
+                    title="Lật ngang hướng nhìn của công trình"
+                  >
+                    🔄 Lật {selectedExtraBuilding.flipX ? '(Nghịch)' : '(Thuận)'}
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#4dabf7, #1c7ed6)',
+                      borderColor: '#74c0fc',
+                      boxShadow: '0 4px 0 #1864ab',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      setMovingBuildingToPlace(selectedExtraBuilding);
+                      setSelectedCastleBuilding(null);
+                      showCastleToast(`Đang di chuyển [${selectedExtraBuilding.name}]. Chạm vào ô đất mới!`, 'ok');
+                    }}
+                  >
+                    🖐️ Di chuyển
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#d33636, #961b1b)',
+                      borderColor: '#ea5454',
+                      boxShadow: '0 4px 0 #6e1111',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      handleRemoveExtraBuilding(selectedExtraBuilding.id);
+                      setSelectedCastleBuilding(null);
+                    }}
+                  >
+                    Thu Hồi
+                  </button>
+                </div>
+              </section>
+            </div>
+          );
+        })()}
 
         {/* Modal: Building Construction Workshop (Xưởng Xây Dựng Công Trình) */}
         {castleBuildCatalogOpen && (
@@ -3099,7 +4224,20 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
       }
       setPendingBuildingToPlace(null);
-      showCastleToast(`[Sandbox] Đã đặt [${newBuilding.name}]! +${newBuilding.prosperity ?? 100} 繁荣`, 'ok');
+
+      // Trigger 10s construction in Sandbox
+      setSandboxActiveConstructions((prev) => ({
+        ...prev,
+        [newBuilding.id]: {
+          id: newBuilding.id,
+          name: newBuilding.name,
+          startTime: Date.now(),
+          duration: 10000,
+          type: 'build',
+          newBuildingData: newBuilding,
+        },
+      }));
+      showCastleToast(`🔨 [Sandbox] Bắt đầu thi công [${newBuilding.name}]! (Thời gian: 10s)`, 'ok');
     };
 
     const handleSandboxRemove = (id: string) => {
@@ -3109,6 +4247,45 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
       }
       showCastleToast('[Sandbox] Đã xóa công trình khỏi đảo', 'ok');
+    };
+
+    const handleSandboxMove = (buildingId: string, newCol: number, newRow: number, newFlipX?: boolean) => {
+      if (buildingId === 'main' || buildingId === 'library' || buildingId === 'listening') {
+        const nextCore: CoreBuildingPositions = {
+          ...sandboxCorePositions,
+          [buildingId]: {
+            col: newCol,
+            row: newRow,
+            flipX: newFlipX !== undefined ? newFlipX : sandboxCorePositions[buildingId]?.flipX ?? false,
+          },
+        };
+        setSandboxCorePositions(nextCore);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('castle_sandbox_core_positions', JSON.stringify(nextCore));
+        }
+        setMovingBuildingToPlace(null);
+        const nameMap: Record<string, string> = { main: 'Chủ Thành', library: 'Tàng Thư Các', listening: 'Thính Âm Các' };
+        showCastleToast(`✨ [Sandbox] Đã di chuyển [${nameMap[buildingId] || buildingId}] đến ô mới (${newCol}, ${newRow})!`, 'ok');
+        return;
+      }
+
+      const updated = sandboxExtraBuildings.map((b) => {
+        if (b.id === buildingId) {
+          return {
+            ...b,
+            col: newCol,
+            row: newRow,
+            flipX: newFlipX !== undefined ? newFlipX : b.flipX,
+          };
+        }
+        return b;
+      });
+      setSandboxExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
+      }
+      setMovingBuildingToPlace(null);
+      showCastleToast('[Sandbox] Đã di chuyển công trình đến ô mới!', 'ok');
     };
 
     const selectedExtraBuilding = selectedCastleBuilding
@@ -3296,6 +4473,66 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               </button>
             </div>
           </div>
+
+          <div className="sandbox-panel-section">
+            <label>⚔️ Chiến Đấu & Thủ Thành 2.5D:</label>
+            <div className="sandbox-btn-row">
+              <button
+                className="sandbox-combat-btn-cannon"
+                onClick={() => {
+                  const target = selectedCastleBuilding || 'main';
+                  setCastleCombatTrigger({
+                    type: 'cannon',
+                    targetBuildingId: target,
+                    id: Date.now(),
+                  });
+                  showCastleToast(`💣 Bắn pháo oanh kích [${target}]!`);
+                }}
+                title="Bắn pháo công thành theo quỹ đạo parabol 2.5D (Nổ lửa, đất rung, chớp đỏ)"
+              >
+                💣 Bắn Pháo
+              </button>
+              <button
+                className={`sandbox-combat-btn-shield ${sandboxShieldActive ? 'active' : ''}`}
+                onClick={() => {
+                  const next = !sandboxShieldActive;
+                  setSandboxShieldActive(next);
+                  showCastleToast(next ? '🛡️ Đã bật Vòm Khiên Hộ Thành!' : 'Đã tắt Vòm Khiên Hộ Thành');
+                }}
+                title="Bật/Tắt Vòm Khiên Hộ Thành 2.5D (Quầng Fresnel, phù chú bảo hộ, lưới lục giác)"
+              >
+                🛡️ {sandboxShieldActive ? 'Khiên: BẬT' : 'Khiên: TẮT'}
+              </button>
+              <button
+                className="sandbox-combat-btn-hit"
+                onClick={() => {
+                  setSandboxShieldActive(true);
+                  setCastleCombatTrigger({
+                    type: 'shield_hit',
+                    id: Date.now(),
+                  });
+                  showCastleToast('💥 Bắn thẳng vào vòm khiên! Sóng xung kích lục giác tỏa rộng!');
+                }}
+                title="Thử nghiệm đạn pháo va chạm trên mặt khiên và sinh sóng chấn động lục giác"
+              >
+                💥 Bắn Vào Khiên
+              </button>
+              <button
+                className="sandbox-combat-btn-shatter"
+                onClick={() => {
+                  setSandboxShieldActive(false);
+                  setCastleCombatTrigger({
+                    type: 'shatter',
+                    id: Date.now(),
+                  });
+                  showCastleToast('⚡ Khiên Hộ Thành vỡ nát thành muôn mảnh pha lê!');
+                }}
+                title="Kích hoạt vỡ vụn khiên thành mảnh pha lê phát sáng"
+              >
+                ⚡ Nổ Vỡ Khiên
+              </button>
+            </div>
+          </div>
         </aside>
 
         {/* Floating Toast Notification */}
@@ -3311,11 +4548,42 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <aside className="castle-placement-bar">
             <div className="placement-bar-info">
               <b>Đang xây: {pendingBuildingToPlace.name} ({pendingBuildingToPlace.w}×{pendingBuildingToPlace.h} ô)</b>
-              <small>Chạm vào ô đất còn trống trên Tiên Đảo để xây dựng</small>
+              <small>Chạm vào ô đất còn trống để xây · Phím R: Lật hướng {pendingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}</small>
             </div>
-            <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
-              ✕ Hủy bỏ
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                className="placement-flip-btn"
+                onClick={handleTogglePendingFlip}
+                title="Lật ngang hướng công trình (Phím R)"
+              >
+                🔄 Lật {pendingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}
+              </button>
+              <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
+                ✕ Hủy bỏ
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* Floating Movement Helper Banner */}
+        {movingBuildingToPlace && (
+          <aside className="castle-placement-bar">
+            <div className="placement-bar-info">
+              <b>Đang di chuyển: {movingBuildingToPlace.name} ({movingBuildingToPlace.w}×{movingBuildingToPlace.h} ô)</b>
+              <small>Chạm vào ô đất mới để hạ đặt · Phím R: Lật hướng {movingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}</small>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                className="placement-flip-btn"
+                onClick={handleToggleMovingFlip}
+                title="Lật ngang hướng công trình (Phím R)"
+              >
+                🔄 Lật {movingBuildingToPlace.flipX ? '(Nghịch)' : '(Thuận)'}
+              </button>
+              <button className="placement-cancel-btn" onClick={() => setMovingBuildingToPlace(null)}>
+                ✕ Hủy bỏ
+              </button>
+            </div>
           </aside>
         )}
 
@@ -3326,19 +4594,26 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           selectedBuildingId={selectedCastleBuilding}
           onSelectBuilding={(buildingId) => setSelectedCastleBuilding(buildingId)}
           showGrid={castleShowGrid}
+          calibration={islandCalibration}
+          showDebugGrid={showDebugGrid}
           extraBuildings={sandboxExtraBuildings}
           pendingBuilding={pendingBuildingToPlace}
           onPlacedBuilding={handleSandboxPlace}
           onRemoveBuilding={handleSandboxRemove}
           onCancelPlacement={() => setPendingBuildingToPlace(null)}
+          movingBuilding={movingBuildingToPlace}
+          onConfirmMove={handleSandboxMove}
+          onCancelMove={() => setMovingBuildingToPlace(null)}
+          onToggleFlip={() => handleGlobalToggleFlip(true)}
           onToast={showCastleToast}
           burstBuildingId={castleBurstBuildingId}
           burstText={castleBurstText}
           onBurstComplete={() => setCastleBurstBuildingId(null)}
           enableIdleFx={sandboxIdleFx}
-          buildingAnimStates={{
-            [selectedCastleBuilding || 'main']: { state: sandboxAnimState },
-          }}
+          shieldActive={sandboxShieldActive}
+          combatFxTrigger={castleCombatTrigger}
+          corePositions={sandboxCorePositions}
+          buildingAnimStates={sandboxBuildingAnimStates}
         />
 
         {/* Bottom Floating Action Dock */}
@@ -3414,61 +4689,317 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </div>
         </footer>
 
-        {/* Modal: Extra Building Inspector & Removal */}
-        {selectedExtraBuilding && (
-          <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
-            <section
-              className="castle-upgrade-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-label={selectedExtraBuilding.name}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                className="castle-upgrade-close"
-                onClick={() => setSelectedCastleBuilding(null)}
-                aria-label="Đóng"
+        {/* Modal: Sandbox Core Building Inspector & Repositioning */}
+        {selectedCastleBuilding && ['main', 'library', 'listening'].includes(selectedCastleBuilding) && (() => {
+          const coreKey = selectedCastleBuilding as 'main' | 'library' | 'listening';
+          const names: Record<string, { name: string; hanzi: string; icon: string; w: number; h: number }> = {
+            main: { name: 'Chủ Thành', hanzi: '主城', icon: '🏯', w: 3, h: 3 },
+            library: { name: 'Tàng Thư Các', hanzi: '藏书阁', icon: '📚', w: 2, h: 2 },
+            listening: { name: 'Thính Âm Các', hanzi: '听音阁', icon: '🔔', w: 2, h: 2 },
+          };
+          const info = names[coreKey];
+          const level = coreKey === 'main' ? sandboxMainLevel : coreKey === 'library' ? sandboxLibraryLevel : sandboxListeningLevel;
+          const visualStage = castleVisualStage(level);
+          const assetStage = coreKey === 'main' ? visualStage : 1;
+          const pos = sandboxCorePositions[coreKey];
+          const curCol = pos?.col ?? (coreKey === 'main' ? 4 : coreKey === 'library' ? 1 : 8);
+          const curRow = pos?.row ?? 4;
+          const curFlipX = pos?.flipX ?? false;
+
+          const constr = sandboxActiveConstructions[coreKey];
+          const isUpgrading = Boolean(constr);
+          const remainingSec = constr ? Math.max(0, Math.ceil((constr.startTime + constr.duration - Date.now()) / 1000)) : 0;
+          const upgradePct = constr ? Math.min(100, Math.round(((Date.now() - constr.startTime) / constr.duration) * 100)) : 0;
+
+          return (
+            <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
+              <section
+                className="castle-upgrade-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`[Sandbox] ${info.name}`}
+                onClick={(event) => event.stopPropagation()}
               >
-                ×
-              </button>
-              <header>
-                <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
-                <div>
-                  <small>{selectedExtraBuilding.hanzi}</small>
-                  <h2>{selectedExtraBuilding.name}</h2>
+                <button
+                  className="castle-upgrade-close"
+                  onClick={() => setSelectedCastleBuilding(null)}
+                  aria-label="Đóng"
+                >
+                  ×
+                </button>
+                <header>
+                  <span>Lv.{level}</span>
+                  <div>
+                    <small>{info.hanzi}</small>
+                    <h2>{info.name} (Cốt Lõi)</h2>
+                  </div>
+                </header>
+                <div className="castle-upgrade-preview">
+                  <img src={`/castle/buildings/${coreKey}/stage-${assetStage}.webp`} alt={info.name} />
+                  <span>VỊ TRÍ ({curCol}, {curRow}) · KÍCH THƯỚC {info.w}×{info.h}</span>
                 </div>
-              </header>
-              <div className="castle-upgrade-preview">
-                {selectedExtraBuilding.imageSrc ? (
-                  <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
-                ) : (
-                  <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
+                <div className="castle-upgrade-effect">
+                  <b>[Sandbox] Công Trình Cốt Lõi</b>
+                  <p>Bạn có thể tự do di chuyển, đổi hướng nhìn (Flip X), và thử nghiệm tiến trình thi công 10s.</p>
+                </div>
+
+                {isUpgrading && (
+                  <div style={{ margin: '14px 0', padding: '12px 14px', background: 'rgba(245, 159, 0, 0.15)', border: '1px solid #f59f00', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <b style={{ color: '#ffd43b', fontSize: '14px' }}>🔨 Đang thi công nâng cấp...</b>
+                      <span style={{ color: '#ffe066', fontWeight: 700 }}>{upgradePct}% (còn {remainingSec}s)</span>
+                    </div>
+                    <div style={{ width: '100%', height: 10, background: 'rgba(0,0,0,0.5)', borderRadius: 5, overflow: 'hidden' }}>
+                      <div style={{ width: `${upgradePct}%`, height: '100%', background: 'linear-gradient(90deg, #f59f00, #ffd43b)', transition: 'width 0.15s linear' }} />
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        marginTop: 10,
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        border: '1px solid #34d399',
+                        borderRadius: 8,
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleInstantCompleteConstruction(coreKey, true)}
+                    >
+                      ⚡ Hoàn thành ngay (Sandbox)
+                    </button>
+                  </div>
                 )}
-                <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
-              </div>
-              <div className="castle-upgrade-effect">
-                <b>[Sandbox] Thử nghiệm công trình</b>
-                <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
-                <small>Bạn đang ở chế độ Sandbox. Bạn có thể xóa công trình này bất kỳ lúc nào.</small>
-              </div>
-              <button
-                className="castle-upgrade-submit"
-                style={{
-                  background: 'linear-gradient(#d33636, #961b1b)',
-                  borderColor: '#ea5454',
-                  boxShadow: '0 4px 0 #6e1111',
-                  marginTop: '14px',
-                }}
-                onClick={() => {
-                  handleSandboxRemove(selectedExtraBuilding.id);
-                  setSelectedCastleBuilding(null);
-                }}
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#f59f00, #d9480f)',
+                      borderColor: '#ffd43b',
+                      boxShadow: '0 4px 0 #bf360c',
+                      marginTop: 0,
+                    }}
+                    onClick={() => handleToggleSelectedBuildingFlip(true)}
+                    title="Lật ngang hướng nhìn của công trình"
+                  >
+                    🔄 Lật {curFlipX ? '(Nghịch)' : '(Thuận)'}
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#4dabf7, #1c7ed6)',
+                      borderColor: '#74c0fc',
+                      boxShadow: '0 4px 0 #1864ab',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      const coreBuildingData: IsoBuildingData = {
+                        id: coreKey,
+                        name: info.name,
+                        hanzi: info.hanzi,
+                        icon: info.icon,
+                        w: info.w,
+                        h: info.h,
+                        col: curCol,
+                        row: curRow,
+                        flipX: curFlipX,
+                        height: coreKey === 'main' ? 100 : 70,
+                        top: coreKey === 'main' ? '#ffd666' : coreKey === 'library' ? '#74c0fc' : '#fcc2d7',
+                        left: coreKey === 'main' ? '#c92a2a' : coreKey === 'library' ? '#1c7ed6' : '#d6336c',
+                        right: coreKey === 'main' ? '#961b1b' : coreKey === 'library' ? '#1864ab' : '#a61e4d',
+                        outline: coreKey === 'main' ? '#7a1f1d' : coreKey === 'library' ? '#1971c2' : '#c2255c',
+                        imageSrc: `/castle/buildings/${coreKey}/stage-${assetStage}.webp`,
+                      };
+                      setMovingBuildingToPlace(coreBuildingData);
+                      setSelectedCastleBuilding(null);
+                      showCastleToast(`[Sandbox] Đang di chuyển [${info.name}]. Chạm vào ô đất mới để hạ đặt!`, 'ok');
+                    }}
+                  >
+                    🚚 Di chuyển
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: isUpgrading ? '#495057' : 'linear-gradient(#20c997, #099268)',
+                      borderColor: '#38d9a9',
+                      boxShadow: '0 4px 0 #087f5b',
+                      marginTop: 0,
+                    }}
+                    disabled={isUpgrading}
+                    onClick={() => {
+                      setSandboxActiveConstructions((prev) => ({
+                        ...prev,
+                        [coreKey]: {
+                          id: coreKey,
+                          name: info.name,
+                          startTime: Date.now(),
+                          duration: 10000,
+                          type: 'upgrade',
+                          targetLevel: Math.min(10, level + 1),
+                        },
+                      }));
+                      showCastleToast(`🔨 [Sandbox] Bắt đầu thi công nâng cấp [${info.name}] (10s)!`, 'ok');
+                    }}
+                  >
+                    {isUpgrading ? '🔨 Đang thi công…' : `⬆️ Nâng cấp (10s thi công)`}
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#e599f7, #ae3ec9)',
+                      borderColor: '#f783ac',
+                      boxShadow: '0 4px 0 #862e9c',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      setCastleBurstBuildingId(coreKey);
+                      setCastleBurstText('+1 CẤP · THĂNG CẤP!');
+                      showCastleToast(`✨ Đã bắn hiệu ứng Level-Up Burst trên [${info.name}]!`);
+                    }}
+                  >
+                    🌟 Bắn Burst
+                  </button>
+                </div>
+              </section>
+            </div>
+          );
+        })()}
+
+        {/* Modal: Extra Building Inspector & Removal */}
+        {selectedExtraBuilding && (() => {
+          const constr = sandboxActiveConstructions[selectedExtraBuilding.id];
+          const isUpgrading = Boolean(constr);
+          const remainingSec = constr ? Math.max(0, Math.ceil((constr.startTime + constr.duration - Date.now()) / 1000)) : 0;
+          const upgradePct = constr ? Math.min(100, Math.round(((Date.now() - constr.startTime) / constr.duration) * 100)) : 0;
+
+          return (
+            <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
+              <section
+                className="castle-upgrade-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={selectedExtraBuilding.name}
+                onClick={(event) => event.stopPropagation()}
               >
-                Xóa Công Trình (Giải phóng ô đất)
-              </button>
-            </section>
-          </div>
-        )}
+                <button
+                  className="castle-upgrade-close"
+                  onClick={() => setSelectedCastleBuilding(null)}
+                  aria-label="Đóng"
+                >
+                  ×
+                </button>
+                <header>
+                  <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
+                  <div>
+                    <small>{selectedExtraBuilding.hanzi}</small>
+                    <h2>{selectedExtraBuilding.name}</h2>
+                  </div>
+                </header>
+                <div className="castle-upgrade-preview">
+                  {selectedExtraBuilding.imageSrc ? (
+                    <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
+                  ) : (
+                    <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
+                  )}
+                  <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
+                </div>
+                <div className="castle-upgrade-effect">
+                  <b>[Sandbox] Thử nghiệm công trình</b>
+                  <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
+                  <small>Bạn đang ở chế độ Sandbox. Bạn có thể xóa công trình này bất kỳ lúc nào.</small>
+                </div>
+
+                {isUpgrading && (
+                  <div style={{ margin: '14px 0', padding: '12px 14px', background: 'rgba(245, 159, 0, 0.15)', border: '1px solid #f59f00', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <b style={{ color: '#ffd43b', fontSize: '14px' }}>🔨 Đang thi công xây dựng...</b>
+                      <span style={{ color: '#ffe066', fontWeight: 700 }}>{upgradePct}% (còn {remainingSec}s)</span>
+                    </div>
+                    <div style={{ width: '100%', height: 10, background: 'rgba(0,0,0,0.5)', borderRadius: 5, overflow: 'hidden' }}>
+                      <div style={{ width: `${upgradePct}%`, height: '100%', background: 'linear-gradient(90deg, #f59f00, #ffd43b)', transition: 'width 0.15s linear' }} />
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        marginTop: 10,
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        border: '1px solid #34d399',
+                        borderRadius: 8,
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleInstantCompleteConstruction(selectedExtraBuilding.id, true)}
+                    >
+                      ⚡ Hoàn thành ngay (Sandbox)
+                    </button>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#f59f00, #d9480f)',
+                      borderColor: '#ffd43b',
+                      boxShadow: '0 4px 0 #bf360c',
+                      marginTop: 0,
+                    }}
+                    onClick={() => handleToggleSelectedBuildingFlip(true)}
+                    title="Lật ngang hướng nhìn của công trình"
+                  >
+                    🔄 Lật {selectedExtraBuilding.flipX ? '(Nghịch)' : '(Thuận)'}
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#4dabf7, #1c7ed6)',
+                      borderColor: '#74c0fc',
+                      boxShadow: '0 4px 0 #1864ab',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      setMovingBuildingToPlace(selectedExtraBuilding);
+                      setSelectedCastleBuilding(null);
+                      showCastleToast(`[Sandbox] Đang di chuyển [${selectedExtraBuilding.name}]. Chạm vào ô đất mới!`, 'ok');
+                    }}
+                  >
+                    🖐️ Di chuyển
+                  </button>
+                  <button
+                    className="castle-upgrade-submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(#d33636, #961b1b)',
+                      borderColor: '#ea5454',
+                      boxShadow: '0 4px 0 #6e1111',
+                      marginTop: 0,
+                    }}
+                    onClick={() => {
+                      handleSandboxRemove(selectedExtraBuilding.id);
+                      setSelectedCastleBuilding(null);
+                    }}
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </section>
+            </div>
+          );
+        })()}
 
         {/* Modal: Building Construction Workshop */}
         {castleBuildCatalogOpen && (
@@ -3606,11 +5137,19 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
               <article className="coin-wallet"><img src="/items/coin.png" alt="Coin"/><span><small>XÂY DỰNG</small><b>{progression?.coins ?? 0} Coin</b><p>Dùng nâng cấp Hán Tự Thành</p></span></article>
+              <article className="wood-wallet"><img src="/items/spin-wood.png" alt="Gỗ" /><span><small>VẬT LIỆU</small><b>{progression?.castle.wood ?? 0} Gỗ</b><p>Gỗ xây kết cấu</p></span></article>
+              <article className="ink-wallet"><img src="/items/spin-ink.png" alt="Mực" /><span><small>HỌC THUẬT</small><b>{progression?.castle.ink ?? 0} Mực</b><p>Mực điển tịch & thư các</p></span></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
               <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
-            <div className="inventory-heading"><div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div><b>{totalItems} vật phẩm</b></div>
+            <div className="inventory-heading">
+              <div><span className="eyebrow">VẬT PHẨM</span><h2>Kho đồ của bạn</h2></div>
+              <button type="button" className="inv-castle-cta-btn" onClick={() => navigate('castle')}>
+                <MapIcon size={14} /> Đi tới Hán Tự Thành
+              </button>
+              <b>{totalItems} vật phẩm</b>
+            </div>
             <div className="inventory-grid">
               {itemDefinitions.map((item) => {
                 const isCosmetic = item.type === 'frame' || item.type === 'seal' || item.type === 'effect';
@@ -3730,39 +5269,137 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <div className="title">
             <span className="eyebrow"><Trophy /> BẢNG VÀNG TOÀN CẦU</span>
             <h1>Xếp hạng người chơi</h1>
-            <p>Top 50 điểm cao nhất của từng màn và chế độ.</p>
+            <p>{leaderboardTab === 'songs' ? 'Top 50 điểm cao nhất của từng màn và chế độ.' : 'Bảng vàng tôn vinh những thành trì phồn vinh và kỳ vĩ nhất thiên hạ.'}</p>
           </div>
-          <div className="leaderboard-filters">
-            <div>
-              {songs.map((song, index) => (
-                <button key={song[0]} className={leaderboardLevel === index ? 'on' : ''} onClick={() => setLeaderboardLevel(index)}>
-                  {song[0]}
-                </button>
-              ))}
-            </div>
-            <div>
-              <button className={leaderboardMode === 'audition' ? 'on' : ''} onClick={() => setLeaderboardMode('audition')}>Trắc nghiệm</button>
-              <button className={leaderboardMode === 'typing' ? 'on' : ''} onClick={() => setLeaderboardMode('typing')}>Gõ chữ</button>
-            </div>
+          <div className="leaderboard-category-tabs">
+            <button
+              type="button"
+              className={leaderboardTab === 'songs' ? 'on' : ''}
+              onClick={() => setLeaderboardTab('songs')}
+            >
+              🎵 Điểm Bài Hát
+            </button>
+            <button
+              type="button"
+              className={leaderboardTab === 'castle' ? 'on' : ''}
+              onClick={() => {
+                setLeaderboardTab('castle');
+                void runCastleSocial();
+              }}
+            >
+              🏯 Phồn Vinh Thành Trì
+            </button>
           </div>
-          <div className="leaderboard-table">
-            <div className="leaderboard-row leaderboard-head">
-              <span>Hạng</span><span>Người chơi</span><span>Từ đúng</span><span>Điểm</span>
-            </div>
-            {leaderboardLoading ? (
-              <p className="leaderboard-empty">Đang tải bảng xếp hạng...</p>
-            ) : leaderboard.length === 0 ? (
-              <p className="leaderboard-empty">Chưa có điểm. Hãy trở thành người đầu tiên!</p>
-            ) : leaderboard.map((entry, index) => (
-              <div className="leaderboard-row" key={entry.id}>
-                <span className={`place place-${index + 1}`}>{index + 1}</span>
-                <span><b>{entry.name}</b></span>
-                <span>{entry.correct}/20</span>
-                <strong>{entry.score.toLocaleString('vi-VN')}</strong>
+          {leaderboardTab === 'songs' ? (
+            <>
+              <div className="leaderboard-filters">
+                <div>
+                  {songs.map((song, index) => (
+                    <button key={song[0]} className={leaderboardLevel === index ? 'on' : ''} onClick={() => setLeaderboardLevel(index)}>
+                      {song[0]}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <button className={leaderboardMode === 'audition' ? 'on' : ''} onClick={() => setLeaderboardMode('audition')}>Trắc nghiệm</button>
+                  <button className={leaderboardMode === 'typing' ? 'on' : ''} onClick={() => setLeaderboardMode('typing')}>Gõ chữ</button>
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="leaderboard-table">
+                <div className="leaderboard-row leaderboard-head">
+                  <span>Hạng</span><span>Người chơi</span><span>Từ đúng</span><span>Điểm</span>
+                </div>
+                {leaderboardLoading ? (
+                  <p className="leaderboard-empty">Đang tải bảng xếp hạng...</p>
+                ) : leaderboard.length === 0 ? (
+                  <p className="leaderboard-empty">Chưa có điểm. Hãy trở thành người đầu tiên!</p>
+                ) : leaderboard.map((entry, index) => (
+                  <div className="leaderboard-row" key={entry.id}>
+                    <span className={`place place-${index + 1}`}>{index + 1}</span>
+                    <span><b>{entry.name}</b></span>
+                    <span>{entry.correct}/20</span>
+                    <strong>{entry.score.toLocaleString('vi-VN')}</strong>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="leaderboard-table">
+              <div className="leaderboard-row leaderboard-head" style={{ gridTemplateColumns: '40px 1fr 120px 80px 110px' }}>
+                <span>Hạng</span><span>Thành Trì</span><span>Phồn Vinh</span><span>Like</span><span>Hành động</span>
+              </div>
+              {castleSocial?.castles && castleSocial.castles.length > 0 ? (
+                castleSocial.castles.map((c, index) => (
+                  <div className="leaderboard-row" key={c.uid} style={{ gridTemplateColumns: '40px 1fr 120px 80px 110px' }}>
+                    <span className={`place place-${index + 1}`}>{index + 1}</span>
+                    <span>
+                      <b>{c.name}</b>
+                      <small style={{ display: 'block', color: '#887463', fontSize: '11px' }}>
+                        Thành Lv.{c.level} · Chủ {c.buildings.main} · Thư {c.buildings.library} · Thính {c.buildings.listening}
+                      </small>
+                    </span>
+                    <strong style={{ color: '#b5272d' }}>✨ {c.score.toLocaleString('vi-VN')}</strong>
+                    <span style={{ color: '#e03131' }}>❤️ {c.likes}</span>
+                    <div>
+                      <button
+                        type="button"
+                        className="leaderboard-castle-visit-btn"
+                        onClick={() => void runCastleSocial('visit', c.uid)}
+                      >
+                        🏯 Thăm Thành
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="leaderboard-empty">Đang đồng bộ danh sách thành trì toàn cầu...</p>
+              )}
+            </div>
+          )}
         </section>
+        {visitedCastle && (
+          <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}>
+            <section
+              className={`castle-visit-card castle-theme-${visitedCastle.theme}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button onClick={() => setVisitedCastle(null)}>×</button>
+              <span>拜访 · GHÉ THĂM</span>
+              <h2>Thành của {visitedCastle.name}</h2>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 280,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  margin: '10px 0',
+                  border: '1px solid rgba(255, 215, 100, 0.35)',
+                  background: 'rgba(15, 10, 8, 0.65)',
+                }}
+              >
+                <CastleIsoCanvas
+                  castle={{
+                    theme: visitedCastle.theme,
+                    buildings: visitedCastle.buildings,
+                  }}
+                  environmentStage={Math.min(5, Math.ceil(visitedCastle.level / 2))}
+                  selectedBuildingId={null}
+                  onSelectBuilding={() => {}}
+                  showGrid={false}
+                  extraBuildings={visitedCastle.buildingsLayout ?? []}
+                  pendingBuilding={null}
+                  onToast={showCastleToast}
+                  shieldActive={Boolean(visitedCastle.shieldActiveUntil && visitedCastle.shieldActiveUntil > Date.now())}
+                  combatFxTrigger={castleCombatTrigger}
+                  corePositions={visitedCastle.corePositions}
+                />
+              </div>
+              <p>繁荣度 {visitedCastle.score.toLocaleString('vi-VN')} · ♥ {visitedCastle.likes}</p>
+              <button onClick={() => void runCastleSocial('like', visitedCastle.uid)}>♥ Like thành</button>
+            </section>
+          </div>
+        )}
       </main>
     );
   return (
@@ -3789,6 +5426,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           >
             Từ điển
           </button>
+          <button onClick={() => navigate('castle')}>🏯 Thành Trì</button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => navigate('inventory')}>Inventory</button>
           <button onClick={() => navigate('shop')}>Cửa hàng</button>
@@ -4016,6 +5654,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               </button>
             </article>
           </section>
+          <CastleHomeWidget
+            castle={progression?.castle ?? null}
+            coins={progression?.coins ?? 0}
+            streak={progression?.streak ?? 0}
+            discoveriesCount={progression?.discoveries.length ?? 0}
+            extraBuildingsCount={extraBuildings.length}
+            extraProsperity={extraBuildings.reduce((sum, b) => sum + (b.prosperity ?? 0), 0)}
+            onNavigateCastle={() => navigate('castle')}
+            harvestAvailable={{
+              wood: lastHarvestTime > 0 ? Math.floor((Math.min(12 * 3600 * 1000, Math.max(0, Date.now() - lastHarvestTime)) / (3600 * 1000)) * (4 + (progression?.castle.buildings.main ?? 1) * 1.5)) : 0,
+              ink: lastHarvestTime > 0 ? Math.floor((Math.min(12 * 3600 * 1000, Math.max(0, Date.now() - lastHarvestTime)) / (3600 * 1000)) * (2 + (progression?.castle.buildings.main ?? 1) * 0.8)) : 0,
+              coins: lastHarvestTime > 0 ? Math.floor((Math.min(12 * 3600 * 1000, Math.max(0, Date.now() - lastHarvestTime)) / (3600 * 1000)) * (100 + (progression?.castle.buildings.main ?? 1) * 50)) : 0,
+            }}
+            onHarvest={handleHarvest}
+          />
           <section className="quick">
             <span>
               <Trophy />
@@ -4108,6 +5761,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <span className="eyebrow">MY VOCABULARY</span>
             <h1>{selectedHskFolder ? `Từ vựng HSK ${selectedHskFolder}` : 'Thư mục từ vựng'}</h1>
             <p>{selectedHskFolder ? `${filteredVocabulary.length} từ trong thư mục HSK ${selectedHskFolder}.` : `${allVocabulary.length} từ được sắp xếp theo từng cấp độ HSK.`}</p>
+          </div>
+          <div className="castle-buff-banner">
+            <span className="buff-icon">📚</span>
+            <div>
+              <b>Tàng Thư Các Lv.{progression?.castle.buildings.library ?? 1}</b>
+              <p>Phúc lợi Thư Các: Tăng +{(progression?.castle.buildings.library ?? 1) * 5}% hiệu quả ghi nhớ từ vựng và kinh nghiệm ôn tập.</p>
+            </div>
+            <button type="button" onClick={() => navigate('castle')}>Nâng Cấp Thư Các →</button>
           </div>
           {selectedHskFolder === null ? (
             <div className="hsk-folders">
