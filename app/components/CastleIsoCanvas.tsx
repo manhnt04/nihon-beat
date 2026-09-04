@@ -13,12 +13,34 @@ export interface IsoBuildingData {
   h: number;
   height: number;
   level?: number;
+  imageSrc?: string;
+  imageScale?: number;
   top: string;
   left: string;
   right: string;
   outline: string;
   accent?: string;
   isRemovable?: boolean;
+  prosperity?: number;
+  cost?: { wood: number; ink: number; coin: number };
+}
+
+export interface PendingBuildingTemplate {
+  templateId: string;
+  name: string;
+  hanzi: string;
+  icon: string;
+  w: number;
+  h: number;
+  height: number;
+  imageSrc?: string;
+  imageScale?: number;
+  top: string;
+  left: string;
+  right: string;
+  outline: string;
+  prosperity: number;
+  cost: { wood: number; ink: number; coin: number };
 }
 
 interface CastleIsoCanvasProps {
@@ -40,9 +62,11 @@ interface CastleIsoCanvasProps {
   selectedBuildingId: string | null;
   onSelectBuilding: (id: string | null) => void;
   showGrid: boolean;
-  showOrder: boolean;
-  placeMode: boolean;
-  onPlacedBuilding?: (name: string) => void;
+  extraBuildings: IsoBuildingData[];
+  onPlacedBuilding?: (newBuilding: IsoBuildingData) => void;
+  onRemoveBuilding?: (id: string) => void;
+  pendingBuilding: PendingBuildingTemplate | null;
+  onCancelPlacement?: () => void;
   onToast: (msg: string, kind?: 'ok' | 'bad') => void;
 }
 
@@ -50,118 +74,65 @@ const GRID = 8;
 const BASE_TILE_W = 64;
 const BASE_TILE_H = 32;
 
+// Shared In-Memory Image Cache for instant 60fps sprite rendering
+const imageCache = new Map<string, HTMLImageElement>();
+
+function getLoadedImage(src: string): HTMLImageElement | null {
+  if (typeof window === 'undefined') return null;
+  let img = imageCache.get(src);
+  if (!img) {
+    img = new Image();
+    img.src = src;
+    imageCache.set(src, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 export default function CastleIsoCanvas({
   castle,
   environmentStage,
   selectedBuildingId,
   onSelectBuilding,
   showGrid,
-  showOrder,
-  placeMode,
+  extraBuildings,
   onPlacedBuilding,
+  onRemoveBuilding,
+  pendingBuilding,
+  onCancelPlacement,
   onToast,
 }: CastleIsoCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rectRef = useRef({ width: 800, height: 600 });
 
-  // Camera pan stored in ref to prevent 60fps-120fps React re-renders during dragging
+  // Camera pan stored in ref to prevent 60-120Hz React re-renders while dragging
   const panRef = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
 
-  // Keep latest props in ref for animation loop without recreating closures
-  const propsRef = useRef({
-    castle,
-    environmentStage,
-    selectedBuildingId,
-    showGrid,
-    showOrder,
-    placeMode,
-    onSelectBuilding,
-    onPlacedBuilding,
-    onToast,
-  });
-  propsRef.current = {
-    castle,
-    environmentStage,
-    selectedBuildingId,
-    showGrid,
-    showOrder,
-    placeMode,
-    onSelectBuilding,
-    onPlacedBuilding,
-    onToast,
-  };
+  // Hover grid cell for placement preview
+  const hoverGridRef = useRef<{ col: number; row: number } | null>(null);
 
-  // Placed extra decorative structures
-  const [extraBuildings, setExtraBuildings] = useState<IsoBuildingData[]>([
-    {
-      id: 'watchtower-1',
-      name: 'Trạm gác Tiền đồn',
-      hanzi: '哨',
-      icon: '🏹',
-      col: 0,
-      row: 6,
-      w: 1,
-      h: 1,
-      height: 48,
-      top: '#e8c9a0',
-      left: '#c8a374',
-      right: '#a8825a',
-      outline: '#7a5c3a',
-      isRemovable: true,
-    },
-    {
-      id: 'granary-1',
-      name: 'Kho lương Phong túc',
-      hanzi: '仓',
-      icon: '📦',
-      col: 6,
-      row: 6,
-      w: 1,
-      h: 1,
-      height: 44,
-      top: '#f0d090',
-      left: '#d0a960',
-      right: '#b08a44',
-      outline: '#8a6a2e',
-      isRemovable: true,
-    },
-    {
-      id: 'tree-1',
-      name: 'Cổ thụ Linh mộc',
-      hanzi: '木',
-      icon: '🌲',
-      col: 2,
-      row: 6,
-      w: 1,
-      h: 1,
-      height: 52,
-      top: '#a8d98a',
-      left: '#87bd67',
-      right: '#699e49',
-      outline: '#4a7a30',
-      isRemovable: true,
-    },
-    {
-      id: 'rock-1',
-      name: 'Kỳ thạch Phong thuỷ',
-      hanzi: '石',
-      icon: '🪨',
-      col: 5,
-      row: 5,
-      w: 1,
-      h: 1,
-      height: 32,
-      top: '#c9c3b8',
-      left: '#a8a196',
-      right: '#8a8378',
-      outline: '#605a50',
-      isRemovable: true,
-    },
-  ]);
+  // Preload official building assets on mount
+  useEffect(() => {
+    const assets = [
+      '/castle/buildings/main/stage-1.webp',
+      '/castle/buildings/main/stage-2.webp',
+      '/castle/buildings/main/stage-3.webp',
+      '/castle/buildings/main/stage-4.webp',
+      '/castle/buildings/main/stage-5.webp',
+      '/castle/buildings/library/stage-1.webp',
+      '/castle/buildings/listening/stage-1.webp',
+    ];
+    assets.forEach((src) => {
+      if (!imageCache.has(src)) {
+        const img = new Image();
+        img.src = src;
+        imageCache.set(src, img);
+      }
+    });
+  }, []);
 
   // Main 3 structures synchronized with Progression
   const mainStage = Math.min(5, Math.ceil(castle.buildings.main / 2));
@@ -186,7 +157,7 @@ export default function CastleIsoCanvas({
       row: 6,
       w: 1,
       h: 1,
-      height: 42,
+      height: 44,
       top: '#ffd875',
       left: '#d4aa48',
       right: '#a67e2a',
@@ -194,6 +165,7 @@ export default function CastleIsoCanvas({
     };
   }, [castle.decorations?.guardian]);
 
+  // Core 3 buildings using official webp images!
   const coreBuildings = useMemo<IsoBuildingData[]>(() => {
     return [
       {
@@ -205,8 +177,10 @@ export default function CastleIsoCanvas({
         row: 2,
         w: 3,
         h: 3,
-        height: 96 + mainStage * 10,
+        height: 100 + mainStage * 10,
         level: castle.buildings.main,
+        imageSrc: `/castle/buildings/main/stage-${mainStage}.webp`,
+        imageScale: 1.18,
         top: mainStage >= 4 ? '#ffd666' : mainStage >= 3 ? '#e0a94d' : '#f3cf7a',
         left: mainStage >= 4 ? '#c92a2a' : mainStage >= 3 ? '#9b2b2b' : '#d4a94e',
         right: mainStage >= 4 ? '#961b1b' : mainStage >= 3 ? '#781f1f' : '#b3853a',
@@ -222,8 +196,10 @@ export default function CastleIsoCanvas({
         row: 0,
         w: 2,
         h: 2,
-        height: 64 + libraryStage * 8,
+        height: 70 + libraryStage * 8,
         level: castle.buildings.library,
+        imageSrc: '/castle/buildings/library/stage-1.webp',
+        imageScale: 1.08,
         top: '#74c0fc',
         left: '#1c7ed6',
         right: '#1864ab',
@@ -239,8 +215,10 @@ export default function CastleIsoCanvas({
         row: 0,
         w: 2,
         h: 2,
-        height: 64 + listeningStage * 8,
+        height: 70 + listeningStage * 8,
         level: castle.buildings.listening,
+        imageSrc: '/castle/buildings/listening/stage-1.webp',
+        imageScale: 1.08,
         top: '#fcc2d7',
         left: '#d6336c',
         right: '#a61e4d',
@@ -260,6 +238,32 @@ export default function CastleIsoCanvas({
 
   const allBuildingsRef = useRef(allBuildings);
   allBuildingsRef.current = allBuildings;
+
+  // Keep latest props in ref for animation loop without recreating closures
+  const propsRef = useRef({
+    castle,
+    environmentStage,
+    selectedBuildingId,
+    showGrid,
+    pendingBuilding,
+    onSelectBuilding,
+    onPlacedBuilding,
+    onRemoveBuilding,
+    onCancelPlacement,
+    onToast,
+  });
+  propsRef.current = {
+    castle,
+    environmentStage,
+    selectedBuildingId,
+    showGrid,
+    pendingBuilding,
+    onSelectBuilding,
+    onPlacedBuilding,
+    onRemoveBuilding,
+    onCancelPlacement,
+    onToast,
+  };
 
   // Algorithm 1: Grid ↔ Screen
   const gridToScreen = useCallback(
@@ -285,7 +289,7 @@ export default function CastleIsoCanvas({
 
   // Algorithm 2: Footprint Corners
   const footprintCorners = useCallback(
-    (b: IsoBuildingData, originX: number, originY: number, tileW: number, tileH: number) => {
+    (b: { col: number; row: number; w: number; h: number }, originX: number, originY: number, tileW: number, tileH: number) => {
       const N = gridToScreen(b.col, b.row, originX, originY, tileW, tileH);
       let E = gridToScreen(b.col + b.w - 1, b.row, originX, originY, tileW, tileH);
       E = { x: E.x + tileW / 2, y: E.y + tileH / 2 };
@@ -299,7 +303,7 @@ export default function CastleIsoCanvas({
   );
 
   // Algorithm 4: Depth Sorting Key
-  const depthKey = useCallback((b: IsoBuildingData) => {
+  const depthKey = useCallback((b: { col: number; row: number; w: number; h: number }) => {
     return b.col + b.w - 1 + (b.row + b.h - 1);
   }, []);
 
@@ -399,7 +403,7 @@ export default function CastleIsoCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    const { castle: cProp, selectedBuildingId: selId, showGrid: sGrid, showOrder: sOrder } = propsRef.current;
+    const { castle: cProp, selectedBuildingId: selId, showGrid: sGrid, pendingBuilding: pBuild } = propsRef.current;
     const curBuildings = allBuildingsRef.current;
 
     // Dynamic isometric tile scaling to fit viewport
@@ -421,7 +425,7 @@ export default function CastleIsoCanvas({
 
     const cliffDepth = 65 * scaleFactor;
 
-    // Fast Hardware-accelerated Radial Gradient Underbelly Shadow (NO ctx.filter blur)
+    // Fast Hardware-accelerated Radial Gradient Underbelly Shadow
     const shadowRadiusX = (GRID * tileW) / 2.2;
     const shadowRadiusY = tileH * 2.2;
     const shadowCenterY = islandS_edge.y + cliffDepth + 25;
@@ -522,16 +526,47 @@ export default function CastleIsoCanvas({
       }
     }
 
-    // --- 3. Depth Sorting (Algorithm 4) ---
+    // --- 3. Placement Mode Footprint Hover Preview (Algorithm 3) ---
+    if (pBuild && hoverGridRef.current) {
+      const { col, row } = hoverGridRef.current;
+      const valid = canPlace(col, row, pBuild.w, pBuild.h);
+      const fpCorners = footprintCorners({ col, row, w: pBuild.w, h: pBuild.h }, originX, originY, tileW, tileH);
+
+      ctx.fillStyle = valid ? 'rgba(46, 204, 113, 0.38)' : 'rgba(231, 76, 60, 0.45)';
+      poly(ctx, [fpCorners.N, fpCorners.E, fpCorners.S, fpCorners.W]);
+      ctx.fill();
+
+      ctx.strokeStyle = valid ? '#2ecc71' : '#e74c3c';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Ghost preview of the building image or icon
+      const ghostImg = pBuild.imageSrc ? getLoadedImage(pBuild.imageSrc) : null;
+      const ghostCenterX = (fpCorners.N.x + fpCorners.E.x + fpCorners.S.x + fpCorners.W.x) / 4;
+      if (ghostImg) {
+        ctx.globalAlpha = 0.65;
+        const baseScale = pBuild.w >= 3 ? 2.3 : pBuild.w >= 2 ? 1.95 : 1.45;
+        const imgW = pBuild.w * tileW * baseScale * (pBuild.imageScale ?? 1);
+        const aspect = ghostImg.naturalHeight / ghostImg.naturalWidth;
+        const imgH = imgW * aspect;
+        const drawX = ghostCenterX - imgW / 2;
+        const drawY = fpCorners.S.y - imgH + tileH * 0.45;
+        ctx.drawImage(ghostImg, drawX, drawY, imgW, imgH);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // --- 4. Depth Sorting (Algorithm 4) ---
     const sorted = [...curBuildings].sort((a, b) => depthKey(a) - depthKey(b));
 
-    // --- 4. Draw Buildings (Back-to-Front Painter's Algorithm) ---
-    sorted.forEach((b, idx) => {
+    // --- 5. Draw Buildings with Real Images & Footprints ---
+    sorted.forEach((b) => {
       const c = footprintCorners(b, originX, originY, tileW, tileH);
       const h = b.height * scaleFactor;
       const isSelected = b.id === selId;
+      const footCenterX = (c.N.x + c.E.x + c.S.x + c.W.x) / 4;
 
-      // Fast Feathered Footprint Shadow (Radial Gradient, ZERO blur filter cost)
+      // Fast Feathered Footprint Shadow (Radial Gradient)
       const bShadowCenterX = (c.W.x + c.E.x) / 2;
       const bShadowCenterY = (c.N.y + c.S.y) / 2 + 2;
       const bShadowRadX = (b.w * tileW) / 2.1;
@@ -554,61 +589,68 @@ export default function CastleIsoCanvas({
       ctx.ellipse(bShadowCenterX, bShadowCenterY, bShadowRadX, bShadowRadY, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Building 3D geometry vertices
-      const Np = { x: c.N.x, y: c.N.y - h };
-      const Ep = { x: c.E.x, y: c.E.y - h };
-      const Sp = { x: c.S.x, y: c.S.y - h };
-      const Wp = { x: c.W.x, y: c.W.y - h };
+      // Check if real webp image is available & loaded in cache!
+      const spriteImg = b.imageSrc ? getLoadedImage(b.imageSrc) : null;
 
-      ctx.strokeStyle = isSelected ? '#ffd43b' : b.outline;
-      ctx.lineWidth = isSelected ? 2.5 : 1.4;
+      if (spriteImg) {
+        // Compute scaled dimension matching isometric footprint
+        const baseScale = b.w >= 3 ? 2.3 : b.w >= 2 ? 1.95 : 1.45;
+        const imgW = b.w * tileW * baseScale * (b.imageScale ?? 1);
+        const aspect = spriteImg.naturalHeight / spriteImg.naturalWidth;
+        const imgH = imgW * aspect;
 
-      // Left Wall
-      ctx.fillStyle = b.left;
-      poly(ctx, [c.W, c.S, Sp, Wp]);
-      ctx.fill();
-      ctx.stroke();
+        // Anchor at bottom center of the ground footprint
+        const drawX = footCenterX - imgW / 2;
+        const drawY = c.S.y - imgH + tileH * 0.45;
 
-      // Right Wall
-      ctx.fillStyle = b.right;
-      poly(ctx, [c.S, c.E, Ep, Sp]);
-      ctx.fill();
-      ctx.stroke();
+        // Selected building golden aura
+        if (isSelected) {
+          ctx.save();
+          ctx.shadowColor = '#ffd43b';
+          ctx.shadowBlur = 16;
+          ctx.drawImage(spriteImg, drawX, drawY, imgW, imgH);
+          ctx.restore();
+        } else {
+          ctx.drawImage(spriteImg, drawX, drawY, imgW, imgH);
+        }
+      } else {
+        // Fallback: 3D stylized isometric block for tree, stone, or until image loads
+        const Np = { x: c.N.x, y: c.N.y - h };
+        const Ep = { x: c.E.x, y: c.E.y - h };
+        const Sp = { x: c.S.x, y: c.S.y - h };
+        const Wp = { x: c.W.x, y: c.W.y - h };
 
-      // Roof / Top Surface
-      ctx.fillStyle = b.top;
-      poly(ctx, [Np, Ep, Sp, Wp]);
-      ctx.fill();
-      ctx.stroke();
+        ctx.strokeStyle = isSelected ? '#ffd43b' : b.outline;
+        ctx.lineWidth = isSelected ? 2.5 : 1.4;
 
-      // Center of roof for icon
-      const roofCenterX = (Np.x + Ep.x + Sp.x + Wp.x) / 4;
-      const roofCenterY = (Np.y + Ep.y + Sp.y + Wp.y) / 4;
-
-      // Draw traditional pagoda tier line for taller buildings
-      if (b.h >= 2 && b.w >= 2) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = 1;
-        const midH = h * 0.5;
-        poly(ctx, [
-          { x: c.N.x, y: c.N.y - midH },
-          { x: c.E.x, y: c.E.y - midH },
-          { x: c.S.x, y: c.S.y - midH },
-          { x: c.W.x, y: c.W.y - midH },
-        ]);
+        // Left Wall
+        ctx.fillStyle = b.left;
+        poly(ctx, [c.W, c.S, Sp, Wp]);
+        ctx.fill();
         ctx.stroke();
+
+        // Right Wall
+        ctx.fillStyle = b.right;
+        poly(ctx, [c.S, c.E, Ep, Sp]);
+        ctx.fill();
+        ctx.stroke();
+
+        // Roof / Top Surface
+        ctx.fillStyle = b.top;
+        poly(ctx, [Np, Ep, Sp, Wp]);
+        ctx.fill();
+        ctx.stroke();
+
+        // Icon on roof
+        const roofCenterX = (Np.x + Ep.x + Sp.x + Wp.x) / 4;
+        const roofCenterY = (Np.y + Ep.y + Sp.y + Wp.y) / 4;
+        ctx.font = `${Math.round((14 + b.w * 5) * scaleFactor)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.icon, roofCenterX, roofCenterY - 4);
       }
 
-      // Icon on roof
-      ctx.font = `${Math.round((14 + b.w * 5) * scaleFactor)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(b.icon, roofCenterX, roofCenterY - 4);
-
-      // Footprint center for exact Labeling (Algorithm 2: centered on ground footprint)
-      const footCenterX = (c.N.x + c.E.x + c.S.x + c.W.x) / 4;
-
-      // Building Label Tag pill
+      // Building Label Tag pill (centered at footprint bottom)
       const labelText = b.level ? `${b.hanzi} Lv.${b.level}` : b.name;
       ctx.font = `bold ${Math.round(10 * scaleFactor)}px "Nunito", sans-serif`;
       const textWidth = ctx.measureText(labelText).width;
@@ -640,25 +682,9 @@ export default function CastleIsoCanvas({
         ctx.stroke();
         ctx.setLineDash([]);
       }
-
-      // Algorithm 4 visualization: Show draw order badge
-      if (sOrder) {
-        ctx.fillStyle = '#2b1b13';
-        ctx.beginPath();
-        ctx.arc(c.S.x, c.S.y + pillH + 12, 10 * scaleFactor, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ffd875';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.round(10 * scaleFactor)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(idx + 1), c.S.x, c.S.y + pillH + 12);
-      }
     });
 
-    // --- 5. Atmospheric Weather Particles (Batched without save/restore overhead) ---
+    // --- 6. Atmospheric Weather Particles (Batched) ---
     if (particlesRef.current.length > 0) {
       for (const p of particlesRef.current) {
         p.x += p.vx;
@@ -688,7 +714,7 @@ export default function CastleIsoCanvas({
       }
       ctx.globalAlpha = 1;
     }
-  }, [gridToScreen, footprintCorners, depthKey]);
+  }, [gridToScreen, footprintCorners, depthKey, canPlace]);
 
   // Single Persistent Animation Loop (Decoupled from React State)
   useEffect(() => {
@@ -723,7 +749,7 @@ export default function CastleIsoCanvas({
     };
   }, [drawFrame]);
 
-  // Mouse & Touch Pointer Handling (Click & Pan without React State Triggers)
+  // Mouse & Touch Pointer Handling (Click, Drag, and Placement)
   const handlePointerDown = (e: React.PointerEvent) => {
     isDraggingRef.current = true;
     hasDraggedRef.current = false;
@@ -734,6 +760,26 @@ export default function CastleIsoCanvas({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const scaleFactor = Math.min(1.2, Math.max(0.75, rect.width / 740));
+      const tileW = BASE_TILE_W * scaleFactor;
+      const tileH = BASE_TILE_H * scaleFactor;
+      const originX = rect.width / 2 + panRef.current.x;
+      const originY = rect.height * 0.3 + panRef.current.y;
+
+      const g = screenToGrid(x, y, originX, originY, tileW, tileH);
+      if (g.col >= 0 && g.row >= 0 && g.col < GRID && g.row < GRID) {
+        hoverGridRef.current = g;
+      } else {
+        hoverGridRef.current = null;
+      }
+    }
+
     if (!isDraggingRef.current) return;
     const dx = Math.abs(e.clientX - (dragStartRef.current.x + panRef.current.x));
     const dy = Math.abs(e.clientY - (dragStartRef.current.y + panRef.current.y));
@@ -749,7 +795,7 @@ export default function CastleIsoCanvas({
   const handlePointerUp = (e: React.PointerEvent) => {
     isDraggingRef.current = false;
 
-    // If user was dragging to pan camera, do not trigger click hit test
+    // If user was dragging to pan camera, do not trigger click / placement
     if (hasDraggedRef.current) return;
 
     const canvas = canvasRef.current;
@@ -765,66 +811,69 @@ export default function CastleIsoCanvas({
     const originX = rect.width / 2 + panRef.current.x;
     const originY = rect.height * 0.3 + panRef.current.y;
 
-    const { placeMode: pMode, onSelectBuilding: selCb, onToast: toastCb, onPlacedBuilding: placeCb } = propsRef.current;
+    const { pendingBuilding: pBuild, onSelectBuilding: selCb, onToast: toastCb, onPlacedBuilding: placeCb } = propsRef.current;
     const curBuildings = allBuildingsRef.current;
 
-    // Algorithm 5: Reverse depth-sorted polygon silhouette test
+    // Case 1: Active Placement Mode with a chosen building template
+    if (pBuild) {
+      const g = screenToGrid(x, y, originX, originY, tileW, tileH);
+      if (g.col >= 0 && g.row >= 0 && g.col + pBuild.w <= GRID && g.row + pBuild.h <= GRID) {
+        if (canPlace(g.col, g.row, pBuild.w, pBuild.h)) {
+          const newBuilding: IsoBuildingData = {
+            id: `build-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: pBuild.name,
+            hanzi: pBuild.hanzi,
+            icon: pBuild.icon,
+            col: g.col,
+            row: g.row,
+            w: pBuild.w,
+            h: pBuild.h,
+            height: pBuild.height,
+            imageSrc: pBuild.imageSrc,
+            imageScale: pBuild.imageScale,
+            top: pBuild.top,
+            left: pBuild.left,
+            right: pBuild.right,
+            outline: pBuild.outline,
+            isRemovable: true,
+            prosperity: pBuild.prosperity,
+            cost: pBuild.cost,
+          };
+          if (placeCb) placeCb(newBuilding);
+        } else {
+          toastCb(`Vị trí (${g.col}, ${g.row}) đã bị chiếm hoặc không đủ diện tích ${pBuild.w}×${pBuild.h}!`, 'bad');
+        }
+      } else {
+        toastCb('Vui lòng chọn vị trí nằm trong phạm vi Tiên Đảo!', 'bad');
+      }
+      return;
+    }
+
+    // Case 2: Standard Mode - Click Hit Test (Algorithm 5: Reverse depth-sorted polygon silhouette)
     const sorted = [...curBuildings].sort((a, b) => depthKey(a) - depthKey(b));
     let hit: IsoBuildingData | null = null;
 
     for (let i = sorted.length - 1; i >= 0; i--) {
       const b = sorted[i];
+      // Test 1: Hit test polygon silhouette
       const polyPts = silhouette(b, originX, originY, tileW, tileH);
       if (pointInPolygon({ x, y }, polyPts)) {
+        hit = b;
+        break;
+      }
+      // Test 2: Also test ground footprint corners
+      const fc = footprintCorners(b, originX, originY, tileW, tileH);
+      if (pointInPolygon({ x, y }, [fc.N, fc.E, fc.S, fc.W])) {
         hit = b;
         break;
       }
     }
 
     if (hit) {
-      if (pMode) {
-        toastCb(`Ô đã có công trình [${hit.name}]`, 'bad');
-      } else {
-        selCb(hit.id);
-        toastCb(`Đã chọn [${hit.name}] · ${hit.w}×${hit.h} ô`, 'ok');
-      }
-      return;
-    }
-
-    // Algorithm 1 & 3: Check ground tile placement
-    const g = screenToGrid(x, y, originX, originY, tileW, tileH);
-    if (g.col >= 0 && g.row >= 0 && g.col < GRID && g.row < GRID) {
-      if (pMode) {
-        if (canPlace(g.col, g.row, 1, 1)) {
-          const newId = `tower-${Date.now()}`;
-          const newTower: IsoBuildingData = {
-            id: newId,
-            name: 'Trạm gác Mới',
-            hanzi: '哨',
-            icon: '🏹',
-            col: g.col,
-            row: g.row,
-            w: 1,
-            h: 1,
-            height: 44,
-            top: '#e8c9a0',
-            left: '#c8a374',
-            right: '#a8825a',
-            outline: '#7a5c3a',
-            isRemovable: true,
-          };
-          setExtraBuildings((prev) => [...prev, newTower]);
-          toastCb(`Đã dựng Trạm gác mới tại (${g.col}, ${g.row})`, 'ok');
-          if (placeCb) placeCb('Trạm gác mới');
-          selCb(newId);
-        } else {
-          toastCb(`Ô (${g.col}, ${g.row}) đã bị chiếm dụng!`, 'bad');
-        }
-      } else {
-        selCb(null);
-      }
+      selCb(hit.id);
+      toastCb(`Đã chọn [${hit.name}] · ${hit.w}×${hit.h} ô`, 'ok');
     } else {
-      if (!pMode) selCb(null);
+      selCb(null);
     }
   };
 
@@ -854,7 +903,7 @@ export default function CastleIsoCanvas({
           display: 'block',
           width: '100%',
           height: '100%',
-          cursor: placeMode ? 'crosshair' : 'grab',
+          cursor: pendingBuilding ? 'crosshair' : 'grab',
           pointerEvents: 'none',
         }}
       />

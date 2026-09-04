@@ -988,3 +988,276 @@
     font-size: 16px;
   }
 }
+
+/* --- Placement Helper Banner --- */
+.castle-placement-bar {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  max-width: min(600px, 94vw);
+  padding: 8px 18px;
+  border: 1.5px solid #efcd68;
+  border-radius: 30px;
+  background: rgba(28, 12, 16, 0.96);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  animation: castle-toast-in 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.placement-bar-info b {
+  display: block;
+  font-size: 12.5px;
+  color: #ffd875;
+}
+
+.placement-bar-info small {
+  display: block;
+  font-size: 10px;
+  color: #d8c3a5;
+}
+
+.placement-cancel-btn {
+  padding: 6px 14px;
+  border: 1px solid #e05555;
+  border-radius: 20px;
+  background: linear-gradient(#b83333, #7a1d1d);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.placement-cancel-btn:hover {
+  background: #d44040;
+  transform: scale(1.04);
+}
+
+/* --- Building Construction Workshop Modal --- */
+.castle-build-panel {
+  padding: 24px;
+  border: 2px solid #bd8d3c;
+  border-radius: 14px;
+  background: linear-gradient(150deg, #25121b, #150911);
+  color: #faeed3;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.85);
+}
+
+.castle-build-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.castle-build-panel > header span {
+  color: #efcd68;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.castle-build-panel > header h2 {
+  margin: 3px 0 0;
+  font: 700 24px "Songti SC", "SimSun", serif;
+  color: #ffe699;
+}
+
+.build-user-res {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(239, 205, 104, 0.3);
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #e5d1b1;
+}
+
+.build-user-res b {
+  color: #fff;
+}
+
+.build-panel-sub {
+  margin: 8px 0 16px;
+  font-size: 12px;
+  color: #cfbc9f;
+  line-height: 1.45;
+}
+
+.build-catalog-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.build-catalog-tabs button {
+  padding: 8px 16px;
+  border: 1px solid rgba(224, 190, 105, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d1be9f;
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.build-catalog-tabs button.on {
+  border-color: #efcd68;
+  background: linear-gradient(135deg, #a72b31, #6b171c);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(167, 43, 49, 0.4);
+}
+
+.build-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.build-catalog-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(224, 190, 105, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.build-catalog-card:hover {
+  border-color: #efcd68;
+  transform: translateY(-2px);
+}
+
+.build-card-preview {
+  position: relative;
+  height: 120px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(239, 205, 104, 0.12), rgba(0, 0, 0, 0.4));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.build-card-preview img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5));
+}
+
+.build-card-footprint {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(20, 10, 14, 0.85);
+  border: 1px solid rgba(239, 205, 104, 0.4);
+  color: #ffe699;
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+.build-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  flex: 1;
+}
+
+.build-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.build-card-header span {
+  font: 700 16px "Songti SC", "SimSun", serif;
+  color: #ffd875;
+}
+
+.build-card-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff2d0;
+}
+
+.build-card-body p {
+  margin: 0;
+  font-size: 10px;
+  color: #c9b494;
+  line-height: 1.35;
+  min-height: 28px;
+}
+
+.build-card-bonus {
+  margin: 2px 0;
+  color: #3ec46f;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.build-card-cost {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+
+.build-card-cost span {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  font-weight: 700;
+  color: #ebd8b7;
+}
+
+.build-card-body button {
+  margin-top: auto;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #45a049;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: #fff;
+  font-weight: 900;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  transition: all 0.15s;
+}
+
+.build-card-body button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #57bd5c, #358c3a);
+  transform: translateY(-1px);
+}
+
+.build-card-body button:disabled {
+  border-color: #554a43;
+  background: #3a302a;
+  color: #7d6e64;
+  cursor: not-allowed;
+  box-shadow: none;
+}

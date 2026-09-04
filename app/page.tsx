@@ -2,7 +2,7 @@
 
 import './castle.css';
 import './spin.css';
-import CastleIsoCanvas from './components/CastleIsoCanvas';
+import CastleIsoCanvas, { IsoBuildingData, PendingBuildingTemplate } from './components/CastleIsoCanvas';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
@@ -282,6 +282,238 @@ const CastleMapBuilding = ({ kind, level, label, onSelect }: { kind: CastleBuild
   return <button className={`map-building map-building-${kind} visual-stage-${stage}`} onClick={() => onSelect(kind)} aria-label={`${label}, cấp ${level}, hình thái ${stage}`}><img src={`/castle/buildings/${kind}/stage-${assetStage}.webp`} alt=""/><span><b>{label}</b><small>Lv.{level} · Hình thái {stage}/5</small></span></button>;
 };
 
+const DEFAULT_EXTRA_BUILDINGS: IsoBuildingData[] = [
+  {
+    id: 'watchtower-1',
+    name: 'Trạm gác Tiền đồn',
+    hanzi: '哨',
+    icon: '🏹',
+    col: 0,
+    row: 6,
+    w: 1,
+    h: 1,
+    height: 48,
+    imageSrc: '/castle/buildings/listening/stage-1.webp',
+    imageScale: 0.85,
+    top: '#e8c9a0',
+    left: '#c8a374',
+    right: '#a8825a',
+    outline: '#7a5c3a',
+    isRemovable: true,
+    prosperity: 120,
+    cost: { wood: 100, ink: 0, coin: 500 },
+  },
+  {
+    id: 'tree-1',
+    name: 'Cổ thụ Linh mộc',
+    hanzi: '木',
+    icon: '🌲',
+    col: 2,
+    row: 6,
+    w: 1,
+    h: 1,
+    height: 52,
+    top: '#a8d98a',
+    left: '#87bd67',
+    right: '#699e49',
+    outline: '#4a7a30',
+    isRemovable: true,
+    prosperity: 80,
+    cost: { wood: 60, ink: 0, coin: 200 },
+  },
+  {
+    id: 'rock-1',
+    name: 'Kỳ thạch Phong thuỷ',
+    hanzi: '石',
+    icon: '🪨',
+    col: 5,
+    row: 5,
+    w: 1,
+    h: 1,
+    height: 32,
+    top: '#c9c3b8',
+    left: '#a8a196',
+    right: '#8a8378',
+    outline: '#605a50',
+    isRemovable: true,
+    prosperity: 50,
+    cost: { wood: 40, ink: 0, coin: 150 },
+  },
+];
+
+export interface BuildingCatalogItem extends PendingBuildingTemplate {
+  category: 'palace' | 'study' | 'defense' | 'nature';
+  desc: string;
+}
+
+const BUILDING_CATALOG: BuildingCatalogItem[] = [
+  {
+    templateId: 'watchtower',
+    name: 'Trạm Gác Tiền Đồn',
+    hanzi: '哨',
+    icon: '🏹',
+    category: 'defense',
+    desc: 'Chòi canh vững chắc phòng thủ biên cương Tiên Đảo.',
+    w: 1,
+    h: 1,
+    height: 48,
+    imageSrc: '/castle/buildings/listening/stage-1.webp',
+    imageScale: 0.85,
+    top: '#e8c9a0',
+    left: '#c8a374',
+    right: '#a8825a',
+    outline: '#7a5c3a',
+    prosperity: 120,
+    cost: { wood: 100, ink: 0, coin: 500 },
+  },
+  {
+    templateId: 'library-annex',
+    name: 'Ký Túc Tàng Thư',
+    hanzi: '阁',
+    icon: '📚',
+    category: 'study',
+    desc: 'Chi nhánh thư viện lưu trữ hàng ngàn cuộn thẻ tre cổ thư.',
+    w: 2,
+    h: 2,
+    height: 66,
+    imageSrc: '/castle/buildings/library/stage-1.webp',
+    imageScale: 1.05,
+    top: '#74c0fc',
+    left: '#1c7ed6',
+    right: '#1864ab',
+    outline: '#1971c2',
+    prosperity: 380,
+    cost: { wood: 350, ink: 150, coin: 1500 },
+  },
+  {
+    templateId: 'listening-pavilion',
+    name: 'Thính Phong Nhã Lâu',
+    hanzi: '亭',
+    icon: '🔔',
+    category: 'study',
+    desc: 'Lầu chuông thanh tĩnh giữa mây trời, rèn luyện thính lực.',
+    w: 2,
+    h: 2,
+    height: 66,
+    imageSrc: '/castle/buildings/listening/stage-1.webp',
+    imageScale: 1.05,
+    top: '#fcc2d7',
+    left: '#d6336c',
+    right: '#a61e4d',
+    outline: '#c2255c',
+    prosperity: 420,
+    cost: { wood: 400, ink: 200, coin: 1800 },
+  },
+  {
+    templateId: 'palace-hut',
+    name: 'Thảo Đường Chi Điện',
+    hanzi: '殿',
+    icon: '🏯',
+    category: 'palace',
+    desc: 'Điện thờ mộc mạc cổ kính, cội nguồn của cơ đồ vương triều.',
+    w: 2,
+    h: 2,
+    height: 72,
+    imageSrc: '/castle/buildings/main/stage-1.webp',
+    imageScale: 1.05,
+    top: '#ffd875',
+    left: '#c48838',
+    right: '#9e6720',
+    outline: '#7c4d12',
+    prosperity: 500,
+    cost: { wood: 500, ink: 250, coin: 2500 },
+  },
+  {
+    templateId: 'grand-mansion',
+    name: 'Vương Phủ Biệt Viện',
+    hanzi: '府',
+    icon: '🏮',
+    category: 'palace',
+    desc: 'Biệt viện nguy nga lộng lẫy dành cho bậc vương hầu tao nhã.',
+    w: 2,
+    h: 2,
+    height: 80,
+    imageSrc: '/castle/buildings/main/stage-2.webp',
+    imageScale: 1.08,
+    top: '#e0a94d',
+    left: '#9b2b2b',
+    right: '#781f1f',
+    outline: '#7a1f1d',
+    prosperity: 900,
+    cost: { wood: 800, ink: 450, coin: 4500 },
+  },
+  {
+    templateId: 'celestial-hall',
+    name: 'Thái Hòa Cung Điện',
+    hanzi: '宫',
+    icon: '👑',
+    category: 'palace',
+    desc: 'Cung điện nguy nga tráng lệ bậc nhất, tỏa ánh hoàng kim rực rỡ.',
+    w: 3,
+    h: 3,
+    height: 110,
+    imageSrc: '/castle/buildings/main/stage-3.webp',
+    imageScale: 1.15,
+    top: '#ffd666',
+    left: '#c92a2a',
+    right: '#961b1b',
+    outline: '#7a1f1d',
+    prosperity: 2200,
+    cost: { wood: 1500, ink: 800, coin: 10000 },
+  },
+  {
+    templateId: 'sacred-tree',
+    name: 'Cổ Thụ Linh Mộc',
+    hanzi: '木',
+    icon: '🌲',
+    category: 'nature',
+    desc: 'Cây cổ thụ ngàn năm hấp thu linh khí nhật nguyệt.',
+    w: 1,
+    h: 1,
+    height: 52,
+    top: '#a8d98a',
+    left: '#87bd67',
+    right: '#699e49',
+    outline: '#4a7a30',
+    prosperity: 80,
+    cost: { wood: 60, ink: 0, coin: 200 },
+  },
+  {
+    templateId: 'guardian-lion',
+    name: 'Thạch Sư Uy Nghi',
+    hanzi: '狮',
+    icon: '🦁',
+    category: 'defense',
+    desc: 'Sư tử đá điêu khắc phong thủy trấn áp tà khí bốn phương.',
+    w: 1,
+    h: 1,
+    height: 42,
+    top: '#ffd875',
+    left: '#d4aa48',
+    right: '#a67e2a',
+    outline: '#7c5716',
+    prosperity: 180,
+    cost: { wood: 120, ink: 50, coin: 800 },
+  },
+  {
+    templateId: 'spirit-rock',
+    name: 'Kỳ Thạch Phong Thủy',
+    hanzi: '石',
+    icon: '🪨',
+    category: 'nature',
+    desc: 'Khối đá phong thủy hội tụ tinh hoa đất trời.',
+    w: 1,
+    h: 1,
+    height: 32,
+    top: '#c9c3b8',
+    left: '#a8a196',
+    right: '#8a8378',
+    outline: '#605a50',
+    prosperity: 50,
+    cost: { wood: 40, ink: 0, coin: 150 },
+  },
+];
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>('home');
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
@@ -344,14 +576,16 @@ export default function Home() {
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
-  const [selectedCastleBuilding, setSelectedCastleBuilding] = useState<CastleBuildingKind | null>(null);
+  const [selectedCastleBuilding, setSelectedCastleBuilding] = useState<string | null>(null);
   const [castleShopOpen, setCastleShopOpen] = useState(false);
   const [castleSocialOpen, setCastleSocialOpen] = useState(false);
   const [castleCombatOpen, setCastleCombatOpen] = useState(false);
   const [castleCommerceOpen, setCastleCommerceOpen] = useState(false);
   const [castleShowGrid, setCastleShowGrid] = useState(false);
-  const [castleShowOrder, setCastleShowOrder] = useState(false);
-  const [castlePlaceMode, setCastlePlaceMode] = useState(false);
+  const [castleBuildCatalogOpen, setCastleBuildCatalogOpen] = useState(false);
+  const [pendingBuildingToPlace, setPendingBuildingToPlace] = useState<BuildingCatalogItem | null>(null);
+  const [extraBuildings, setExtraBuildings] = useState<IsoBuildingData[]>(DEFAULT_EXTRA_BUILDINGS);
+  const [catalogCategory, setCatalogCategory] = useState<'all' | 'palace' | 'study' | 'defense' | 'nature'>('all');
   const [castleToast, setCastleToast] = useState<{ msg: string; kind?: 'ok' | 'bad' } | null>(null);
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
@@ -386,6 +620,23 @@ export default function Home() {
     window.history.pushState({ hanzibeatScreen: nextScreen }, '', screenPaths[nextScreen]);
     animateScreenChange(() => setScreen(nextScreen));
   }, [screen, animateScreenChange]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storageKey = `castle_extra_buildings_${authUser?.id ?? 'guest'}`;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setExtraBuildings(parsed);
+        }
+      } catch {
+        /* fallback to default */
+      }
+    }
+  }, [authUser?.id]);
+
   async function spinOnce() {
     const user = firebaseAuth.currentUser;
     if (!user || spinBusyRef.current) return;
@@ -1746,7 +1997,8 @@ export default function Home() {
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
     const environmentNames = ['桃源春岛 · Đào Nguyên', '月莲水境 · Nguyệt Liên', '丹霞秋谷 · Đan Hà', '冰川天境 · Băng Thiên', '紫晶神域 · Tử Tinh'];
-    const prosperity = castleLevel * 250 + (progression?.discoveries.length ?? 0) * 5 + (progression?.streak ?? 0) * 20;
+    const extraProsperity = extraBuildings.reduce((sum, b) => sum + (b.prosperity ?? 0), 0);
+    const prosperity = castleLevel * 250 + (progression?.discoveries.length ?? 0) * 5 + (progression?.streak ?? 0) * 20 + extraProsperity;
     const castleTitle = castleLevel >= 25 ? '汉字圣殿 · Thánh Điện Hán Tự' : castleLevel >= 18 ? '王城 · Vương Thành' : castleLevel >= 10 ? '书院城 · Thành Học Viện' : castleLevel >= 5 ? '小院 · Tiểu Viện' : '茅屋 · Thảo Đường';
     const mainBonusRate = mainCastleJadeBonusRates[castle.buildings.main] ?? 10;
     const buildings = [
@@ -1755,6 +2007,64 @@ export default function Home() {
       { id: 'listening', icon: '🔔', hanzi: '听音阁', name: 'Thính Âm Các', description: 'Biểu tượng cho năng lực nghe.', coinScale: .75, woodScale: .85, inkScale: 1 },
     ] as const;
     const selectedBuilding = selectedCastleBuilding ? buildings.find((building) => building.id === selectedCastleBuilding) : null;
+    const selectedExtraBuilding = selectedCastleBuilding ? extraBuildings.find((b) => b.id === selectedCastleBuilding) : null;
+
+    const handlePlaceBuilding = (newBuilding: IsoBuildingData) => {
+      if (pendingBuildingToPlace) {
+        const cost = pendingBuildingToPlace.cost;
+        if (castle.wood < cost.wood || castle.ink < cost.ink || (progression?.coins ?? 0) < cost.coin) {
+          showCastleToast('Không đủ tài nguyên để xây dựng công trình này!', 'bad');
+          return;
+        }
+        setProgression((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            coins: Math.max(0, prev.coins - cost.coin),
+            castle: {
+              ...prev.castle,
+              wood: Math.max(0, prev.castle.wood - cost.wood),
+              ink: Math.max(0, prev.castle.ink - cost.ink),
+            },
+          };
+        });
+      }
+      const updated = [...extraBuildings, newBuilding];
+      setExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
+      }
+      setPendingBuildingToPlace(null);
+      showCastleToast(`🎉 Đã xây dựng thành công [${newBuilding.name}]! +${newBuilding.prosperity ?? 100} 繁荣度`, 'ok');
+    };
+
+    const handleRemoveExtraBuilding = (id: string) => {
+      const b = extraBuildings.find((item) => item.id === id);
+      if (!b) return;
+      const refundWood = Math.floor((b.cost?.wood ?? 100) * 0.5);
+      const refundCoin = Math.floor((b.cost?.coin ?? 500) * 0.5);
+      setProgression((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          coins: prev.coins + refundCoin,
+          castle: {
+            ...prev.castle,
+            wood: prev.castle.wood + refundWood,
+          },
+        };
+      });
+      const updated = extraBuildings.filter((item) => item.id !== id);
+      setExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`castle_extra_buildings_${authUser?.id ?? 'guest'}`, JSON.stringify(updated));
+      }
+      showCastleToast(`Đã thu hồi [${b.name}], hoàn lại 🪵 ${refundWood}, 🪙 ${refundCoin}`, 'ok');
+    };
+
+    const filteredCatalog = catalogCategory === 'all'
+      ? BUILDING_CATALOG
+      : BUILDING_CATALOG.filter((item) => item.category === catalogCategory);
     return (
       <main className={`app castle-fullscreen-app castle-theme-${castle.theme}`}>
         {historyControls}
@@ -1839,24 +2149,33 @@ export default function Home() {
           </div>
         ) : (
           <>
+            {/* Floating Placement Helper Banner */}
+            {pendingBuildingToPlace && (
+              <aside className="castle-placement-bar">
+                <div className="placement-bar-info">
+                  <b>Đang xây: {pendingBuildingToPlace.name} ({pendingBuildingToPlace.w}×{pendingBuildingToPlace.h} ô)</b>
+                  <small>Chạm vào ô đất còn trống trên Tiên Đảo để xây dựng</small>
+                </div>
+                <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
+                  ✕ Hủy bỏ
+                </button>
+              </aside>
+            )}
+
             {/* Interactive 2.5D Isometric Canvas Fullscreen */}
             <CastleIsoCanvas
               castle={castle}
               environmentStage={environmentStage}
               selectedBuildingId={selectedCastleBuilding}
               onSelectBuilding={(id) => {
-                if (id === 'main' || id === 'library' || id === 'listening') {
-                  setSelectedCastleBuilding(id as CastleBuildingKind);
-                } else {
-                  setSelectedCastleBuilding(null);
-                }
+                setSelectedCastleBuilding(id);
               }}
               showGrid={castleShowGrid}
-              showOrder={castleShowOrder}
-              placeMode={castlePlaceMode}
-              onPlacedBuilding={(name) => {
-                showCastleToast(`Đã xây dựng [${name}] thành công!`, 'ok');
-              }}
+              extraBuildings={extraBuildings}
+              onPlacedBuilding={handlePlaceBuilding}
+              onRemoveBuilding={handleRemoveExtraBuilding}
+              pendingBuilding={pendingBuildingToPlace}
+              onCancelPlacement={() => setPendingBuildingToPlace(null)}
               onToast={showCastleToast}
             />
 
@@ -1876,32 +2195,35 @@ export default function Home() {
                   <span>Lưới</span>
                 </button>
                 <button
-                  className={`dock-item tool-item ${castleShowOrder ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !castleShowOrder;
-                    setCastleShowOrder(next);
-                    showCastleToast(next ? 'Đã hiện thứ tự vẽ Depth Sort' : 'Đã tắt thứ tự vẽ');
-                  }}
-                  title="Hiện Thứ Tự Vẽ Depth (Algorithm 4)"
+                  className={`dock-item tool-item highlight-gold ${castleBuildCatalogOpen ? 'active' : ''}`}
+                  onClick={() => setCastleBuildCatalogOpen(true)}
+                  title="Mở Xưởng Kiến Trúc để mua thêm các công trình"
                 >
-                  <i>🔢</i>
-                  <span>Thứ tự</span>
+                  <i>🏛️</i>
+                  <span>Công trình</span>
                 </button>
-                <button
-                  className={`dock-item tool-item ${castlePlaceMode ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !castlePlaceMode;
-                    setCastlePlaceMode(next);
-                    showCastleToast(
-                      next ? 'Chế độ Đặt: Chạm vào ô đất trống để dựng Trạm gác (1×1)!' : 'Đã tắt chế độ đặt',
-                      next ? 'ok' : undefined
-                    );
-                  }}
-                  title="Đặt trạm gác mới (1×1)"
-                >
-                  <i>🏹</i>
-                  <span>{castlePlaceMode ? 'Hủy đặt' : 'Đặt trạm'}</span>
-                </button>
+                {pendingBuildingToPlace ? (
+                  <button
+                    className="dock-item tool-item active"
+                    onClick={() => {
+                      setPendingBuildingToPlace(null);
+                      showCastleToast('Đã hủy chế độ đặt');
+                    }}
+                    title="Hủy đặt công trình"
+                  >
+                    <i>✕</i>
+                    <span>Hủy đặt</span>
+                  </button>
+                ) : (
+                  <button
+                    className="dock-item tool-item"
+                    onClick={() => setCastleBuildCatalogOpen(true)}
+                    title="Chọn kiến trúc để lắp đặt"
+                  >
+                    <i>🏗️</i>
+                    <span>Xây mới</span>
+                  </button>
+                )}
               </div>
 
               <div className="dock-group dock-menus">
@@ -2350,6 +2672,160 @@ export default function Home() {
             <footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer>
           </section></div>;
         })()}
+        {/* Modal: Extra Building Inspector & Removal */}
+        {selectedExtraBuilding && (
+          <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
+            <section
+              className="castle-upgrade-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={selectedExtraBuilding.name}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                className="castle-upgrade-close"
+                onClick={() => setSelectedCastleBuilding(null)}
+                aria-label="Đóng"
+              >
+                ×
+              </button>
+              <header>
+                <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
+                <div>
+                  <small>{selectedExtraBuilding.hanzi}</small>
+                  <h2>{selectedExtraBuilding.name}</h2>
+                </div>
+              </header>
+              <div className="castle-upgrade-preview">
+                {selectedExtraBuilding.imageSrc ? (
+                  <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
+                ) : (
+                  <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
+                )}
+                <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
+              </div>
+              <div className="castle-upgrade-effect">
+                <b>Độ phồn vinh đóng góp</b>
+                <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
+                <small>Công trình độc lập trên Tiên Đảo. Bạn có thể thu hồi để giải phóng mặt bằng bất kỳ lúc nào.</small>
+              </div>
+              <div className="castle-upgrade-requirements">
+                <b>Thông tin tháo dỡ</b>
+                <p>
+                  <span>🪵 Hoàn trả 50% Gỗ</span>
+                  <strong>+{(Math.floor((selectedExtraBuilding.cost?.wood ?? 100) * 0.5)).toLocaleString('vi-VN')}</strong>
+                </p>
+                <p>
+                  <span>🪙 Hoàn trả 50% Coin</span>
+                  <strong>+{(Math.floor((selectedExtraBuilding.cost?.coin ?? 500) * 0.5)).toLocaleString('vi-VN')}</strong>
+                </p>
+              </div>
+              <button
+                className="castle-upgrade-submit"
+                style={{
+                  background: 'linear-gradient(#d33636, #961b1b)',
+                  borderColor: '#ea5454',
+                  boxShadow: '0 4px 0 #6e1111',
+                  marginTop: '14px',
+                }}
+                onClick={() => {
+                  handleRemoveExtraBuilding(selectedExtraBuilding.id);
+                  setSelectedCastleBuilding(null);
+                }}
+              >
+                Thu Hồi Công Trình (Giải phóng ô đất)
+              </button>
+            </section>
+          </div>
+        )}
+
+        {/* Modal: Building Construction Workshop (Xưởng Xây Dựng Công Trình) */}
+        {castleBuildCatalogOpen && (
+          <div className="castle-modal-backdrop" onClick={() => setCastleBuildCatalogOpen(false)}>
+            <div className="castle-modal-dialog castle-modal-wide" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close-btn" onClick={() => setCastleBuildCatalogOpen(false)}>×</button>
+              <section className="castle-build-panel">
+                <header>
+                  <div>
+                    <span>建筑工坊 · XƯỞNG KIẾN TRÚC</span>
+                    <h2>Xưởng Xây Dựng Công Trình</h2>
+                  </div>
+                  <div className="build-user-res">
+                    <span>🪵 <b>{castle.wood.toLocaleString('vi-VN')}</b></span>
+                    <span>🖌 <b>{castle.ink.toLocaleString('vi-VN')}</b></span>
+                    <span>🪙 <b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span>
+                  </div>
+                </header>
+                <p className="build-panel-sub">
+                  Chọn công trình kiến trúc cổ phong từ thư viện hình ảnh thực tế để lắp đặt lên Tiên Đảo và gia tăng điểm Phồn Vinh!
+                </p>
+                <div className="build-catalog-tabs">
+                  {[
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'palace', label: 'Điện Các' },
+                    { id: 'study', label: 'Học Thuật' },
+                    { id: 'defense', label: 'Phòng Thủ' },
+                    { id: 'nature', label: 'Tiểu Cảnh' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      className={catalogCategory === tab.id ? 'on' : ''}
+                      onClick={() => setCatalogCategory(tab.id as any)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="build-catalog-grid">
+                  {filteredCatalog.map((item) => {
+                    const canAfford =
+                      castle.wood >= item.cost.wood &&
+                      castle.ink >= item.cost.ink &&
+                      (progression?.coins ?? 0) >= item.cost.coin;
+                    return (
+                      <article key={item.templateId} className="build-catalog-card">
+                        <div className="build-card-preview">
+                          {item.imageSrc ? (
+                            <img src={item.imageSrc} alt={item.name} />
+                          ) : (
+                            <b style={{ fontSize: '42px' }}>{item.icon}</b>
+                          )}
+                          <span className="build-card-footprint">{item.w}×{item.h} ô</span>
+                        </div>
+                        <div className="build-card-body">
+                          <div className="build-card-header">
+                            <span>{item.hanzi}</span>
+                            <h3>{item.name}</h3>
+                          </div>
+                          <p>{item.desc}</p>
+                          <div className="build-card-bonus">
+                            <span>✦ +{item.prosperity} 繁荣度</span>
+                          </div>
+                          <div className="build-card-cost">
+                            {item.cost.wood > 0 && <span>🪵 {item.cost.wood}</span>}
+                            {item.cost.ink > 0 && <span>🖌 {item.cost.ink}</span>}
+                            {item.cost.coin > 0 && <span>🪙 {item.cost.coin.toLocaleString('vi-VN')}</span>}
+                          </div>
+                          <button
+                            disabled={!canAfford}
+                            onClick={() => {
+                              setPendingBuildingToPlace(item);
+                              setCastleBuildCatalogOpen(false);
+                              showCastleToast(`Đã chọn [${item.name}] · Chạm vào ô đất trống trên đảo để dựng nhà!`, 'ok');
+                            }}
+                          >
+                            {canAfford ? 'Mua & Lắp Đặt' : 'Chưa đủ tài nguyên'}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
       </main>
     );
   }
