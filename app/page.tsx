@@ -5381,7 +5381,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Inventory</small></b></button>
-          <div className="reward-header-actions"><button onClick={() => navigate('shop')}><ShoppingBag /> Cửa hàng</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+          <div className="reward-header-actions"><button className="inventory-shop-link" onClick={() => navigate('shop')} aria-label="Mở Cửa hàng"><ShoppingBag /> <span>Cửa hàng</span></button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="inventory-panel">
           <div className="title"><span className="eyebrow"><Package /> 行囊 · TÚI HÀNH TRANG</span><h1>Inventory</h1><p>Currency, vật phẩm và phần thưởng bạn thu thập trong hành trình.</p></div>
@@ -5444,7 +5444,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Cosmetic shop</small></b></button>
-          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> Nạp Linh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> <span>Nạp Linh Thạch</span></button><button className="shop-inventory-link" onClick={() => navigate('inventory')} aria-label="Mở Kho đồ"><Package /> <span>Kho đồ</span></button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
           <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
