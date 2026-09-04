@@ -13,10 +13,26 @@ const levelFromXp = (xp: number) => { let level = 1; let remaining = xp; while (
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 type RankProfile = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
-type Player = { id: string; name: string; score: number | null; correct: number | null; liveScore: number; liveCorrect: number; submittedAt: number | null; mmr: number; rank: string };
+type Player = { id: string; name: string; score: number | null; correct: number | null; liveScore: number; liveCorrect: number; submittedAt: number | null; mmr: number; rank: string; botTargetCorrect?: number; botTargetScore?: number };
 type GameMode = 'audition' | 'typing';
 type Integrity = { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean };
-type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string; startedAt: number | null; completedAt: number | null; integrity: Integrity | null; rankChanges: Record<string, number> | null };
+type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string; startedAt: number | null; completedAt: number | null; integrity: Integrity | null; rankChanges: Record<string, number> | null; botMatch?: boolean };
+
+const botNames = ['Minh Châu', 'Gia Hân', 'Tuấn Kiệt', 'Hải Đăng', 'An Nhiên', 'Khánh Linh', 'Thiên Vũ', 'Ngọc Anh', 'Yến Nhi', 'Đức Minh'];
+const makeBot = (mmr: number, seed: number): Player => {
+  const difficulty = mmr >= 1500 ? .84 : mmr >= 1250 ? .7 : mmr >= 1050 ? .6 : .5;
+  const variance = ((seed % 17) - 8) / 100;
+  const correct = Math.max(5, Math.min(19, Math.round(20 * (difficulty + variance))));
+  const score = correct * (1150 + seed % 451);
+  return { id: `sim-${seed}`, name: botNames[seed % botNames.length], score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr, rank: rankName(mmr), botTargetCorrect: correct, botTargetScore: score };
+};
+const updateBotTimeline = (room: Room) => {
+  if (!room.botMatch || !room.guest || !room.startedAt || room.status !== 'playing') return;
+  const elapsed = Math.max(0, Date.now() - room.startedAt);
+  const progress = Math.min(1, elapsed / 85_000);
+  room.guest.liveCorrect = Math.floor(Number(room.guest.botTargetCorrect ?? 10) * progress);
+  room.guest.liveScore = Math.floor(Number(room.guest.botTargetScore ?? 12_000) * progress);
+};
 
 const verifyUser = async (request: any) => {
   const authorization = String(request.headers.authorization ?? '');
@@ -45,8 +61,22 @@ export default async function handler(request: any, response: any) {
   if (request.method === 'GET') {
     const playerId = String(request.query.playerId ?? '').slice(0, 80); const requestedCode = String(request.query.code ?? '').toUpperCase().slice(0, 6);
     const code = requestedCode || String((await redis.get(playerKey(playerId))) ?? '');
+    if (!code && playerId) {
+      const waiting = await redis.get<{ name: string; mode: GameMode; createdAt: number; mmr: number }>(`hanzibeat:pvp:waiting:${playerId}`);
+      if (waiting && Date.now() - Number(waiting.createdAt ?? Date.now()) >= 6_000) {
+        const host = await makePlayer(playerId, waiting.name);
+        const room = await createRoom(host, waiting.mode);
+        room.guest = makeBot(Number(waiting.mmr ?? host.mmr), room.seed);
+        room.status = 'playing'; room.startedAt = Date.now(); room.botMatch = true;
+        await saveRoom(room); await redis.del(`hanzibeat:pvp:waiting:${playerId}`);
+        return response.status(200).json({ room });
+      }
+      return response.status(200).json({ room: null });
+    }
     if (!code) return response.status(200).json({ room: null });
-    return response.status(200).json({ room: await redis.get<Room>(roomKey(code)) });
+    const room = await redis.get<Room>(roomKey(code));
+    if (room) { updateBotTimeline(room); if (room.botMatch) await saveRoom(room); }
+    return response.status(200).json({ room });
   }
   if (request.method !== 'POST') return response.status(405).json({ error: 'Không hỗ trợ.' });
   const user = await verifyUser(request).catch(() => null);
@@ -66,7 +96,7 @@ export default async function handler(request: any, response: any) {
       await saveRoom(room); await redis.set(playerKey(playerId), room.code, { ex: ROOM_TTL }); await redis.del(`hanzibeat:pvp:waiting:${opponentId}`);
       return response.status(200).json({ room, profile: await loadRank(playerId) });
     }
-    await redis.set(`hanzibeat:pvp:waiting:${playerId}`, { name: player.name, mode }, { ex: 180 }); await redis.rpush(`hanzibeat:pvp:queue:${mode}`, playerId);
+    await redis.set(`hanzibeat:pvp:waiting:${playerId}`, { name: player.name, mode, createdAt: Date.now(), mmr: player.mmr }, { ex: 180 }); await redis.rpush(`hanzibeat:pvp:queue:${mode}`, playerId);
     return response.status(202).json({ room: null, waiting: true, profile: await loadRank(playerId) });
   }
   if (action === 'join') {
@@ -98,6 +128,10 @@ export default async function handler(request: any, response: any) {
     if (score > correct * 3_000 + 1_000) return response.status(422).json({ error: 'Điểm và số câu đúng không khớp.' });
     target.score = score; target.correct = correct; target.liveScore = score; target.liveCorrect = correct; target.submittedAt = Date.now();
     const guest = room.guest;
+    if (room.botMatch && guest && target.id !== guest.id && guest.score === null) {
+      guest.correct = Number(guest.botTargetCorrect ?? 10); guest.score = Number(guest.botTargetScore ?? 12_000);
+      guest.liveCorrect = guest.correct; guest.liveScore = guest.score; guest.submittedAt = Date.now();
+    }
     if (guest && room.host.score !== null && guest.score !== null) {
       room.status = 'finished'; room.completedAt = Date.now();
       const ids = [room.host.id, guest.id].sort(); const pairKey = `hanzibeat:pvp:pair:${bangkokDate()}:${ids.join(':')}`;
@@ -107,7 +141,7 @@ export default async function handler(request: any, response: any) {
       room.integrity = { valid, reason: afk ? 'AFK hoặc quá ít tương tác' : pairMatchesToday > 5 ? 'Vượt giới hạn cùng đối thủ' : null, pairMatchesToday, rewardEligible, rankedEligible };
       room.rankChanges = { [room.host.id]: 0, [guest.id]: 0 };
       if (rewardEligible) {
-        for (const uid of ids) {
+        for (const uid of ids.filter((uid) => !uid.startsWith('sim-'))) {
           const progressionKey = `hanzibeat:progression:${uid}`; const progression = await redis.get<any>(progressionKey);
           if (progression?.daily?.date === bangkokDate() && Number(progression.daily.rewardedPvpMatches ?? 0) < 10) {
             progression.daily.rewardedPvpMatches = Number(progression.daily.rewardedPvpMatches ?? 0) + 1;
@@ -123,10 +157,10 @@ export default async function handler(request: any, response: any) {
               progression.spins.dailyDate = bangkokDate(); progression.spins.offlineEarned = 0; progression.spins.pvpEarned = 0; progression.spins.dailyClaimed = false;
             }
             const isWinner = room.host.score === guest.score ? false : (uid === room.host.id ? room.host.score! > guest.score! : guest.score! > room.host.score!);
-            const spinEarned = Math.min(isWinner ? 2 : 1, Math.max(0, 10 - Number(progression.spins.pvpEarned ?? 0)));
+            const spinEarned = Math.min(room.botMatch ? 1 : isWinner ? 2 : 1, Math.max(0, 10 - Number(progression.spins.pvpEarned ?? 0)));
             progression.spins.pvpEarned = Number(progression.spins.pvpEarned ?? 0) + spinEarned;
             progression.spins.balance = Math.min(200, Number(progression.spins.balance ?? 0) + spinEarned);
-            progression.jade = Number(progression.jade ?? 0) + 3 + castleBonus; progression.xp = Number(progression.xp ?? 0) + 8; progression.level = levelFromXp(progression.xp);
+            progression.jade = Number(progression.jade ?? 0) + (room.botMatch ? 1 : 3) + castleBonus; progression.xp = Number(progression.xp ?? 0) + (room.botMatch ? 4 : 8); progression.level = levelFromXp(progression.xp);
             await redis.set(progressionKey, progression);
           }
         }
@@ -136,8 +170,14 @@ export default async function handler(request: any, response: any) {
         const expectedHost = 1 / (1 + 10 ** ((guestRank.mmr - hostRank.mmr) / 400)); const hostResult = room.host.score! === guest.score! ? 0.5 : room.host.score! > guest.score! ? 1 : 0;
         const hostDelta = Math.round(28 * (hostResult - expectedHost)); const guestDelta = -hostDelta;
         const apply = async (uid: string, profile: RankProfile, result: 'win'|'loss'|'draw', delta: number) => { profile.mmr = Math.max(0, profile.mmr + delta); profile.matches += 1; profile[result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws'] += 1; profile.rank = rankName(profile.mmr); await redis.set(rankKey(uid), profile); };
-        await apply(room.host.id, hostRank, hostResult === .5 ? 'draw' : hostResult === 1 ? 'win' : 'loss', hostDelta); await apply(guest.id, guestRank, hostResult === .5 ? 'draw' : hostResult === 0 ? 'win' : 'loss', guestDelta);
-        room.rankChanges = { [room.host.id]: hostDelta, [guest.id]: guestDelta };
+        if (room.botMatch) {
+          const humanDelta = Math.round(hostDelta * .5);
+          await apply(room.host.id, hostRank, hostResult === .5 ? 'draw' : hostResult === 1 ? 'win' : 'loss', humanDelta);
+          room.rankChanges = { [room.host.id]: humanDelta, [guest.id]: 0 };
+        } else {
+          await apply(room.host.id, hostRank, hostResult === .5 ? 'draw' : hostResult === 1 ? 'win' : 'loss', hostDelta); await apply(guest.id, guestRank, hostResult === .5 ? 'draw' : hostResult === 0 ? 'win' : 'loss', guestDelta);
+          room.rankChanges = { [room.host.id]: hostDelta, [guest.id]: guestDelta };
+        }
       }
     }
     await saveRoom(room); return response.status(200).json({ room, profile: await loadRank(playerId) });
