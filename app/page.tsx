@@ -131,6 +131,12 @@ const PVP_RANK_BADGES: Record<string, string> = {
   'Bạc': '/ranks/rank-silver.png',
   'Vàng': '/ranks/rank-gold.png',
   'Bạch Kim': '/ranks/rank-platinum.png',
+  'Kim Cương': '/ranks/rank-diamond.png',
+  'Tinh Anh': '/ranks/rank-elite.png',
+  'Cao Thủ': '/ranks/rank-master.png',
+  'Đại Cao Thủ': '/ranks/rank-grandmaster.png',
+  'Chiến Tướng': '/ranks/rank-warlord.png',
+  'Chiến Thần': '/ranks/rank-wargod.png',
 };
 type Progression = {
   xp: number;
