@@ -71,11 +71,13 @@ type Screen =
   | 'shop'
   | 'codex'
   | 'castle'
+  | 'castle-test'
   | 'auth';
 const screenPaths: Record<Screen, string> = {
   home: '/', songs: '/lessons', game: '/play', result: '/result',
   dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
-  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/profile/castle', auth: '/profile',
+  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/profile/castle',
+  'castle-test': '/castle-test', auth: '/profile',
 };
 const screenFromPath = (pathname: string): Screen => {
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
@@ -341,6 +343,178 @@ const DEFAULT_EXTRA_BUILDINGS: IsoBuildingData[] = [
   },
 ];
 
+const SANDBOX_PRESETS: Record<string, { label: string; buildings: IsoBuildingData[] }> = {
+  empty: {
+    label: 'Đảo Trống (Chỉ có 3 công trình gốc)',
+    buildings: [],
+  },
+  default: {
+    label: 'Mặc định (Trạm gác, Cổ thụ, Kỳ thạch)',
+    buildings: DEFAULT_EXTRA_BUILDINGS,
+  },
+  imperial: {
+    label: 'Kinh Thành Cổ Phong (Điện các tráng lệ)',
+    buildings: [
+      {
+        id: 'palace-1',
+        name: 'Dương Quan Cung',
+        hanzi: '殿',
+        icon: '🏛️',
+        col: 5,
+        row: 1,
+        w: 3,
+        h: 3,
+        height: 110,
+        imageSrc: '/castle/buildings/main/stage-4.webp',
+        imageScale: 1.15,
+        top: '#ffe082',
+        left: '#ffca28',
+        right: '#ffa000',
+        outline: '#8d6e63',
+        isRemovable: true,
+        prosperity: 180,
+      },
+      {
+        id: 'library-ext',
+        name: 'Văn Khúc Viện',
+        hanzi: '阁',
+        icon: '📚',
+        col: 0,
+        row: 3,
+        w: 2,
+        h: 2,
+        height: 75,
+        imageSrc: '/castle/buildings/library/stage-1.webp',
+        imageScale: 1.0,
+        top: '#90caf9',
+        left: '#42a5f5',
+        right: '#1e88e5',
+        outline: '#1565c0',
+        isRemovable: true,
+        prosperity: 90,
+      },
+    ],
+  },
+  defense: {
+    label: 'Tiền Tuyến Quân Sự (Trạm canh & Phong hỏa)',
+    buildings: [
+      {
+        id: 'watchtower-nw',
+        name: 'Trạm Canh Cung Tiễn',
+        hanzi: '哨',
+        icon: '🏹',
+        col: 0,
+        row: 0,
+        w: 1,
+        h: 1,
+        height: 52,
+        imageSrc: '/castle/buildings/listening/stage-1.webp',
+        imageScale: 0.85,
+        top: '#b0bec5',
+        left: '#78909c',
+        right: '#546e7a',
+        outline: '#37474f',
+        isRemovable: true,
+        prosperity: 30,
+      },
+      {
+        id: 'watchtower-sw',
+        name: 'Trạm Canh Cung Tiễn',
+        hanzi: '哨',
+        icon: '🏹',
+        col: 0,
+        row: 7,
+        w: 1,
+        h: 1,
+        height: 52,
+        imageSrc: '/castle/buildings/listening/stage-1.webp',
+        imageScale: 0.85,
+        top: '#b0bec5',
+        left: '#78909c',
+        right: '#546e7a',
+        outline: '#37474f',
+        isRemovable: true,
+        prosperity: 30,
+      },
+      {
+        id: 'beacon-se',
+        name: 'Phong Hỏa Đài',
+        hanzi: '烽',
+        icon: '🔥',
+        col: 7,
+        row: 7,
+        w: 1,
+        h: 1,
+        height: 60,
+        imageSrc: '/castle/buildings/listening/stage-1.webp',
+        imageScale: 0.85,
+        top: '#ffab91',
+        left: '#ff7043',
+        right: '#d84315',
+        outline: '#bf360c',
+        isRemovable: true,
+        prosperity: 45,
+      },
+    ],
+  },
+  nature: {
+    label: 'Ngự Hoa Tiên Cảnh (Cổ thụ, Kỳ thạch & Đào hoa)',
+    buildings: [
+      {
+        id: 'tree-nw',
+        name: 'Đào Hoa Tiên Thụ',
+        hanzi: '桃',
+        icon: '🌸',
+        col: 0,
+        row: 6,
+        w: 1,
+        h: 1,
+        height: 48,
+        top: '#f48fb1',
+        left: '#ec407a',
+        right: '#c2185b',
+        outline: '#880e4f',
+        isRemovable: true,
+        prosperity: 25,
+      },
+      {
+        id: 'tree-ne',
+        name: 'Đào Hoa Tiên Thụ',
+        hanzi: '桃',
+        icon: '🌸',
+        col: 6,
+        row: 0,
+        w: 1,
+        h: 1,
+        height: 48,
+        top: '#f48fb1',
+        left: '#ec407a',
+        right: '#c2185b',
+        outline: '#880e4f',
+        isRemovable: true,
+        prosperity: 25,
+      },
+      {
+        id: 'stone-c',
+        name: 'Thiên Ngoại Huyền Thạch',
+        hanzi: '石',
+        icon: '🪨',
+        col: 1,
+        row: 6,
+        w: 1,
+        h: 1,
+        height: 38,
+        top: '#ce93d8',
+        left: '#ab47bc',
+        right: '#7b1fa2',
+        outline: '#4a148c',
+        isRemovable: true,
+        prosperity: 30,
+      },
+    ],
+  },
+};
+
 export interface BuildingCatalogItem extends PendingBuildingTemplate {
   category: 'palace' | 'study' | 'defense' | 'nature';
   desc: string;
@@ -587,6 +761,17 @@ export default function Home() {
   const [extraBuildings, setExtraBuildings] = useState<IsoBuildingData[]>(DEFAULT_EXTRA_BUILDINGS);
   const [catalogCategory, setCatalogCategory] = useState<'all' | 'palace' | 'study' | 'defense' | 'nature'>('all');
   const [castleToast, setCastleToast] = useState<{ msg: string; kind?: 'ok' | 'bad' } | null>(null);
+
+  // Sandbox Test States (100% Isolated from production user data)
+  const [sandboxMainLevel, setSandboxMainLevel] = useState<number>(1);
+  const [sandboxLibraryLevel, setSandboxLibraryLevel] = useState<number>(1);
+  const [sandboxListeningLevel, setSandboxListeningLevel] = useState<number>(1);
+  const [sandboxEnvStage, setSandboxEnvStage] = useState<number>(1);
+  const [sandboxTheme, setSandboxTheme] = useState<string>('classic');
+  const [sandboxWood, setSandboxWood] = useState<number>(99999);
+  const [sandboxInk, setSandboxInk] = useState<number>(99999);
+  const [sandboxCoins, setSandboxCoins] = useState<number>(999999);
+  const [sandboxExtraBuildings, setSandboxExtraBuildings] = useState<IsoBuildingData[]>(DEFAULT_EXTRA_BUILDINGS);
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
@@ -643,6 +828,21 @@ export default function Home() {
       }
     }
   }, [authUser?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('castle_sandbox_extra_buildings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setSandboxExtraBuildings(parsed);
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+  }, []);
 
   async function spinOnce() {
     const user = firebaseAuth.currentUser;
@@ -2098,6 +2298,14 @@ export default function Home() {
 
           <div className="castle-hud-right">
             <button
+              className="castle-hud-sandbox-badge"
+              onClick={() => navigate('castle-test')}
+              title="Mở Chế Độ Thử Nghiệm Sandbox Độc Lập"
+            >
+              <i>🧪</i>
+              <span>Sandbox</span>
+            </button>
+            <button
               className="castle-hud-realm-badge"
               onClick={() => setRealmInfoOpen((prev) => !prev)}
               title="Nhấn để xem thông tin Cảnh Giới"
@@ -2821,6 +3029,435 @@ export default function Home() {
                       </article>
                     );
                   })}
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+      </main>
+    );
+  }
+  if (screen === 'castle-test') {
+    const castle = {
+      wood: sandboxWood,
+      ink: sandboxInk,
+      jadeBonusCarry: 0,
+      shieldActiveUntil: 0,
+      likes: 99,
+      theme: sandboxTheme,
+      ownedThemes: ['classic', 'moon', 'crimson'],
+      attackEnergy: 5,
+      attackUpdatedAt: Date.now(),
+      peaceUntil: 0,
+      newbieUntil: 0,
+      buildings: {
+        main: sandboxMainLevel,
+        library: sandboxLibraryLevel,
+        listening: sandboxListeningLevel,
+      },
+    };
+    const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
+    const environmentStage = sandboxEnvStage;
+    const environmentNames = [
+      '桃源春岛 · Đào Nguyên',
+      '月莲水境 · Nguyệt Liên',
+      '丹霞秋谷 · Đan Hà',
+      '冰川天境 · Băng Thiên',
+      '紫晶神域 · Tử Tinh',
+    ];
+    const extraProsperity = sandboxExtraBuildings.reduce((sum, b) => sum + (b.prosperity ?? 0), 0);
+    const prosperity = castleLevel * 250 + extraProsperity;
+
+    const handleSandboxPlace = (newBuilding: IsoBuildingData) => {
+      const updated = [...sandboxExtraBuildings, newBuilding];
+      setSandboxExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
+      }
+      setPendingBuildingToPlace(null);
+      showCastleToast(`[Sandbox] Đã đặt [${newBuilding.name}]! +${newBuilding.prosperity ?? 100} 繁荣`, 'ok');
+    };
+
+    const handleSandboxRemove = (id: string) => {
+      const updated = sandboxExtraBuildings.filter((item) => item.id !== id);
+      setSandboxExtraBuildings(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(updated));
+      }
+      showCastleToast('[Sandbox] Đã xóa công trình khỏi đảo', 'ok');
+    };
+
+    const selectedExtraBuilding = selectedCastleBuilding
+      ? sandboxExtraBuildings.find((b) => b.id === selectedCastleBuilding)
+      : null;
+
+    const filteredCatalog = catalogCategory === 'all'
+      ? BUILDING_CATALOG
+      : BUILDING_CATALOG.filter((item) => item.category === catalogCategory);
+
+    return (
+      <main className={`app castle-fullscreen-app castle-theme-${castle.theme} castle-sandbox-screen`}>
+        {historyControls}
+
+        {/* Top Floating Sandbox Control Bar */}
+        <header className="castle-top-hud castle-sandbox-hud">
+          <div className="castle-hud-left">
+            <button
+              className="castle-hud-back castle-sandbox-exit-btn"
+              onClick={() => navigate('castle')}
+              title="Thoát phòng thí nghiệm và quay lại Game chính"
+            >
+              <ChevronLeft size={18} />
+              <span>Về Game Chính</span>
+            </button>
+            <div className="sandbox-badge-banner">
+              <span className="sandbox-tag">DEV SANDBOX</span>
+              <b>PHÒNG THÍ NGHIỆM TIÊN ĐẢO</b>
+              <small>Dữ liệu độc lập · Không ảnh hưởng tài khoản</small>
+            </div>
+          </div>
+
+          <div className="castle-hud-resources">
+            <div className="hud-res-pill">🪵 <b>{sandboxWood.toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill">🖌 <b>{sandboxInk.toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill">🪙 <b>{sandboxCoins.toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill">✨ <b>{prosperity.toLocaleString('vi-VN')} 繁荣</b></div>
+          </div>
+
+          <div className="castle-hud-right">
+            <button
+              className="castle-hud-realm-badge"
+              onClick={() => setRealmInfoOpen((prev) => !prev)}
+              title="Xem thông tin cảnh giới"
+            >
+              <small>CẢNH GIỚI {environmentStage}/5</small>
+              <b>{environmentNames[environmentStage - 1].split(' · ')[1]}</b>
+            </button>
+          </div>
+        </header>
+
+        {/* Floating Quick Cheat Panel */}
+        <aside className="sandbox-floating-panel" aria-label="Bảng điều khiển Sandbox">
+          <div className="sandbox-panel-header">
+            <span>🛠️ BẢNG ĐIỀU KHIỂN THỬ NGHIỆM</span>
+          </div>
+
+          <div className="sandbox-panel-section">
+            <label>Cấp Chủ Thành (Main Palace Sprite 1–5):</label>
+            <div className="sandbox-btn-row">
+              {[1, 2, 3, 4, 5].map((lvl) => (
+                <button
+                  key={lvl}
+                  className={sandboxMainLevel === lvl ? 'active' : ''}
+                  onClick={() => {
+                    setSandboxMainLevel(lvl);
+                    showCastleToast(`Chủ Thành đã chuyển sang Cấp ${lvl}`);
+                  }}
+                >
+                  Lv.{lvl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sandbox-panel-section">
+            <label>Cảnh Giới Tiên Đảo (Environment Stage 1–5):</label>
+            <div className="sandbox-btn-row">
+              {[1, 2, 3, 4, 5].map((stg) => (
+                <button
+                  key={stg}
+                  className={sandboxEnvStage === stg ? 'active' : ''}
+                  onClick={() => {
+                    setSandboxEnvStage(stg);
+                    showCastleToast(`Cảnh giới đã đổi: ${environmentNames[stg - 1].split(' · ')[1]}`);
+                  }}
+                >
+                  Stage {stg}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sandbox-panel-section">
+            <label>Chủ Đề (Theme Pack):</label>
+            <div className="sandbox-btn-row">
+              {[
+                { id: 'classic', label: 'Cổ Điển' },
+                { id: 'moon', label: 'Nguyệt Dạ' },
+                { id: 'crimson', label: 'Xích Hà' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  className={sandboxTheme === t.id ? 'active' : ''}
+                  onClick={() => {
+                    setSandboxTheme(t.id);
+                    showCastleToast(`Đã chọn Theme: ${t.label}`);
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sandbox-panel-section">
+            <label>Bơm Tài Nguyên (Cheat Resources):</label>
+            <div className="sandbox-btn-row">
+              <button onClick={() => { setSandboxWood((w) => w + 10000); showCastleToast('+10,000 Gỗ'); }}>+10k 🪵</button>
+              <button onClick={() => { setSandboxInk((i) => i + 10000); showCastleToast('+10,000 Mực'); }}>+10k 🖌</button>
+              <button onClick={() => { setSandboxCoins((c) => c + 100000); showCastleToast('+100,000 Coin'); }}>+100k 🪙</button>
+              <button onClick={() => { setSandboxWood(1000); setSandboxInk(1000); setSandboxCoins(10000); showCastleToast('Đã reset tài nguyên'); }}>Reset</button>
+            </div>
+          </div>
+
+          <div className="sandbox-panel-section">
+            <label>Kịch Bản Mẫu (Presets Bố Cục):</label>
+            <div className="sandbox-btn-row presets-row">
+              {Object.entries(SANDBOX_PRESETS).map(([key, preset]) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSandboxExtraBuildings(preset.buildings);
+                    localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify(preset.buildings));
+                    showCastleToast(`Đã nạp kịch bản: ${preset.label.split(' (')[0]}`, 'ok');
+                  }}
+                >
+                  {preset.label.split(' (')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* Floating Toast Notification */}
+        {castleToast && (
+          <div className={`castle-toast ${castleToast.kind === 'bad' ? 'bad' : 'ok'}`}>
+            <span>{castleToast.kind === 'bad' ? '⚠️' : '✦'}</span>
+            <p>{castleToast.msg}</p>
+          </div>
+        )}
+
+        {/* 2.5D Isometric Fullscreen Canvas */}
+        <section className="castle-canvas-viewport">
+          <CastleIsoCanvas
+            castle={castle}
+            environmentStage={environmentStage}
+            selectedBuildingId={selectedCastleBuilding}
+            onSelectBuilding={(buildingId) => setSelectedCastleBuilding(buildingId)}
+            showGrid={castleShowGrid}
+            extraBuildings={sandboxExtraBuildings}
+            pendingBuilding={pendingBuildingToPlace}
+            onPlacedBuilding={handleSandboxPlace}
+            onRemoveBuilding={handleSandboxRemove}
+            onCancelPlacement={() => setPendingBuildingToPlace(null)}
+            onToast={showCastleToast}
+          />
+        </section>
+
+        {/* Bottom Floating Action Dock */}
+        <footer className="castle-bottom-dock">
+          <div className="dock-group dock-tools">
+            <button
+              className={`dock-item tool-item ${castleShowGrid ? 'active' : ''}`}
+              onClick={() => {
+                const next = !castleShowGrid;
+                setCastleShowGrid(next);
+                showCastleToast(next ? 'Đã bật lưới toạ độ' : 'Đã tắt lưới toạ độ');
+              }}
+              title="Bật/tắt lưới toạ độ"
+            >
+              <i>📐</i>
+              <span>Lưới</span>
+            </button>
+            <button
+              className="dock-item tool-item"
+              onClick={() => {
+                setSandboxWood((w) => w + 50000);
+                setSandboxInk((i) => i + 50000);
+                setSandboxCoins((c) => c + 500000);
+                showCastleToast('Đã nạp thêm +50k tài nguyên!');
+              }}
+              title="Bơm thêm tài nguyên thử nghiệm"
+            >
+              <i>⚡</i>
+              <span>Bơm quà</span>
+            </button>
+            <button
+              className="dock-item tool-item"
+              onClick={() => setCastleBuildCatalogOpen(true)}
+              title="Mở Xưởng Kiến Trúc để mua thêm các công trình"
+            >
+              <i>🏛️</i>
+              <span>Công trình</span>
+            </button>
+            {pendingBuildingToPlace ? (
+              <button
+                className="dock-item tool-item active"
+                onClick={() => {
+                  setPendingBuildingToPlace(null);
+                  showCastleToast('Đã hủy chế độ đặt');
+                }}
+                title="Hủy đặt công trình"
+              >
+                <i>✕</i>
+                <span>Hủy đặt</span>
+              </button>
+            ) : (
+              <button
+                className="dock-item tool-item"
+                onClick={() => setCastleBuildCatalogOpen(true)}
+                title="Chọn kiến trúc để lắp đặt"
+              >
+                <i>🏗️</i>
+                <span>Xây mới</span>
+              </button>
+            )}
+            <button
+              className="dock-item tool-item"
+              onClick={() => {
+                setSandboxExtraBuildings([]);
+                localStorage.setItem('castle_sandbox_extra_buildings', JSON.stringify([]));
+                showCastleToast('Đã dọn sạch toàn bộ công trình phụ trên đảo');
+              }}
+              title="Dọn sạch toàn bộ công trình phụ"
+            >
+              <i>🗑️</i>
+              <span>Dọn sạch</span>
+            </button>
+          </div>
+        </footer>
+
+        {/* Modal: Extra Building Inspector & Removal */}
+        {selectedExtraBuilding && (
+          <div className="castle-modal-backdrop" onClick={() => setSelectedCastleBuilding(null)}>
+            <section
+              className="castle-upgrade-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={selectedExtraBuilding.name}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                className="castle-upgrade-close"
+                onClick={() => setSelectedCastleBuilding(null)}
+                aria-label="Đóng"
+              >
+                ×
+              </button>
+              <header>
+                <span>{selectedExtraBuilding.w}×{selectedExtraBuilding.h}</span>
+                <div>
+                  <small>{selectedExtraBuilding.hanzi}</small>
+                  <h2>{selectedExtraBuilding.name}</h2>
+                </div>
+              </header>
+              <div className="castle-upgrade-preview">
+                {selectedExtraBuilding.imageSrc ? (
+                  <img src={selectedExtraBuilding.imageSrc} alt={selectedExtraBuilding.name} />
+                ) : (
+                  <b style={{ fontSize: '56px' }}>{selectedExtraBuilding.icon}</b>
+                )}
+                <span>VỊ TRÍ ({selectedExtraBuilding.col}, {selectedExtraBuilding.row})</span>
+              </div>
+              <div className="castle-upgrade-effect">
+                <b>[Sandbox] Thử nghiệm công trình</b>
+                <p>+{(selectedExtraBuilding.prosperity ?? 100).toLocaleString('vi-VN')} 繁荣度</p>
+                <small>Bạn đang ở chế độ Sandbox. Bạn có thể xóa công trình này bất kỳ lúc nào.</small>
+              </div>
+              <button
+                className="castle-upgrade-submit"
+                style={{
+                  background: 'linear-gradient(#d33636, #961b1b)',
+                  borderColor: '#ea5454',
+                  boxShadow: '0 4px 0 #6e1111',
+                  marginTop: '14px',
+                }}
+                onClick={() => {
+                  handleSandboxRemove(selectedExtraBuilding.id);
+                  setSelectedCastleBuilding(null);
+                }}
+              >
+                Xóa Công Trình (Giải phóng ô đất)
+              </button>
+            </section>
+          </div>
+        )}
+
+        {/* Modal: Building Construction Workshop */}
+        {castleBuildCatalogOpen && (
+          <div className="castle-modal-backdrop" onClick={() => setCastleBuildCatalogOpen(false)}>
+            <div className="castle-modal-dialog castle-modal-wide" onClick={(e) => e.stopPropagation()}>
+              <button className="modal-close-btn" onClick={() => setCastleBuildCatalogOpen(false)}>×</button>
+              <section className="castle-build-panel">
+                <header>
+                  <div>
+                    <span>建筑工坊 · XƯỞNG KIẾN TRÚC (SANDBOX)</span>
+                    <h2>Xưởng Xây Dựng Công Trình</h2>
+                  </div>
+                  <div className="build-user-res">
+                    <span>🪵 <b>{sandboxWood.toLocaleString('vi-VN')}</b></span>
+                    <span>🖌 <b>{sandboxInk.toLocaleString('vi-VN')}</b></span>
+                    <span>🪙 <b>{sandboxCoins.toLocaleString('vi-VN')}</b></span>
+                  </div>
+                </header>
+                <p className="build-panel-sub">
+                  Chế độ Sandbox: Bạn có thể chọn bất kỳ công trình nào để thử nghiệm cách hiển thị, sprite ảnh, và thuật toán va chạm trên Tiên Đảo!
+                </p>
+                <div className="build-catalog-tabs">
+                  {[
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'palace', label: 'Điện Các' },
+                    { id: 'study', label: 'Học Thuật' },
+                    { id: 'defense', label: 'Phòng Thủ' },
+                    { id: 'nature', label: 'Tiểu Cảnh' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      className={catalogCategory === tab.id ? 'on' : ''}
+                      onClick={() => setCatalogCategory(tab.id as any)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="build-catalog-grid">
+                  {filteredCatalog.map((item) => (
+                    <article key={item.templateId} className="build-catalog-card">
+                      <div className="build-card-preview">
+                        {item.imageSrc ? (
+                          <img src={item.imageSrc} alt={item.name} />
+                        ) : (
+                          <b style={{ fontSize: '42px' }}>{item.icon}</b>
+                        )}
+                        <span className="build-card-footprint">{item.w}×{item.h} ô</span>
+                      </div>
+                      <div className="build-card-body">
+                        <div className="build-card-header">
+                          <span>{item.hanzi}</span>
+                          <h3>{item.name}</h3>
+                        </div>
+                        <p>{item.desc}</p>
+                        <div className="build-card-bonus">
+                          <span>✦ +{item.prosperity} 繁荣度</span>
+                        </div>
+                        <div className="build-card-cost">
+                          {item.cost.wood > 0 && <span>🪵 {item.cost.wood}</span>}
+                          {item.cost.ink > 0 && <span>🖌 {item.cost.ink}</span>}
+                          {item.cost.coin > 0 && <span>🪙 {item.cost.coin.toLocaleString('vi-VN')}</span>}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setPendingBuildingToPlace(item);
+                            setCastleBuildCatalogOpen(false);
+                            showCastleToast(`Đã chọn [${item.name}] · Chạm vào ô đất trống trên đảo để dựng nhà!`, 'ok');
+                          }}
+                        >
+                          Lắp Đặt Thử Nghiệm
+                        </button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
             </div>

@@ -1261,3 +1261,166 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* --- Dev Sandbox & Testing Styles --- */
+.castle-hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.castle-hud-sandbox-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border: 1.5px dashed #48c774;
+  border-radius: 24px;
+  background: rgba(14, 38, 24, 0.92);
+  color: #72f2be;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: all 0.2s ease;
+}
+
+.castle-hud-sandbox-badge:hover {
+  background: #195232;
+  border-color: #72f2be;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(72, 199, 116, 0.35);
+}
+
+.sandbox-badge-banner {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 14px;
+  border: 1.5px solid #48c774;
+  border-radius: 24px;
+  background: rgba(15, 30, 20, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.sandbox-badge-banner .sandbox-tag {
+  font-size: 8px;
+  font-weight: 900;
+  color: #72f2be;
+  letter-spacing: 0.1em;
+}
+
+.sandbox-badge-banner b {
+  font-size: 11px;
+  color: #e8f5e9;
+  font-weight: 800;
+}
+
+.sandbox-badge-banner small {
+  font-size: 8px;
+  color: #81c784;
+}
+
+.castle-sandbox-exit-btn {
+  background: linear-gradient(135deg, #2e7d32, #1b5e20) !important;
+  border-color: #4caf50 !important;
+  color: #e8f5e9 !important;
+}
+
+.castle-sandbox-exit-btn:hover {
+  background: linear-gradient(135deg, #388e3c, #2e7d32) !important;
+  border-color: #81c784 !important;
+}
+
+/* Floating Quick Cheat Panel */
+.sandbox-floating-panel {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  z-index: 35;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid rgba(72, 199, 116, 0.35);
+  border-radius: 12px;
+  background: rgba(16, 24, 18, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  color: #e0f2f1;
+  pointer-events: auto;
+}
+
+.sandbox-panel-header {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #72f2be;
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(72, 199, 116, 0.2);
+}
+
+.sandbox-panel-section {
+  margin-bottom: 8px;
+}
+
+.sandbox-panel-section:last-child {
+  margin-bottom: 0;
+}
+
+.sandbox-panel-section label {
+  display: block;
+  font-size: 9px;
+  color: #a7d7c5;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.sandbox-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sandbox-btn-row button {
+  padding: 4px 8px;
+  border: 1px solid #3b604b;
+  border-radius: 5px;
+  background: #1c3325;
+  color: #c8e6c9;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sandbox-btn-row button:hover {
+  background: #2e533c;
+  border-color: #72f2be;
+  color: #fff;
+}
+
+.sandbox-btn-row button.active {
+  background: #4caf50;
+  border-color: #a5d6a7;
+  color: #0d2818;
+  font-weight: 900;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+}
+
+.sandbox-btn-row.presets-row button {
+  flex: 1 1 calc(50% - 4px);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .sandbox-floating-panel {
+    top: auto;
+    bottom: 80px;
+    left: 8px;
+    width: 250px;
+    max-height: 42vh;
+    overflow-y: auto;
+  }
+}

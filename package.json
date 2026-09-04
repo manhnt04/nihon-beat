@@ -10,7 +10,9 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "test": "node scripts/test-castle.mjs",
+    "test:castle": "node scripts/test-castle.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
