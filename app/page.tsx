@@ -2249,6 +2249,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
       </button>
+      <button className={screen === 'inventory' ? 'on' : ''} onClick={() => navigate('inventory')}>
+        <Package /><span>Kho đồ</span>
+      </button>
       <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
         <Trophy /><span>Xếp hạng</span>
       </button>
