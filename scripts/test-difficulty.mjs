@@ -152,7 +152,7 @@ assert(pageCode.includes('BÌNH THƯỜNG'), 'Có thẻ BÌNH THƯỜNG');
 assert(pageCode.includes('KHÓ (MẪU CÂU)'), 'Có thẻ KHÓ');
 console.log('  ✅ PASS: Giao diện chọn độ khó 3 cấp (DỄ, BÌNH THƯỜNG, KHÓ) hiển thị đầy đủ trong trang bài học.');
 
-// 6. Kiểm tra luồng popup 3 bước (Mode -> Gameplay -> Difficulty)
+// 6. Kiểm tra luồng popup 3 bước (Mode -> Gameplay với mode-picker artwork -> Difficulty)
 console.log('\n6. Kiểm tra luồng Popup Modal 3 Bước:');
 assert(pageCode.includes("const [playModeStep, setPlayModeStep] = useState<'mode' | 'gameplay' | 'difficulty'>('mode');"), 'Có state playModeStep');
 assert(pageCode.includes("openPlayModeModal"), 'Có hàm openPlayModeModal');
@@ -161,6 +161,7 @@ assert(pageCode.includes("setPlayModeStep('gameplay')"), 'Bước 1 chuyển san
 assert(pageCode.includes("playModeStep === 'gameplay'"), 'Có Bước 2: chọn lối chơi');
 assert(pageCode.includes("setMode('audition')") && pageCode.includes("setMode('typing')"), 'Bước 2 thiết lập mode audition hoặc typing');
 assert(pageCode.includes("setPlayModeStep('difficulty')"), 'Bước 2 chuyển sang bước difficulty sau khi chọn lối chơi');
+assert(pageCode.includes("lesson-rhythm-quiz.webp") && pageCode.includes("lesson-typing-battle.webp"), 'Bước 2 dùng mode-picker và hình ảnh artwork');
 assert(pageCode.includes("playModeStep === 'difficulty'"), 'Có Bước 3: chọn độ khó');
 assert(pageCode.includes("className=\"play-mode-back\""), 'Có nút quay lại bước trước trong modal');
 
@@ -169,8 +170,9 @@ const cssCode = fs.readFileSync(path.resolve('./app/globals.css'), 'utf8');
 assert(cssCode.includes('.play-mode-back'), 'Có CSS .play-mode-back');
 assert(cssCode.includes('.play-mode-modal.step-difficulty'), 'Có CSS .play-mode-modal.step-difficulty');
 assert(cssCode.includes('.play-mode-options.difficulty-grid'), 'Có CSS .play-mode-options.difficulty-grid');
+assert(cssCode.includes('.play-mode-modal .mode-picker'), 'Có CSS .play-mode-modal .mode-picker');
 assert(cssCode.includes('.play-mode-step-content'), 'Có animation .play-mode-step-content');
-console.log('  ✅ PASS: Luồng 3 bước (Mode -> Gameplay -> Difficulty) và CSS tương ứng hoạt động hoàn hảo.');
+console.log('  ✅ PASS: Luồng 3 bước với mode-picker artwork trong Bước 2 và CSS tương ứng hoạt động hoàn hảo.');
 
 console.log('\n========================================');
 console.log('🎉 TẤT CẢ 6 NHÓM THỬ NGHIỆM ĐỀU ĐẠT 100%!');

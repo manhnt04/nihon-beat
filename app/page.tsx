@@ -5607,38 +5607,40 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   <h2 id="play-mode-title">Bạn muốn luyện tập theo hình thức nào?</h2>
                   <p>Lựa chọn cơ chế thử thách phù hợp với mục tiêu học tập của bạn.</p>
                 </div>
-                <div className="play-mode-options">
+                <div className="mode-picker">
                   <button
                     type="button"
-                    className="gameplay-option audition-option"
+                    className={mode === 'audition' ? 'active' : ''}
                     onClick={() => {
                       setMode('audition');
                       setPlayModeStep('difficulty');
                     }}
                   >
-                    <i>🎵</i>
-                    <span>
-                      <small>RHYTHM QUIZ</small>
-                      <b>Trắc Nghiệm Theo Nhịp</b>
-                      <p>Luân phiên chọn nghĩa tiếng Việt và chữ Hán theo giai điệu bài hát sôi động.</p>
-                      <em>Chọn độ khó →</em>
+                    <span className="mode-artwork">
+                      <img
+                        src="/lesson-rhythm-quiz.webp"
+                        alt="Minh họa Rhythm Quiz với thẻ từ vựng và bốn đáp án theo nhịp"
+                      />
                     </span>
+                    <b>Rhythm Quiz</b>
+                    <small>Luân phiên chọn nghĩa tiếng Việt và chữ Hán</small>
                   </button>
                   <button
                     type="button"
-                    className="gameplay-option typing-option"
+                    className={mode === 'typing' ? 'active typing' : ''}
                     onClick={() => {
                       setMode('typing');
                       setPlayModeStep('difficulty');
                     }}
                   >
-                    <i>⌨️</i>
-                    <span>
-                      <small>TYPING BATTLE</small>
-                      <b>Đại Chiến Gõ Phím</b>
-                      <p>Luyện phản xạ gõ Hán tự / Pinyin và nhập nghĩa tiếng Việt với tốc độ cao.</p>
-                      <em>Chọn độ khó →</em>
+                    <span className="mode-artwork">
+                      <img
+                        src="/lesson-typing-battle.webp"
+                        alt="Minh họa Typing Battle với bàn phím Hán tự phát sáng"
+                      />
                     </span>
+                    <b>Typing Battle</b>
+                    <small>Luân phiên dịch chữ Hán và nghĩa tiếng Việt</small>
                   </button>
                 </div>
                 <footer>

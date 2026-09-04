@@ -473,4 +473,47 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
   }
 }
 
+.play-mode-modal .mode-picker {
+  margin: 22px auto 14px;
+  width: 100%;
+}
+.play-mode-modal .mode-picker button {
+  min-height: 120px;
+  border-radius: 12px;
+  border: 1px solid #d8c29a;
+  background: linear-gradient(155deg, #fffdf8, #f5ebd8);
+  box-shadow: 0 10px 25px rgba(75, 33, 20, 0.08);
+  cursor: pointer;
+  padding: 14px 16px;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.play-mode-modal .mode-picker button:hover {
+  transform: translateY(-3px);
+  border-color: #bc9134;
+  box-shadow: 0 16px 32px rgba(75, 33, 20, 0.16);
+}
+.play-mode-modal .mode-picker button.active {
+  border-color: #7659ed;
+  background: linear-gradient(155deg, #fbfaff, #f1edff);
+  box-shadow: 0 12px 28px rgba(118, 89, 237, 0.2);
+}
+.play-mode-modal .mode-picker button.active.typing {
+  border-color: #ff4f87;
+  background: linear-gradient(155deg, #fffafc, #ffeef4);
+  box-shadow: 0 12px 28px rgba(255, 79, 135, 0.2);
+}
+.play-mode-modal .mode-picker b {
+  font-size: 18px;
+  font-family: "Songti SC", "SimSun", serif;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.play-mode-modal .mode-picker small {
+  font-size: 11px;
+  color: #705b50;
+  margin-top: 5px;
+  line-height: 1.45;
+}
+
+
 
