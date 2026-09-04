@@ -8,7 +8,18 @@ const roomKey = (code: string) => `hanzibeat:pvp:room:${code}`;
 const playerKey = (id: string) => `hanzibeat:pvp:player:${id}`;
 const seasonId = () => { const now = new Date(); return `${now.getUTCFullYear()}-S${Math.floor(now.getUTCMonth() / 3) + 1}`; };
 const rankKey = (uid: string) => `hanzibeat:pvp:rank:${seasonId()}:${uid}`;
-const rankName = (mmr: number) => mmr >= 1800 ? 'Tông Sư' : mmr >= 1500 ? 'Kim' : mmr >= 1250 ? 'Bạch Ngân' : mmr >= 1050 ? 'Thanh Đồng' : 'Tân Tú';
+const rankName = (mmr: number) => {
+  if (mmr >= 2300) return 'Chiến Thần';
+  if (mmr >= 2100) return 'Chiến Tướng';
+  if (mmr >= 1900) return 'Đại Cao Thủ';
+  if (mmr >= 1750) return 'Cao Thủ';
+  if (mmr >= 1600) return 'Tinh Anh';
+  if (mmr >= 1450) return 'Kim Cương';
+  if (mmr >= 1325) return 'Bạch Kim';
+  if (mmr >= 1225) return 'Vàng';
+  if (mmr >= 1100) return 'Bạc';
+  return 'Đồng';
+};
 const levelFromXp = (xp: number) => { let level = 1; let remaining = xp; while (level < 100) { const required = 100 + 30 * level + 3 * level * level; if (remaining < required) return level; remaining -= required; level += 1; } return 100; };
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
