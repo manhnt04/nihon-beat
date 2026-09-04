@@ -1782,6 +1782,7 @@
   width: 44px;
   height: 44px;
 }
+.pass-tier-card.pass-coming-soon{opacity:.62;filter:saturate(.45)}
 
 .inv-castle-cta-btn {
   display: inline-flex;
@@ -1898,8 +1899,6 @@
   background: #f5e4bd;
   transform: translateY(-1px);
 }
-
-
 
 
 

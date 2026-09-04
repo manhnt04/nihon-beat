@@ -147,6 +147,7 @@ type Progression = {
   streak: number;
   stamps: number;
   inventory: Record<string, number>;
+  inventoryExpiries?: Record<string, number>;
   ownedCosmetics: string[];
   equipped: { frame: string | null; seal: string | null; effect: string | null };
   lastGuardUseDate: string | null;
@@ -3070,7 +3071,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="hud-res-pill" title="木材 · Gỗ xây dựng">🪵 <b>{castle.wood.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="墨 · Mực học thuật">🖌 <b>{castle.ink.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="铜钱 · Coin xây dựng">🪙 <b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></div>
-            <div className="hud-res-pill hud-res-crystal" title="龙晶 · Long Tinh cao cấp">💎 <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill hud-res-crystal" title="晶石 · Tinh Thạch cao cấp">🔮 <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill hud-res-energy" title="Năng lượng công thành">⚡ <b>{castle.attackEnergy}/5</b></div>
             <div className="hud-res-pill hud-res-buff" title="Phúc lợi Mảnh Ngọc Chủ Thành">玉 <b>+{mainBonusRate}%</b></div>
           </div>
@@ -3602,11 +3603,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 <header>
                   <div>
                     <span>龙晶商会 · THƯƠNG MẠI HÁN TỰ THÀNH</span>
-                    <h2>Thương Hội Long Tinh</h2>
+                    <h2>Tinh Thạch Các</h2>
                   </div>
                   <div className="commerce-balance">
-                    <b>💎 {progression?.dragonCrystals ?? 0} Long Tinh</b>
-                    <button className="topup-trigger-btn" onClick={() => setTopupOpen(true)}>+ Nạp Long Tinh</button>
+                    <b>🔮 {progression?.dragonCrystals ?? 0} Tinh Thạch</b>
+                    <button className="topup-trigger-btn" onClick={() => setTopupOpen(true)}>+ Nạp Tinh Thạch</button>
                   </div>
                 </header>
                 <div className="commerce-policy-banner">
@@ -3676,7 +3677,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                               ) : owned ? (
                                 <button onClick={() => void runCastleCommerce('equip-decoration', { slot: 'weather', id: item.weather })}>Dùng hiệu ứng</button>
                               ) : (
-                                <button disabled={!canAfford} onClick={() => void runCastleCommerce('buy', { itemId: item.id })}>Mua (💎 {item.price})</button>
+                                <button disabled={!canAfford} onClick={() => void runCastleCommerce('buy', { itemId: item.id })}>Mua (🔮 {item.price})</button>
                               )}
                             </footer>
                           </article>
@@ -3748,7 +3749,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     <div className="pass-banner">
                       <div>
                         <h3>Long Vân Pass · Mùa 1</h3>
-                        <p>Học từ vựng và làm bài mỗi ngày để tích lũy XP mở khóa 10 Cấp phần thưởng trang trí!</p>
+                        <p>Học từ vựng và làm bài mỗi ngày để tiến qua 50 cấp. Mười cấp đầu đã mở, cấp 11–50 đang được hoàn thiện.</p>
                       </div>
                       <div className="pass-status">
                         {progression?.battlePass?.premium ? (
@@ -3758,21 +3759,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                             disabled={(progression?.dragonCrystals ?? 0) < 129}
                             onClick={() => void runCastleCommerce('buy', { itemId: 'premium-pass' })}
                           >
-                            Mở Premium Track (💎 129)
+                            Mở Premium Track (🔮 129)
                           </button>
                         )}
                       </div>
                     </div>
 
                     <div className="pass-progress-header">
-                      <span>Tiến độ Pass: {progression?.battlePass?.xp ?? 0} / 1000 XP</span>
+                      <span>Tiến độ Pass: {progression?.battlePass?.xp ?? 0} / 5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass?.xp ?? 0) / 100))}</span>
                       <div className="pass-bar">
-                        <i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 1000) * 100)}%` }} />
+                        <i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 5000) * 100)}%` }} />
                       </div>
                     </div>
 
                     <div className="castle-pass-v2">
-                      {[
+                      {Array.from({ length: 50 }, (_, index) => ([
                         { tier: 1, xpReq: 100, free: '🪙 ×500 Coin', premium: '🌸 Lạc Hoa Phù Dao' },
                         { tier: 2, xpReq: 200, free: '✨ 50 Study XP', premium: '💎 20 Long Tinh' },
                         { tier: 3, xpReq: 300, free: '玉 ×20 Mảnh Ngọc', premium: '🦁 Thạch Sư Uy Nghi' },
@@ -3783,33 +3784,34 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                         { tier: 8, xpReq: 800, free: '🐲 Long Đằng Chiến Kỳ', premium: '💎 40 Long Tinh' },
                         { tier: 9, xpReq: 900, free: '✨ 200 Study XP', premium: '💎 50 Long Tinh' },
                         { tier: 10, xpReq: 1000, free: '🏯 Theme Bích Ngọc Cung', premium: '🐉 Thanh Long + 🏯 Theme Đan Hà' },
-                      ].map((row) => {
+                      ][index] ?? { tier: index + 1, xpReq: (index + 1) * 100, free: 'Đang thiết kế', premium: 'Đang thiết kế' })).map((row) => {
                         const curXp = progression?.battlePass?.xp ?? 0;
                         const ready = curXp >= row.xpReq;
+                        const designed = row.tier <= 10;
                         const isPremUser = Boolean(progression?.battlePass?.premium);
                         const freeClaimed = (progression?.battlePass?.claimed ?? []).includes(`free-${row.tier}`);
                         const premiumClaimed = (progression?.battlePass?.claimed ?? []).includes(`premium-${row.tier}`);
                         return (
-                          <article key={row.tier} className={`pass-tier-card ${ready ? 'reached' : ''}`}>
+                          <article key={row.tier} className={`pass-tier-card ${ready ? 'reached' : ''} ${!designed ? 'pass-coming-soon' : ''}`}>
                             <div className="tier-badge">Cấp {row.tier} ({row.xpReq} XP)</div>
                             <div className="tier-track free-track">
                               <small>Miễn phí: {row.free}</small>
                               <button
                                 className={freeClaimed ? 'claimed' : ''}
-                                disabled={!ready || freeClaimed}
+                                disabled={!designed || !ready || freeClaimed}
                                 onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}
                               >
-                                {freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận quà' : 'Chưa đạt'}
+                                {freeClaimed ? '✓ Đã nhận' : !designed ? 'Sắp ra mắt' : ready ? 'Nhận quà' : 'Chưa đạt'}
                               </button>
                             </div>
                             <div className="tier-track premium-track">
                               <small>👑 Long Vân: {row.premium}</small>
                               <button
                                 className={premiumClaimed ? 'claimed' : ''}
-                                disabled={!ready || !isPremUser || premiumClaimed}
+                                disabled={!designed || !ready || !isPremUser || premiumClaimed}
                                 onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}
                               >
-                                {premiumClaimed ? '✓ Đã nhận' : !isPremUser ? 'Khóa (Cần Pass)' : ready ? 'Nhận Premium' : 'Chưa đạt'}
+                                {premiumClaimed ? '✓ Đã nhận' : !designed ? 'Sắp ra mắt' : !isPremUser ? 'Khóa (Cần Pass)' : ready ? 'Nhận Premium' : 'Chưa đạt'}
                               </button>
                             </div>
                           </article>
@@ -3874,7 +3876,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <header>
                 <button className="close-btn" onClick={() => setTopupOpen(false)}>×</button>
                 <span>龙晶阁 · TIỆM LONG TINH</span>
-                <h2>Nạp Long Tinh</h2>
+                <h2>Nạp Tinh Thạch</h2>
                 <p>Mở khóa Theme Pack, Khí Tượng, Linh Thú và Long Vân Pass.</p>
               </header>
               <div className="topup-grid">
@@ -3894,7 +3896,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 ))}
               </div>
               <div className="topup-policy-note">
-                💎 Long Tinh chỉ dùng cho giao diện thẩm mỹ và danh tính thành trì. Tuyệt đối không bán tài nguyên xây dựng, tài nguyên học tập hay vật phẩm phòng thủ.
+                🔮 Tinh Thạch chỉ dùng cho cosmetic, tiện ích không tăng sức mạnh và Battle Pass. Không thể đổi sang Mảnh Ngọc, XP, Rank hay tài nguyên xây dựng.
               </div>
             </section>
           </div>
@@ -5225,6 +5227,16 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/spin-siege-ticket.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
       { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/spin-destiny-fragment.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
       { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/spin-jackpot.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
+      { id: 'protect-charm', type: 'timed', name: 'Hộ Thân Phù', hanzi: '护身符', icon: '🛡️', rarity: 'Hiếm', description: 'Vật phẩm PvP có hạn 24 giờ · bảo vệ điểm khi thua.' },
+      { id: 'revenge-order', type: 'timed', name: 'Ân Oán Lệnh', hanzi: '恩怨令', icon: '⚔️', rarity: 'Sử thi', description: 'Vật phẩm cày PvP có hạn 24 giờ · dùng cho trận tái đấu.' },
+      { id: 'enlightenment-pill', type: 'timed', name: 'Khai Khiếu Đan', hanzi: '开窍丹', icon: '📜', rarity: 'Sử thi', description: 'Vật phẩm học tập có hạn 24 giờ.' },
+      { id: 'peerless-order', type: 'timed', name: 'Vô Song Lệnh', hanzi: '无双令', icon: '🎯', rarity: 'Sử thi', description: 'Vật phẩm PvP giới hạn tuần · có hạn 24 giờ.' },
+      { id: 'diamond-guard', type: 'timed', name: 'Kim Cương Tráo', hanzi: '金刚罩', icon: '💠', rarity: 'Sử thi', description: 'Vật phẩm phòng hộ PvP có hạn 24 giờ.' },
+      { id: 'destiny-card', type: 'timed', name: 'Thiên Mệnh Bài', hanzi: '天命牌', icon: '🎴', rarity: 'Huyền thoại', description: 'Vật phẩm mạo hiểm PvP có hạn 24 giờ.' },
+      { id: 'treasure-basin', type: 'timed', name: 'Tụ Bảo Bồn', hanzi: '聚宝盆', icon: '✨', rarity: 'Huyền thoại', description: 'Vật phẩm sự kiện có hạn 24 giờ.' },
+      { id: 'combo-charm', type: 'timed', name: 'Liên Hoàn Phù', hanzi: '连环符', icon: '🔗', rarity: 'Hiếm', description: 'Vật phẩm chuỗi PvP có hạn 24 giờ.' },
+      { id: 'time-spell', type: 'timed', name: 'Định Thân Chú', hanzi: '定身咒', icon: '⏳', rarity: 'Hiếm', description: 'Chỉ dùng khi luyện tập PvE · có hạn 24 giờ.' },
+      { id: 'insight-lens', type: 'timed', name: 'Thiên Cơ Lậu', hanzi: '天机漏', icon: '👁️', rarity: 'Hiếm', description: 'Gợi ý nhỏ, chỉ dùng trong luyện tập PvE · có hạn 24 giờ.' },
       ...shopItems.filter((item) => item.type !== 'consumable'),
     ] as const;
     const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
@@ -5242,6 +5254,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           {!authUser ? <div className="inventory-login"><Package /><h2>Kho đồ cần tài khoản</h2><p>Đăng nhập để đồng bộ Mảnh Ngọc và vật phẩm trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
+              <article className="crystal-wallet"><span className="currency-gem">晶</span><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Tinh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
               <article className="coin-wallet"><img src="/items/coin.png" alt="Coin"/><span><small>XÂY DỰNG</small><b>{progression?.coins ?? 0} Coin</b><p>Dùng nâng cấp Hán Tự Thành</p></span></article>
               <article className="wood-wallet"><img src="/items/spin-wood.png" alt="Gỗ" /><span><small>VẬT LIỆU</small><b>{progression?.castle.wood ?? 0} Gỗ</b><p>Gỗ xây kết cấu</p></span></article>
               <article className="ink-wallet"><img src="/items/spin-ink.png" alt="Mực" /><span><small>HỌC THUẬT</small><b>{progression?.castle.ink ?? 0} Mực</b><p>Mực điển tịch & thư các</p></span></article>
@@ -5279,8 +5292,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
                       : 'Vật phẩm sưu tầm';
                 return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
-                  <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
+                  <div className="inventory-art">{'image' in item ? <img src={item.image} alt={item.name} /> : <i className="inventory-symbol">{'icon' in item ? item.icon : '物'}</i>}{quantity > 0 && <b>×{quantity}</b>}</div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
+                  {item.type === 'timed' && owned && <em className="item-expiry">Hết hạn: {new Date(progression?.inventoryExpiries?.[item.id] ?? Date.now() + 86_400_000).toLocaleString('vi-VN')}</em>}
                   <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || (item.type === 'collectible' && !isCastleItem)}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
                 </article>;
               })}

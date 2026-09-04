@@ -28,6 +28,7 @@ type Progression = {
   lastStampDate: string | null;
   stamps: number;
   inventory: Record<string, number>;
+  inventoryExpiries: Record<string, number>;
   ownedCosmetics: string[];
   equipped: { frame: string | null; seal: string | null; effect: string | null };
   lastGuardUseDate: string | null;
@@ -166,9 +167,9 @@ const castleCommerceCatalog = {
   'guardian-dragon': { price: 190, kind: 'guardian', slot: 'guardian', theme: 'guardian-dragon', name: 'Linh Thú · Thanh Long Trấn Thành', desc: 'Thần rồng xanh dũng mãnh bảo hộ giang sơn vững như bàn thạch.' },
   'banner-scholar': { price: 45, kind: 'banner', slot: 'banner', theme: 'banner-scholar', name: 'Cờ Hiệu · Bác Học Văn Kỳ', desc: 'Cờ chữ Văn đỏ thắm thể hiện ý chí hiếu học kiên cường.' },
   'banner-dragon': { price: 75, kind: 'banner', slot: 'banner', theme: 'banner-dragon', name: 'Cờ Hiệu · Long Đằng Chiến Kỳ', desc: 'Chiến kỳ thêu rồng vàng dũng mãnh tung bay trong gió lớn.' },
-  'topup-60': { price: 0, crystals: 60, kind: 'topup', slot: 'topup', theme: '', name: 'Túi Long Tinh', tag: '29.000đ', desc: 'Nhận ngay 60 Long Tinh để trải nghiệm trang trí thành.' },
-  'topup-180': { price: 0, crystals: 180, kind: 'topup', slot: 'topup', theme: '', name: 'Hòm Long Tinh (+20)', tag: '79.000đ', desc: 'Nhận 180 Long Tinh (Ưu đãi tặng thêm 20 💎).' },
-  'topup-450': { price: 0, crystals: 450, kind: 'topup', slot: 'topup', theme: '', name: 'Rương Long Tinh (+60)', tag: '179.000đ', desc: 'Nhận 450 Long Tinh (Ưu đãi tặng thêm 60 💎).' },
+  'topup-60': { price: 0, crystals: 60, kind: 'topup', slot: 'topup', theme: '', name: 'Túi Tinh Thạch', tag: '29.000đ', desc: 'Nhận ngay 60 Tinh Thạch để trải nghiệm trang trí thành.' },
+  'topup-180': { price: 0, crystals: 180, kind: 'topup', slot: 'topup', theme: '', name: 'Hòm Tinh Thạch (+20)', tag: '79.000đ', desc: 'Nhận 180 Tinh Thạch (Ưu đãi tặng thêm 20).' },
+  'topup-450': { price: 0, crystals: 450, kind: 'topup', slot: 'topup', theme: '', name: 'Rương Tinh Thạch (+60)', tag: '179.000đ', desc: 'Nhận 450 Tinh Thạch (Ưu đãi tặng thêm 60).' },
   'premium-pass': { price: 129, kind: 'pass', slot: 'pass', theme: '', name: 'Long Vân Pass Mùa 1', desc: 'Mở khóa đường thưởng Premium với linh thú độc quyền.' },
 } as const;
 
@@ -239,7 +240,7 @@ const loadProgression = async (uid: string, name: string) => {
   const passSeason = new Date().toISOString().slice(0, 7);
   const progression: Progression = stored ?? {
     uid, name, xp: 0, level: 1, jade: 0, dragonCrystals: 150, coins: 0, streak: 0,
-    lastStampDate: null, stamps: 0, inventory: {}, ownedCosmetics: [],
+    lastStampDate: null, stamps: 0, inventory: {}, inventoryExpiries: {}, ownedCosmetics: [],
     equipped: { frame: null, seal: null, effect: null }, lastGuardUseDate: null,
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
@@ -262,6 +263,13 @@ const loadProgression = async (uid: string, name: string) => {
   if (progression.daily.date !== date) progression.daily = emptyDaily(date);
   progression.daily.matchXp = Number(progression.daily.matchXp ?? 0);
   progression.inventory = progression.inventory ?? {};
+  progression.inventoryExpiries = progression.inventoryExpiries ?? {};
+  for (const [itemId, expiresAt] of Object.entries(progression.inventoryExpiries)) {
+    if (Number(expiresAt) <= Date.now()) {
+      delete progression.inventory[itemId];
+      delete progression.inventoryExpiries[itemId];
+    }
+  }
   progression.ownedCosmetics = progression.ownedCosmetics ?? [];
   progression.equipped = progression.equipped ?? { frame: null, seal: null, effect: null };
   progression.lastGuardUseDate = progression.lastGuardUseDate ?? null;
@@ -375,7 +383,7 @@ export default async function handler(request: any, response: any) {
       const packageId = String(request.body?.packageId ?? '');
       const item = castleCommerceCatalog[packageId as keyof typeof castleCommerceCatalog];
       if (!item || item.kind !== 'topup') {
-        return response.status(400).json({ error: 'Gói nạp Long Tinh không hợp lệ.' });
+        return response.status(400).json({ error: 'Gói nạp Tinh Thạch không hợp lệ.' });
       }
       const crystalsToAdd = 'crystals' in item ? Number(item.crystals) : 60;
       progression.dragonCrystals = Math.min(99_999, (progression.dragonCrystals ?? 0) + crystalsToAdd);
@@ -395,7 +403,7 @@ export default async function handler(request: any, response: any) {
       if (['wood', 'ink', 'coins', 'shields', 'energy'].includes(item.kind)) {
         return response.status(403).json({ error: 'Tuyệt đối không bán tài nguyên xây dựng hoặc phòng thủ.' });
       }
-      if (progression.dragonCrystals < item.price) return response.status(409).json({ error: 'Không đủ Long Tinh.' });
+      if (progression.dragonCrystals < item.price) return response.status(409).json({ error: 'Không đủ Tinh Thạch.' });
       if (item.kind === 'pass' && progression.battlePass.premium) {
         return response.status(409).json({ error: 'Bạn đã sở hữu Long Vân Pass mùa này.' });
       }
@@ -433,7 +441,7 @@ export default async function handler(request: any, response: any) {
         progression.castle.decorations.banner = progression.castle.decorations.banner === decoId ? null : decoId;
       }
     } else if (operation === 'claim-pass' || operation === 'claim') {
-      const tierNum = Math.max(1, Math.min(10, Number(request.body?.tier ?? 1)));
+      const tierNum = Math.max(1, Math.min(50, Number(request.body?.tier ?? 1)));
       const isPremium = Boolean(request.body?.premium);
       const claimId = `${isPremium ? 'premium' : 'free'}-${tierNum}`;
       const requiredXp = tierNum * 100;
@@ -442,6 +450,7 @@ export default async function handler(request: any, response: any) {
       if (progression.battlePass.claimed.includes(claimId)) return response.status(409).json({ error: 'Đã nhận phần thưởng này.' });
 
       const tierDef = BATTLE_PASS_TIERS.find((t) => t.tier === tierNum);
+      if (!tierDef) return response.status(409).json({ error: 'Phần thưởng cấp này đang được hoàn thiện.' });
       if (tierDef) {
         const reward = isPremium ? tierDef.premium : tierDef.free;
         if (reward.type === 'jade') {
@@ -768,7 +777,7 @@ export default async function handler(request: any, response: any) {
     const questionXp = Math.min(correct * 2, availableQuestionXp);
     daily.questionXp += questionXp;
     daily.correct += correct;
-    progression.battlePass.xp = Math.min(1000, Number(progression.battlePass.xp ?? 0) + 15 + correct + (session.kind === 'daily' ? 25 : 0));
+    progression.battlePass.xp = Math.min(5000, Number(progression.battlePass.xp ?? 0) + 15 + correct + (session.kind === 'daily' ? 25 : 0));
     let requestedBonusXp = 10;
     let jadeEarned = 0;
     if (session.kind === 'daily') {
