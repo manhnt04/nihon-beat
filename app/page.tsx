@@ -621,6 +621,13 @@ export default function Home() {
     animateScreenChange(() => setScreen(nextScreen));
   }, [screen, animateScreenChange]);
 
+  const showCastleToast = useCallback((msg: string, kind: 'ok' | 'bad' = 'ok') => {
+    setCastleToast({ msg, kind });
+    setTimeout(() => {
+      setCastleToast((curr) => (curr?.msg === msg ? null : curr));
+    }, 2200);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storageKey = `castle_extra_buildings_${authUser?.id ?? 'guest'}`;
@@ -1983,13 +1990,6 @@ export default function Home() {
         </section>
       </main>
     );
-
-  const showCastleToast = useCallback((msg: string, kind: 'ok' | 'bad' = 'ok') => {
-    setCastleToast({ msg, kind });
-    setTimeout(() => {
-      setCastleToast((curr) => (curr?.msg === msg ? null : curr));
-    }, 2200);
-  }, []);
 
   if (screen === 'castle') {
     const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
