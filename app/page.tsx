@@ -5490,6 +5490,23 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     const passLevel = Math.min(50, Math.floor(passXp / 100));
     const levelXp = passLevel >= 50 ? 100 : passXp % 100;
     const premiumActive = Boolean(progression?.battlePass?.premium);
+    const passRewardImage = (reward: { type: string; id?: string }) => {
+      if (reward.type === 'jade') return '/items/jade-fragment.png';
+      if (reward.type === 'crystals') return '/items/crystal.png';
+      const rewardAssets: Record<string, string> = {
+        'protect-charm': '/items/shop-streak-guard.png',
+        'diamond-guard': '/items/spin-castle-shield.png',
+        'revenge-order': '/items/spin-siege-ticket.png',
+        'enlightenment-pill': '/items/daily-seal.png',
+        'longmai-medal-s1': '/items/battle-pass-icon.png',
+        'frame-longmai-s1': '/items/shop-frame-dragon.png',
+        'effect-dragon-aura-s1': '/items/shop-effect-golden.png',
+        'effect-ice-s1': '/items/shop-effect-jade.png',
+        'seal-gold-s1': '/items/shop-seal-scholar.png',
+        'relic-azure-dragon-s1': '/items/spin-destiny-fragment.png',
+      };
+      return reward.id ? rewardAssets[reward.id] ?? null : null;
+    };
     return (
       <main className="app battle-pass-page">
         {historyControls}
@@ -5532,11 +5549,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 const ready = passXp >= row.xpReq;
                 const freeClaimed = (progression?.battlePass?.claimed ?? []).includes(`free-${row.tier}`);
                 const premiumClaimed = (progression?.battlePass?.claimed ?? []).includes(`premium-${row.tier}`);
+                const freeImage = passRewardImage(row.free);
+                const premiumImage = passRewardImage(row.premium);
                 return (
                   <article key={row.tier} className={`battle-pass-tier ${ready ? 'reached' : ''} ${row.tier % 10 === 0 ? 'milestone' : ''}`}>
-                    <div className="pass-reward-cell free"><i>{row.free.icon}</i><strong>{row.free.name}</strong><button className={freeClaimed ? 'claimed' : ''} disabled={!ready || freeClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}>{freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận' : 'Khóa'}</button></div>
+                    <div className="pass-reward-cell free"><i>{freeImage ? <img src={freeImage} alt="" /> : row.free.icon}</i><strong>{row.free.name}</strong><button className={freeClaimed ? 'claimed' : ''} disabled={!ready || freeClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}>{freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận' : 'Khóa'}</button></div>
                     <div className="pass-level-marker"><b>{row.tier}</b><small>{row.xpReq} XP</small></div>
-                    <div className="pass-reward-cell premium"><i>{row.premium.icon}</i><strong>{row.premium.name}</strong><button className={premiumClaimed ? 'claimed' : ''} disabled={!ready || !premiumActive || premiumClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}>{premiumClaimed ? '✓ Đã nhận' : !premiumActive ? 'Premium' : ready ? 'Nhận' : 'Khóa'}</button></div>
+                    <div className="pass-reward-cell premium"><i>{premiumImage ? <img src={premiumImage} alt="" /> : row.premium.icon}</i><strong>{row.premium.name}</strong><button className={premiumClaimed ? 'claimed' : ''} disabled={!ready || !premiumActive || premiumClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}>{premiumClaimed ? '✓ Đã nhận' : !premiumActive ? 'Premium' : ready ? 'Nhận' : 'Khóa'}</button></div>
                   </article>
                 );
               })}
