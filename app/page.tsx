@@ -69,6 +69,8 @@ import {
   hardPacks,
   normalDifficultyPool,
   hardDifficultyPool,
+  collocationsVocabulary,
+  contextSentencesVocabulary,
 } from '@/lib/difficulty-vocabulary';
 import { firebaseAuth, firebaseDb } from '@/lib/firebase';
 import {
@@ -181,6 +183,7 @@ const allVocabulary = [
   ...hsk4Vocabulary,
 ];
 const WORDS_PER_MATCH = 20;
+const PVP_QUESTIONS = 25;
 const shuffleVocabulary = (entries: VocabularyEntry[], seed?: number) => {
   const shuffled = [...entries];
   let state = seed ?? 0;
@@ -1572,6 +1575,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const audioUrl = useRef<string | null>(null);
   const typingInputRef = useRef<HTMLInputElement | null>(null);
   const vocab = matchVocabulary;
+  const directionSplit = pvpRoom ? 12 : 10;
   const filteredVocabulary = useMemo(() => {
     const query = normalizeAnswer(dictionaryQuery);
     const folderVocabulary = selectedHskFolder
@@ -1584,7 +1588,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   }, [dictionaryQuery, selectedHskFolder]);
   const options = useMemo(() => {
     if (!vocab.length || !vocab[word]) return [];
-    const column = round <= 10 ? 3 : 0;
+    const column = round <= directionSplit ? 3 : 0;
     const correct = vocab[word][column];
     const uniqueDistractors: string[] = [];
     for (let offset = 1; offset < vocab.length; offset++) {
@@ -1600,14 +1604,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       [opts[i], opts[j]] = [opts[j], opts[i]];
     }
     return opts;
-  }, [word, round, vocab]);
+  }, [word, round, vocab, directionSplit]);
   const makeRound = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
       navigate('result');
       return;
     }
-    if (round === 10 && !directionBreakDone) {
+    if (round === directionSplit && !directionBreakDone) {
       setDirectionBreakDone(true);
       setDirectionCountdown(10);
       setPhase('sequence');
@@ -1626,7 +1630,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         (_, i) => (round * 3 + i * 2) % 4,
       ),
     );
-  }, [round, vocab.length, directionBreakDone, difficultyTab]);
+  }, [round, vocab.length, directionBreakDone, difficultyTab, directionSplit]);
   const playDefaultTrack = (trackIndex?: number) => {
     const index =
       trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
@@ -1704,7 +1708,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     if (forcedVocabulary) {
       activeMatchPool.current = forcedVocabulary;
       if (pvpStarted.current) {
-        nextVocabulary = forcedVocabulary.slice(0, WORDS_PER_MATCH);
+        nextVocabulary = forcedVocabulary.slice(0, PVP_QUESTIONS);
       } else if (forcedVocabulary.length > WORDS_PER_MATCH) {
         nextVocabulary = shuffleVocabulary(forcedVocabulary).slice(0, WORDS_PER_MATCH);
       } else {
@@ -1782,7 +1786,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     pvpHistorySaved.current = false;
     setPvpRoom(room);
     setMode(room.mode ?? 'typing');
-    const sharedWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, WORDS_PER_MATCH);
+    const firstWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, 8);
+    const firstPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 11).slice(0, 2);
+    const firstSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 23).slice(0, 2);
+    const secondWords = shuffleVocabulary(allVocabulary, room.seed + 37).slice(8, 16);
+    const secondPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 51).slice(0, 3);
+    const secondSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 67).slice(0, 2);
+    const sharedWords = [...firstWords, ...firstPhrases, ...firstSentences, ...secondWords, ...secondPhrases, ...secondSentences].slice(0, PVP_QUESTIONS);
     start(1, sharedWords);
   }, []);
   const pvpAction = async (action: 'match' | 'create' | 'join') => {
@@ -2003,7 +2013,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     const me = pvpRoom.host.id === authUser.id ? pvpRoom.host : pvpRoom.guest;
     const rival = pvpRoom.host.id === authUser.id ? pvpRoom.guest : pvpRoom.host;
     const myScore = Math.max(score, Number(me?.liveScore ?? 0));
-    return <aside className="pvp-live-score" aria-label="Điểm trực tiếp PvP"><header><span>实时比分</span><b>LIVE</b></header><div className="pvp-live-player me"><i>{me?.name.slice(0, 1).toUpperCase()}</i><span><small>BẠN · {me?.name}</small><b>{myScore.toLocaleString('vi-VN')}</b><em>{Math.max(correct, Number(me?.liveCorrect ?? 0))}/20 đúng</em></span></div><div className="pvp-live-vs">VS</div><div className="pvp-live-player"><i>{rival?.name.slice(0, 1).toUpperCase() ?? '?'}</i><span><small>ĐỐI THỦ · {rival?.name ?? 'Đang kết nối'}</small><b>{Number(rival?.liveScore ?? 0).toLocaleString('vi-VN')}</b><em>{Number(rival?.liveCorrect ?? 0)}/20 đúng</em></span></div></aside>;
+    return <aside className="pvp-live-score" aria-label="Điểm trực tiếp PvP"><header><span>实时比分</span></header><div className="pvp-live-player me"><i>{me?.name.slice(0, 1).toUpperCase()}</i><span><small>BẠN · {me?.name}</small><b>{myScore.toLocaleString('vi-VN')}</b><em>{Math.max(correct, Number(me?.liveCorrect ?? 0))}/25 đúng</em></span></div><div className="pvp-live-vs">VS</div><div className="pvp-live-player"><i>{rival?.name.slice(0, 1).toUpperCase() ?? '?'}</i><span><small>ĐỐI THỦ · {rival?.name ?? 'Đang kết nối'}</small><b>{Number(rival?.liveScore ?? 0).toLocaleString('vi-VN')}</b><em>{Number(rival?.liveCorrect ?? 0)}/25 đúng</em></span></div></aside>;
   })() : null;
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -2259,7 +2269,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       navigate('result');
       return;
     }
-    if (round === 10 && !directionBreakDone) {
+    if (round === directionSplit && !directionBreakDone) {
       setDirectionBreakDone(true);
       setDirectionCountdown(10);
       setTypingLocked(true);
@@ -2272,7 +2282,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setTypingTime(getDifficultyTime(difficultyTab));
     setTypingFeedback('NHẬP ĐÁP ÁN');
     setTypingLocked(false);
-  }, [round, vocab.length, directionBreakDone, difficultyTab]);
+  }, [round, vocab.length, directionBreakDone, difficultyTab, directionSplit]);
   const triggerCosmeticEffect = useCallback(() => {
     const effect = progression?.equipped.effect;
     if (!effect) return;
@@ -2284,7 +2294,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
     setTypingLocked(true);
-    const typingToHanzi = round > 10;
+    const typingToHanzi = round > directionSplit;
     const target = vocab[word][typingToHanzi ? 0 : 3];
     const normalizedInput = normalizeAnswer(typingInput);
     const acceptedAnswers = typingToHanzi
@@ -2323,7 +2333,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const chooseAnswer = useCallback(
     (answer: string) => {
       if (phase !== 'answer') return;
-      const target = vocab[word][round <= 10 ? 3 : 0];
+      const target = vocab[word][round <= directionSplit ? 3 : 0];
       if (answer === target) {
         playAnswerSound('correct');
         triggerCosmeticEffect();
@@ -2606,13 +2616,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </div>
           <article className={`typing-card ${typingLocked ? 'locked' : ''}`}>
             <span className="typing-label">
-              {round > 10 ? 'NHẬP CHỮ HÁN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
+              {round > directionSplit ? 'NHẬP CHỮ HÁN' : 'NHẬP NGHĨA TIẾNG VIỆT'}
             </span>
             <button className="pronounce" onClick={() => speak(vocab[word][0])}>
               <Volume2 /> Nghe phát âm
             </button>
-            <h1>{round > 10 ? vocab[word][3] : vocab[word][0]}</h1>
-            <p>{round > 10 ? 'Dịch sang tiếng Trung' : vocab[word][1]}</p>
+            <h1>{round > directionSplit ? vocab[word][3] : vocab[word][0]}</h1>
+            <p>{round > directionSplit ? 'Dịch sang tiếng Trung' : vocab[word][1]}</p>
             <div
               className="time-ring"
               style={
@@ -2628,7 +2638,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 value={typingInput}
                 onChange={(event) => setTypingInput(event.target.value)}
                 placeholder={
-                  round > 10 ? 'Ví dụ: 你好' : 'Ví dụ: xin chào'
+                  round > directionSplit ? 'Ví dụ: 你好' : 'Ví dụ: xin chào'
                 }
                 disabled={typingLocked}
                 autoComplete="off"
@@ -2725,10 +2735,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </div>
           <article className="quiz-card">
             <span>
-              {round <= 10 ? 'CHỌN NGHĨA TIẾNG VIỆT' : 'CHỌN CHỮ HÁN'}
+              {round <= directionSplit ? 'CHỌN NGHĨA TIẾNG VIỆT' : 'CHỌN CHỮ HÁN'}
             </span>
-            <h1>{round <= 10 ? vocab[word][0] : vocab[word][3]}</h1>
-            <p>{round <= 10 ? vocab[word][1] : 'Từ nào có nghĩa như trên?'}</p>
+            <h1>{round <= directionSplit ? vocab[word][0] : vocab[word][3]}</h1>
+            <p>{round <= directionSplit ? vocab[word][1] : 'Từ nào có nghĩa như trên?'}</p>
             {phase === 'answer' ? (
               <div className="answer-options">
                 {options.map((o, i) => (
@@ -2839,9 +2849,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </button>
             <button onClick={() => navigate('dictionary')}>
               <BookOpen /> Ôn từ
-            </button>
-            <button className="result-castle-cta" onClick={() => navigate('castle')}>
-              <MapIcon /> Vào Thành Trì
             </button>
             <button onClick={openLeaderboard}>
               <Trophy /> Xếp hạng

@@ -22,7 +22,7 @@ const botNames = ['Minh Châu', 'Gia Hân', 'Tuấn Kiệt', 'Hải Đăng', 'An
 const makeBot = (mmr: number, seed: number): Player => {
   const difficulty = mmr >= 1500 ? .84 : mmr >= 1250 ? .7 : mmr >= 1050 ? .6 : .5;
   const variance = ((seed % 17) - 8) / 100;
-  const correct = Math.max(5, Math.min(19, Math.round(20 * (difficulty + variance))));
+  const correct = Math.max(6, Math.min(24, Math.round(25 * (difficulty + variance))));
   const score = correct * (1150 + seed % 451);
   return { id: `sim-${seed}`, name: botNames[seed % botNames.length], score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr, rank: rankName(mmr), botTargetCorrect: correct, botTargetScore: score };
 };
@@ -110,7 +110,7 @@ export default async function handler(request: any, response: any) {
   if (action === 'progress') {
     const code = String(request.body?.code ?? '').toUpperCase().slice(0, 6); const room = await redis.get<Room>(roomKey(code));
     const liveScore = Math.floor(Number(request.body?.score)); const liveCorrect = Math.floor(Number(request.body?.correct));
-    if (!room || room.status !== 'playing' || !Number.isFinite(liveScore) || !Number.isFinite(liveCorrect) || liveScore < 0 || liveScore > 100_000 || liveCorrect < 0 || liveCorrect > 20) return response.status(400).json({ error: 'Tiến độ không hợp lệ.' });
+    if (!room || room.status !== 'playing' || !Number.isFinite(liveScore) || !Number.isFinite(liveCorrect) || liveScore < 0 || liveScore > 120_000 || liveCorrect < 0 || liveCorrect > 25) return response.status(400).json({ error: 'Tiến độ không hợp lệ.' });
     const target = room.host.id === playerId ? room.host : room.guest?.id === playerId ? room.guest : null;
     if (!target) return response.status(403).json({ error: 'Bạn không thuộc phòng này.' });
     target.liveScore = Math.max(Number(target.liveScore ?? 0), liveScore); target.liveCorrect = Math.max(Number(target.liveCorrect ?? 0), liveCorrect);
@@ -119,7 +119,7 @@ export default async function handler(request: any, response: any) {
   if (action === 'score') {
     const code = String(request.body?.code ?? '').toUpperCase().slice(0, 6); const room = await redis.get<Room>(roomKey(code));
     const score = Math.floor(Number(request.body?.score)); const correct = Math.floor(Number(request.body?.correct));
-    if (!room || !Number.isFinite(score) || !Number.isFinite(correct) || score < 0 || score > 100_000 || correct < 0 || correct > 20) return response.status(400).json({ error: 'Kết quả vượt giới hạn hợp lệ.' });
+    if (!room || !Number.isFinite(score) || !Number.isFinite(correct) || score < 0 || score > 120_000 || correct < 0 || correct > 25) return response.status(400).json({ error: 'Kết quả vượt giới hạn hợp lệ.' });
     const target = room.host.id === playerId ? room.host : room.guest?.id === playerId ? room.guest : null;
     if (!target) return response.status(403).json({ error: 'Bạn không thuộc phòng này.' });
     if (target.submittedAt) return response.status(409).json({ error: 'Kết quả đã được ghi nhận.' });
@@ -136,9 +136,9 @@ export default async function handler(request: any, response: any) {
       room.status = 'finished'; room.completedAt = Date.now();
       const ids = [room.host.id, guest.id].sort(); const pairKey = `hanzibeat:pvp:pair:${bangkokDate()}:${ids.join(':')}`;
       const pairMatchesToday = await redis.incr(pairKey); if (pairMatchesToday === 1) await redis.expire(pairKey, 172800);
-      const afk = room.host.correct! <= 1 || guest.correct! <= 1; const valid = !afk;
-      const rewardEligible = valid && pairMatchesToday <= 3; const rankedEligible = valid && pairMatchesToday <= 5;
-      room.integrity = { valid, reason: afk ? 'AFK hoặc quá ít tương tác' : pairMatchesToday > 5 ? 'Vượt giới hạn cùng đối thủ' : null, pairMatchesToday, rewardEligible, rankedEligible };
+      const valid = true;
+      const rewardEligible = pairMatchesToday <= 3; const rankedEligible = pairMatchesToday <= 5;
+      room.integrity = { valid, reason: pairMatchesToday > 5 ? 'Vượt giới hạn cùng đối thủ' : null, pairMatchesToday, rewardEligible, rankedEligible };
       room.rankChanges = { [room.host.id]: 0, [guest.id]: 0 };
       if (rewardEligible) {
         for (const uid of ids.filter((uid) => !uid.startsWith('sim-'))) {
