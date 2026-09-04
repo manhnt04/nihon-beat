@@ -1491,12 +1491,37 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setAutoSpin(true);
     void spinOnce();
   };
+  const floatingCastleLevel = progression?.castle.buildings
+    ? Math.max(1, Object.values(progression.castle.buildings).reduce((sum, lvl) => sum + lvl, 0) - 2)
+    : 1;
+  const floatingCastleStage = castleVisualStage(progression?.castle.buildings.main ?? 1);
+  const floatingCastleHasHarvest = lastHarvestTime > 0 && (Date.now() - lastHarvestTime) >= 3600 * 1000;
   const historyControls = (
     <>
       <div className="history-controls" aria-label="Điều hướng trang">
         <button onClick={() => window.history.back()} aria-label="Quay lại trang trước" title="Trang trước"><ChevronLeft /></button>
         <button onClick={() => window.history.forward()} aria-label="Đi tới trang sau" title="Trang sau"><ChevronRight /></button>
       </div>
+      {screen !== 'castle' && screen !== 'castle-test' && (
+        <button
+          className="castle-fab"
+          onClick={() => navigate('castle')}
+          aria-label="Vào Hán Tự Thành"
+          title="Vào Hán Tự Thành"
+        >
+          <img
+            src={`/castle/buildings/main/stage-${floatingCastleStage}.webp`}
+            alt="Hán Tự Thành"
+          />
+          <span>
+            <b>Lv.{floatingCastleLevel}</b>
+            <small>THÀNH</small>
+          </span>
+          {floatingCastleHasHarvest && (
+            <i className="castle-fab-badge" title="Có tài nguyên thu hoạch!">✨</i>
+          )}
+        </button>
+      )}
       <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
       {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
         <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
