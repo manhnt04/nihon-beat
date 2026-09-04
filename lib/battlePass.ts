@@ -45,7 +45,7 @@ export const BATTLE_PASS_TIERS = Array.from({ length: 50 }, (_, index) => {
   const tier = index + 1;
   const free = freeSpecial[tier] ?? { type: 'jade' as const, amount: 13, name: '13 Mảnh Ngọc', icon: '💎' };
   const premium = premiumSpecial[tier] ?? (crystalTiers.has(tier)
-    ? { type: 'crystals' as const, amount: 10, name: '10 Tinh Thạch', icon: '🔮' }
+    ? { type: 'crystals' as const, amount: 10, name: '10 Linh Thạch', icon: '🔮' }
     : { type: 'collectible' as const, id: 'longmai-medal-s1', amount: 1, name: 'Huy Chương Long Mạch', icon: '🏅' });
   return { tier, xpReq: tier * 100, free, premium };
 });

@@ -903,6 +903,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
+  type SepayOrderInfo = {
+    orderCode: string;
+    amount: number;
+    crystals: number;
+    packageName: string;
+    bankAccount: string;
+    bankName: string;
+    accountName: string;
+    qrUrl: string;
+    vietqrUrl: string;
+  };
+  const [sepayOrder, setSepayOrder] = useState<SepayOrderInfo | null>(null);
+  const [sepayStatus, setSepayStatus] = useState<'idle' | 'creating' | 'waiting' | 'completed' | 'error'>('idle');
+  const [sepayError, setSepayError] = useState<string>('');
+  const [sepayCopied, setSepayCopied] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<'special' | 'cosmetics' | 'items' | 'pass' | 'crystals'>('special');
   const [spinOpen, setSpinOpen] = useState(false);
   const [slotResult, setSlotResult] = useState<SlotResult | null>(null);
@@ -1980,6 +1995,257 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện giao dịch.');
     }
   }, []);
+
+  const startSepayTopup = async (packageId: string) => {
+    const user = firebaseAuth.currentUser;
+    if (!user) {
+      setSepayError('Vui lòng đăng nhập tài khoản để nạp Linh Thạch.');
+      return;
+    }
+    setSepayStatus('creating');
+    setSepayError('');
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/sepay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'create-order', packageId }),
+      });
+      const data = (await res.json()) as { error?: string } & SepayOrderInfo;
+      if (!res.ok || data.error) throw new Error(data.error || 'Không thể tạo đơn nạp.');
+      setSepayOrder({
+        orderCode: data.orderCode,
+        amount: data.amount,
+        crystals: data.crystals,
+        packageName: data.packageName,
+        bankAccount: data.bankAccount,
+        bankName: data.bankName,
+        accountName: data.accountName,
+        qrUrl: data.qrUrl,
+        vietqrUrl: data.vietqrUrl,
+      });
+      setSepayStatus('waiting');
+    } catch (err) {
+      setSepayStatus('error');
+      setSepayError(err instanceof Error ? err.message : 'Lỗi kết nối tạo đơn nạp.');
+    }
+  };
+
+  const checkSepayOrder = useCallback(async (orderCode: string) => {
+    const user = firebaseAuth.currentUser;
+    if (!user || !orderCode) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/sepay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'check-order', orderCode }),
+      });
+      const data = (await res.json()) as { status?: string; crystals?: number; newBalance?: number; error?: string };
+      if (res.ok && data.status === 'completed') {
+        setSepayStatus('completed');
+        if (typeof data.newBalance === 'number') {
+          setProgression((p) => p ? { ...p, dragonCrystals: data.newBalance! } : p);
+        } else if (data.crystals) {
+          setProgression((p) => p ? { ...p, dragonCrystals: (p.dragonCrystals ?? 0) + data.crystals! } : p);
+        }
+        playAnswerSound('correct');
+      }
+    } catch {
+      // Background poll failure is silent
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!topupOpen || sepayStatus !== 'waiting' || !sepayOrder?.orderCode) return;
+    const timer = setInterval(() => {
+      void checkSepayOrder(sepayOrder.orderCode);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [topupOpen, sepayStatus, sepayOrder?.orderCode, checkSepayOrder]);
+
+  const closeTopupModal = () => {
+    setTopupOpen(false);
+    setSepayOrder(null);
+    setSepayStatus('idle');
+    setSepayError('');
+    setSepayCopied(null);
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    void navigator.clipboard.writeText(text);
+    setSepayCopied(label);
+    setTimeout(() => setSepayCopied(null), 2000);
+  };
+
+  const renderTopupModal = () => {
+    if (!topupOpen) return null;
+    return (
+      <div className="topup-modal-backdrop" onClick={closeTopupModal}>
+        <section
+          className={`topup-modal ${sepayOrder ? 'sepay-checkout' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Tiệm Linh Thạch"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header>
+            <button className="close-btn" onClick={closeTopupModal}>×</button>
+            <span>晶石阁 · TIỆM LINH THẠCH</span>
+            <h2>{sepayStatus === 'completed' ? 'Nạp Thành Công!' : sepayOrder ? 'Thanh Toán QR Ngân Hàng' : 'Nạp Linh Thạch'}</h2>
+            <p>
+              {sepayStatus === 'completed'
+                ? 'Linh Thạch đã được cộng vào tài khoản của bạn.'
+                : sepayOrder
+                  ? 'Quét mã VietQR bằng bất kỳ ứng dụng ngân hàng hoặc ví điện tử để nạp tự động.'
+                  : 'Mở khóa Theme Pack, Khí Tượng, Linh Thú và Long Vân Pass.'}
+            </p>
+          </header>
+
+          {sepayError && <div className="sepay-error-banner">{sepayError}</div>}
+
+          {sepayStatus === 'completed' ? (
+            <div className="sepay-success-pane">
+              <div className="sepay-success-icon">🎉</div>
+              <h3>Giao Dịch Đã Được Xác Nhận!</h3>
+              <p>Bạn đã nhận được <b>+{sepayOrder?.crystals} Linh Thạch</b>.</p>
+              <div className="sepay-new-balance">
+                Số dư hiện tại: <b>🔮 {(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')} Linh Thạch</b>
+              </div>
+              <button className="sepay-success-close-btn" onClick={closeTopupModal}>
+                Bắt Đầu Sử Dụng
+              </button>
+            </div>
+          ) : sepayOrder && sepayStatus === 'waiting' ? (
+            <div className="sepay-order-container">
+              <div className="sepay-qr-column">
+                <div className="sepay-qr-card">
+                  <img
+                    src={sepayOrder.qrUrl}
+                    alt="Mã QR Chuyển Khoản MBBank"
+                    className="sepay-qr-img"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = sepayOrder.vietqrUrl;
+                    }}
+                  />
+                  <div className="sepay-qr-badge">VietQR · MBBank</div>
+                </div>
+                <small className="sepay-qr-hint">
+                  Mở App Ngân hàng bất kỳ (MB, VCB, Techcombank, VPBank, Momo...) quét mã để tự động điền STK và nội dung.
+                </small>
+              </div>
+
+              <div className="sepay-details-column">
+                <div className="sepay-info-box">
+                  <div className="sepay-info-row">
+                    <span>Ngân hàng</span>
+                    <b>{sepayOrder.bankName} (Quân Đội)</b>
+                  </div>
+                  <div className="sepay-info-row">
+                    <span>Chủ tài khoản</span>
+                    <b>{sepayOrder.accountName}</b>
+                  </div>
+                  <div className="sepay-info-row">
+                    <span>Số tài khoản</span>
+                    <div className="sepay-copy-group">
+                      <b>{sepayOrder.bankAccount}</b>
+                      <button
+                        type="button"
+                        className="sepay-copy-btn"
+                        onClick={() => copyToClipboard(sepayOrder.bankAccount, 'account')}
+                      >
+                        {sepayCopied === 'account' ? '✓ Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="sepay-info-row">
+                    <span>Số tiền cần nạp</span>
+                    <div className="sepay-copy-group">
+                      <b className="sepay-amount-highlight">{sepayOrder.amount.toLocaleString('vi-VN')}đ</b>
+                      <button
+                        type="button"
+                        className="sepay-copy-btn"
+                        onClick={() => copyToClipboard(String(sepayOrder.amount), 'amount')}
+                      >
+                        {sepayCopied === 'amount' ? '✓ Đã chép' : 'Sao chép'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="sepay-info-row sepay-content-row">
+                    <span>Nội dung chuyển khoản</span>
+                    <div className="sepay-copy-group">
+                      <code className="sepay-code-val">{sepayOrder.orderCode}</code>
+                      <button
+                        type="button"
+                        className="sepay-copy-btn sepay-copy-btn-primary"
+                        onClick={() => copyToClipboard(sepayOrder.orderCode, 'content')}
+                      >
+                        {sepayCopied === 'content' ? '✓ Đã chép' : 'Sao chép mã'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sepay-status-card">
+                  <div className="sepay-pulsing-dot" />
+                  <span>Đang chờ giao dịch từ ngân hàng... Hệ thống tự động xác nhận trong 3-10 giây.</span>
+                </div>
+
+                <div className="sepay-actions">
+                  <button
+                    type="button"
+                    className="sepay-check-btn"
+                    onClick={() => void checkSepayOrder(sepayOrder.orderCode)}
+                  >
+                    Kiểm Tra Thanh Toán Ngay
+                  </button>
+                  <button
+                    type="button"
+                    className="sepay-back-btn"
+                    onClick={() => {
+                      setSepayOrder(null);
+                      setSepayStatus('idle');
+                    }}
+                  >
+                    ← Đổi gói khác
+                  </button>
+                </div>
+
+                <div className="sepay-warning-note">
+                  ⚠️ <b>Lưu ý quan trọng:</b> Hãy ghi chính xác mã nội dung <u>{sepayOrder.orderCode}</u> khi chuyển khoản để hệ thống tự động cộng Linh Thạch ngay tức khắc.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="topup-grid">
+                {[
+                  { id: 'topup-60', name: 'Túi Linh Thạch', crystals: 60, tag: '29.000đ', desc: 'Thích hợp mua cờ hiệu và khí tượng nhỏ.' },
+                  { id: 'topup-180', name: 'Hòm Linh Thạch', crystals: 180, tag: '79.000đ (+20 bonus)', desc: 'Tặng thêm 20 🔮 · Đủ mua Theme Pack bất kỳ hoặc Pass!' },
+                  { id: 'topup-450', name: 'Rương Linh Thạch', crystals: 450, tag: '179.000đ (+60 bonus)', desc: 'Tặng thêm 60 🔮 · Bộ sưu tập trọn vẹn Hán Tự Thành.' },
+                ].map((pack) => (
+                  <article key={pack.id} className="topup-card">
+                    <h4>{pack.name}</h4>
+                    <b className="crystals">🔮 +{pack.crystals}</b>
+                    <small>{pack.desc}</small>
+                    <button
+                      disabled={sepayStatus === 'creating'}
+                      onClick={() => void startSepayTopup(pack.id)}
+                    >
+                      {sepayStatus === 'creating' ? 'Đang tạo đơn...' : `Nạp ngay (${pack.tag})`}
+                    </button>
+                  </article>
+                ))}
+              </div>
+              <div className="topup-policy-note">
+                🔮 Linh Thạch chỉ dùng cho cosmetic, tiện ích không tăng sức mạnh và Battle Pass. Không thể đổi sang Mảnh Ngọc, XP, Rank hay tài nguyên xây dựng.
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    );
+  };
   const answerCombatQuestion = (answer: string) => {
     if (!combatQuiz) return;
     const isCorrect = answer === combatQuiz.questions[combatQuiz.index][3];
@@ -3062,7 +3328,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="hud-res-pill" title="木材 · Gỗ xây dựng">🪵 <b>{castle.wood.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="墨 · Mực học thuật">🖌 <b>{castle.ink.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="铜钱 · Coin xây dựng">🪙 <b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></div>
-            <div className="hud-res-pill hud-res-crystal" title="晶石 · Tinh Thạch cao cấp"><img className="inline-crystal-icon" src="/items/crystal.png" alt="" /> <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill hud-res-crystal" title="晶石 · Linh Thạch cao cấp"><img className="inline-crystal-icon" src="/items/crystal.png" alt="" /> <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill hud-res-energy" title="Năng lượng công thành">⚡ <b>{castle.attackEnergy}/5</b></div>
             <div className="hud-res-pill hud-res-buff" title="Phúc lợi Mảnh Ngọc Chủ Thành">玉 <b>+{mainBonusRate}%</b></div>
           </div>
@@ -3594,11 +3860,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 <header>
                   <div>
                     <span>龙晶商会 · THƯƠNG MẠI HÁN TỰ THÀNH</span>
-                    <h2>Tinh Thạch Các</h2>
+                    <h2>Linh Thạch Các</h2>
                   </div>
                   <div className="commerce-balance">
-                    <b>🔮 {progression?.dragonCrystals ?? 0} Tinh Thạch</b>
-                    <button className="topup-trigger-btn" onClick={() => setTopupOpen(true)}>+ Nạp Tinh Thạch</button>
+                    <b>🔮 {progression?.dragonCrystals ?? 0} Linh Thạch</b>
+                    <button className="topup-trigger-btn" onClick={() => setTopupOpen(true)}>+ Nạp Linh Thạch</button>
                   </div>
                 </header>
                 <div className="commerce-policy-banner">
@@ -3740,7 +4006,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     <header className="battle-pass-title"><div><span>龙脉之旅 · SEASON 1</span><h2>HÀNH TRÌNH LONG MẠCH</h2></div><b>⏳ 49 ngày còn lại</b></header>
                     <div className="battle-pass-summary">
                       <section className="pass-mission-card"><span>NHIỆM VỤ MÙA</span><h3>Đánh thức Long Mạch bằng tri thức!</h3><p>Hoàn thành bài học, Daily Challenge và PvP để thu thập Điểm Hành Trình.</p><div><b>Cấp {Math.min(50, Math.floor((progression?.battlePass?.xp ?? 0) / 100))}</b><small>{progression?.battlePass?.xp ?? 0}/5000 Điểm</small></div><div className="pass-bar"><i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 5000) * 100)}%` }} /></div></section>
-                      <section className="pass-premium-card"><span>PREMIUM TRACK</span><h3>Kho báu Thanh Long</h3><p>Avatar, hiệu ứng, nhạc, collectible độc quyền và hoàn lại 80 Tinh Thạch.</p><div className="pass-status">
+                      <section className="pass-premium-card"><span>PREMIUM TRACK</span><h3>Kho báu Thanh Long</h3><p>Avatar, hiệu ứng, nhạc, collectible độc quyền và hoàn lại 80 Linh Thạch.</p><div className="pass-status">
                         {progression?.battlePass?.premium ? (
                           <span className="premium-badge">★ LONG VÂN PREMIUM ĐÃ MỞ ★</span>
                         ) : (
@@ -3840,37 +4106,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </section>
           </div>
         )}
-        {topupOpen && (
-          <div className="topup-modal-backdrop" onClick={() => setTopupOpen(false)}>
-            <section className="topup-modal" role="dialog" aria-modal="true" aria-label="Tiệm Long Tinh" onClick={(e) => e.stopPropagation()}>
-              <header>
-                <button className="close-btn" onClick={() => setTopupOpen(false)}>×</button>
-                <span>龙晶阁 · TIỆM LONG TINH</span>
-                <h2>Nạp Tinh Thạch</h2>
-                <p>Mở khóa Theme Pack, Khí Tượng, Linh Thú và Long Vân Pass.</p>
-              </header>
-              <div className="topup-grid">
-                {[
-                  { id: 'topup-60', name: 'Túi Long Tinh', crystals: 60, tag: '29.000đ', desc: 'Thích hợp mua cờ hiệu và khí tượng nhỏ.' },
-                  { id: 'topup-180', name: 'Hòm Long Tinh', crystals: 180, tag: '79.000đ (+20 bonus)', desc: 'Tặng thêm 20 💎 · Đủ mua Theme Pack bất kỳ hoặc Pass!' },
-                  { id: 'topup-450', name: 'Rương Long Tinh', crystals: 450, tag: '179.000đ (+60 bonus)', desc: 'Tặng thêm 60 💎 · Bộ sưu tập trọn vẹn Thành Trì.' },
-                ].map((pack) => (
-                  <article key={pack.id} className="topup-card">
-                    <h4>{pack.name}</h4>
-                    <b className="crystals">💎 +{pack.crystals}</b>
-                    <small>{pack.desc}</small>
-                    <button onClick={() => { void runCastleCommerce('topup', { packageId: pack.id }); setTopupOpen(false); }}>
-                      Nhận ngay ({pack.tag})
-                    </button>
-                  </article>
-                ))}
-              </div>
-              <div className="topup-policy-note">
-                🔮 Tinh Thạch chỉ dùng cho cosmetic, tiện ích không tăng sức mạnh và Battle Pass. Không thể đổi sang Mảnh Ngọc, XP, Rank hay tài nguyên xây dựng.
-              </div>
-            </section>
-          </div>
-        )}
+        {renderTopupModal()}
         {selectedBuilding && (() => {
           const level = castle.buildings[selectedBuilding.id];
           const visualStage = castleVisualStage(level);
@@ -5224,7 +5460,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           {!authUser ? <div className="inventory-login"><Package /><h2>Kho đồ cần tài khoản</h2><p>Đăng nhập để đồng bộ Mảnh Ngọc và vật phẩm trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
-              <article className="crystal-wallet"><img src="/items/crystal.png" alt="Tinh Thạch"/><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Tinh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
+              <article className="crystal-wallet"><img src="/items/crystal.png" alt="Linh Thạch"/><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Linh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
               <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>
@@ -5280,7 +5516,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Cosmetic shop</small></b></button>
-          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> Nạp Tinh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> Nạp Linh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
           <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
@@ -5289,7 +5525,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <button className={shopTab === 'cosmetics' ? 'on' : ''} onClick={() => setShopTab('cosmetics')}>🎨 Ngoại Trang</button>
             <button className={shopTab === 'items' ? 'on' : ''} onClick={() => setShopTab('items')}>🛡 Vật Phẩm</button>
             <button className={shopTab === 'pass' ? 'on' : ''} onClick={() => setShopTab('pass')}>🎫 Battle Pass</button>
-            <button className={shopTab === 'crystals' ? 'on' : ''} onClick={() => setShopTab('crystals')}>🔮 Tinh Thạch</button>
+            <button className={shopTab === 'crystals' ? 'on' : ''} onClick={() => setShopTab('crystals')}>🔮 Linh Thạch</button>
           </nav>
           {!authUser ? <div className="inventory-login"><ShoppingBag /><h2>Đăng nhập để mua vật phẩm</h2><p>Cosmetic và Mảnh Ngọc sẽ được đồng bộ theo tài khoản.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
@@ -5321,15 +5557,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               ['🎯','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['🔗','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
               ['📜','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['⏳','Định Thân Chú','定身咒','Chỉ dùng PvE'],
             ].map(([icon,name,hanzi,note]) => <article key={name}><i>{icon}</i><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
-            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Tinh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
-            {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Tinh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Tinh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Tinh Thạch</button></section>}
+            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Linh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
+            {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Linh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Linh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Linh Thạch</button></section>}
           </>}
         </section>
-        {topupOpen && <div className="topup-modal-backdrop" onClick={() => setTopupOpen(false)}><section className="topup-modal" role="dialog" aria-modal="true" aria-label="Tiệm Tinh Thạch" onClick={(event) => event.stopPropagation()}><header><button className="close-btn" onClick={() => setTopupOpen(false)}>×</button><span>晶石阁 · TIỆM TINH THẠCH</span><h2>Nạp Tinh Thạch</h2><p>Mở khóa cosmetic, Theme Pack và Long Vân Pass.</p></header><div className="topup-grid">{[
-          { id: 'topup-60', name: 'Túi Tinh Thạch', crystals: 60, tag: '29.000đ', desc: 'Phù hợp cho cosmetic và tiện ích nhỏ.' },
-          { id: 'topup-180', name: 'Hòm Tinh Thạch', crystals: 180, tag: '79.000đ', desc: 'Tặng thêm 20 Tinh Thạch · đủ mở Premium Pass.' },
-          { id: 'topup-450', name: 'Rương Tinh Thạch', crystals: 450, tag: '179.000đ', desc: 'Tặng thêm 60 Tinh Thạch cho bộ sưu tập.' },
-        ].map((pack) => <article key={pack.id} className="topup-card"><h4>{pack.name}</h4><b className="crystals">🔮 +{pack.crystals}</b><small>{pack.desc}</small><button onClick={() => { void runCastleCommerce('topup', { packageId: pack.id }); setTopupOpen(false); }}>Nhận ngay ({pack.tag})</button></article>)}</div><div className="topup-policy-note">Tinh Thạch không thể đổi thành Mảnh Ngọc, XP, Rank hay tài nguyên xây dựng.</div></section></div>}
+        {renderTopupModal()}
       </main>
     );
   if (screen === 'pvp')
