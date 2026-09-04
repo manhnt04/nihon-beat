@@ -2,6 +2,7 @@
 
 import './castle.css';
 import './spin.css';
+import { BATTLE_PASS_TIERS } from '../lib/battlePass';
 import CastleIsoCanvas, {
   IsoBuildingData,
   PendingBuildingTemplate,
@@ -3750,7 +3751,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     <div className="pass-banner">
                       <div>
                         <h3>Long Vân Pass · Mùa 1</h3>
-                        <p>Học từ vựng và làm bài mỗi ngày để tiến qua 50 cấp. Mười cấp đầu đã mở, cấp 11–50 đang được hoàn thiện.</p>
+                        <p>Học từ vựng và làm bài mỗi ngày để tiến qua 50 cấp, nhận quà từ nhánh Miễn phí và Premium.</p>
                       </div>
                       <div className="pass-status">
                         {progression?.battlePass?.premium ? (
@@ -3774,45 +3775,33 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     </div>
 
                     <div className="castle-pass-v2">
-                      {Array.from({ length: 50 }, (_, index) => ([
-                        { tier: 1, xpReq: 100, free: '🪙 ×500 Coin', premium: '🌸 Lạc Hoa Phù Dao' },
-                        { tier: 2, xpReq: 200, free: '✨ 50 Study XP', premium: '💎 20 Long Tinh' },
-                        { tier: 3, xpReq: 300, free: '玉 ×20 Mảnh Ngọc', premium: '🦁 Thạch Sư Uy Nghi' },
-                        { tier: 4, xpReq: 400, free: '🚩 Bác Học Văn Kỳ', premium: '💎 30 Long Tinh' },
-                        { tier: 5, xpReq: 500, free: '🪙 ×1,200 Coin', premium: '🏮 Thiên Đăng Cầu Nguyện' },
-                        { tier: 6, xpReq: 600, free: '✨ 100 Study XP', premium: '💎 40 Long Tinh' },
-                        { tier: 7, xpReq: 700, free: '玉 ×40 Mảnh Ngọc', premium: '🦄 Kỳ Lân Hiến Thụy' },
-                        { tier: 8, xpReq: 800, free: '🐲 Long Đằng Chiến Kỳ', premium: '💎 40 Long Tinh' },
-                        { tier: 9, xpReq: 900, free: '✨ 200 Study XP', premium: '💎 50 Long Tinh' },
-                        { tier: 10, xpReq: 1000, free: '🏯 Theme Bích Ngọc Cung', premium: '🐉 Thanh Long + 🏯 Theme Đan Hà' },
-                      ][index] ?? { tier: index + 1, xpReq: (index + 1) * 100, free: 'Đang thiết kế', premium: 'Đang thiết kế' })).map((row) => {
+                      {BATTLE_PASS_TIERS.map((row) => {
                         const curXp = progression?.battlePass?.xp ?? 0;
                         const ready = curXp >= row.xpReq;
-                        const designed = row.tier <= 10;
                         const isPremUser = Boolean(progression?.battlePass?.premium);
                         const freeClaimed = (progression?.battlePass?.claimed ?? []).includes(`free-${row.tier}`);
                         const premiumClaimed = (progression?.battlePass?.claimed ?? []).includes(`premium-${row.tier}`);
                         return (
-                          <article key={row.tier} className={`pass-tier-card ${ready ? 'reached' : ''} ${!designed ? 'pass-coming-soon' : ''}`}>
+                          <article key={row.tier} className={`pass-tier-card ${ready ? 'reached' : ''}`}>
                             <div className="tier-badge">Cấp {row.tier} ({row.xpReq} XP)</div>
                             <div className="tier-track free-track">
-                              <small>Miễn phí: {row.free}</small>
+                              <small>{row.free.icon} Miễn phí: {row.free.name}</small>
                               <button
                                 className={freeClaimed ? 'claimed' : ''}
-                                disabled={!designed || !ready || freeClaimed}
+                                disabled={!ready || freeClaimed}
                                 onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}
                               >
-                                {freeClaimed ? '✓ Đã nhận' : !designed ? 'Sắp ra mắt' : ready ? 'Nhận quà' : 'Chưa đạt'}
+                                {freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận quà' : 'Chưa đạt'}
                               </button>
                             </div>
                             <div className="tier-track premium-track">
-                              <small>👑 Long Vân: {row.premium}</small>
+                              <small>{row.premium.icon} Premium: {row.premium.name}</small>
                               <button
                                 className={premiumClaimed ? 'claimed' : ''}
-                                disabled={!designed || !ready || !isPremUser || premiumClaimed}
+                                disabled={!ready || !isPremUser || premiumClaimed}
                                 onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}
                               >
-                                {premiumClaimed ? '✓ Đã nhận' : !designed ? 'Sắp ra mắt' : !isPremUser ? 'Khóa (Cần Pass)' : ready ? 'Nhận Premium' : 'Chưa đạt'}
+                                {premiumClaimed ? '✓ Đã nhận' : !isPremUser ? 'Khóa (Cần Pass)' : ready ? 'Nhận Premium' : 'Chưa đạt'}
                               </button>
                             </div>
                           </article>
@@ -5352,7 +5341,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               ['🎯','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['🔗','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
               ['📜','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['⏳','Định Thân Chú','定身咒','Chỉ dùng PvE'],
             ].map(([icon,name,hanzi,note]) => <article key={name}><i>{icon}</i><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
-            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm 50 cấp với nhánh Miễn phí và Premium. Hiện 10 cấp đầu đã có phần thưởng.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
+            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Tinh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
             {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Tinh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Tinh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Tinh Thạch</button></section>}
           </>}
         </section>

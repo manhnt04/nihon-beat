@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { BATTLE_PASS_TIERS } from '../lib/battlePass';
 
 const redis = Redis.fromEnv();
 const firebaseApiKey = 'AIzaSyDBseWlQG56fdyiPjl8dMNLOmKDQEGGFKM';
@@ -170,21 +171,8 @@ const castleCommerceCatalog = {
   'topup-60': { price: 0, crystals: 60, kind: 'topup', slot: 'topup', theme: '', name: 'Túi Tinh Thạch', tag: '29.000đ', desc: 'Nhận ngay 60 Tinh Thạch để trải nghiệm trang trí thành.' },
   'topup-180': { price: 0, crystals: 180, kind: 'topup', slot: 'topup', theme: '', name: 'Hòm Tinh Thạch (+20)', tag: '79.000đ', desc: 'Nhận 180 Tinh Thạch (Ưu đãi tặng thêm 20).' },
   'topup-450': { price: 0, crystals: 450, kind: 'topup', slot: 'topup', theme: '', name: 'Rương Tinh Thạch (+60)', tag: '179.000đ', desc: 'Nhận 450 Tinh Thạch (Ưu đãi tặng thêm 60).' },
-  'premium-pass': { price: 129, kind: 'pass', slot: 'pass', theme: '', name: 'Long Vân Pass Mùa 1', desc: 'Mở khóa đường thưởng Premium với linh thú độc quyền.' },
+  'premium-pass': { price: 129, kind: 'pass', slot: 'pass', theme: '', name: 'Hành Trình Long Mạch · Premium', desc: 'Mở khóa 50 cấp Premium cosmetic và Ngọc Bội Thanh Long.' },
 } as const;
-
-export const BATTLE_PASS_TIERS = [
-  { tier: 1, free: { id: 'free-1', name: '15 Mảnh Ngọc', type: 'jade', amount: 15 }, premium: { id: 'premium-1', name: 'Cờ Hiệu Bác Học', type: 'banner', banner: 'banner-scholar' } },
-  { tier: 2, free: { id: 'free-2', name: '50 XP Học Tập', type: 'xp', amount: 50 }, premium: { id: 'premium-2', name: '30 Long Tinh', type: 'crystals', amount: 30 } },
-  { tier: 3, free: { id: 'free-3', name: '20 Mảnh Ngọc', type: 'jade', amount: 20 }, premium: { id: 'premium-3', name: 'Khí Tượng Cánh Hoa', type: 'weather', weather: 'weather-petals' } },
-  { tier: 4, free: { id: 'free-4', name: '80 XP Học Tập', type: 'xp', amount: 80 }, premium: { id: 'premium-4', name: '40 Long Tinh', type: 'crystals', amount: 40 } },
-  { tier: 5, free: { id: 'free-5', name: 'Cờ Hiệu Long Đằng', type: 'banner', banner: 'banner-dragon' }, premium: { id: 'premium-5', name: 'Thạch Sư Trấn Thành', type: 'guardian', guardian: 'guardian-lion' } },
-  { tier: 6, free: { id: 'free-6', name: '30 Mảnh Ngọc', type: 'jade', amount: 30 }, premium: { id: 'premium-6', name: '50 Long Tinh', type: 'crystals', amount: 50 } },
-  { tier: 7, free: { id: 'free-7', name: '100 XP Học Tập', type: 'xp', amount: 100 }, premium: { id: 'premium-7', name: 'Khí Tượng Đèn Lồng', type: 'weather', weather: 'weather-lanterns' } },
-  { tier: 8, free: { id: 'free-8', name: '40 Mảnh Ngọc', type: 'jade', amount: 40 }, premium: { id: 'premium-8', name: 'Kỳ Lân Hiến Thụy', type: 'guardian', guardian: 'guardian-qilin' } },
-  { tier: 9, free: { id: 'free-9', name: '150 XP Học Tập', type: 'xp', amount: 150 }, premium: { id: 'premium-9', name: '60 Long Tinh', type: 'crystals', amount: 60 } },
-  { tier: 10, free: { id: 'free-10', name: 'Theme Bích Ngọc Cung', type: 'theme', theme: 'theme-jade' }, premium: { id: 'premium-10', name: 'Thanh Long & Đan Hà Thu Cảnh', type: 'guardian_theme', guardian: 'guardian-dragon', theme: 'theme-crimson' } },
-] as const;
 
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -454,29 +442,16 @@ export default async function handler(request: any, response: any) {
       if (tierDef) {
         const reward = isPremium ? tierDef.premium : tierDef.free;
         if (reward.type === 'jade') {
-          progression.jade += reward.amount;
+          progression.jade += Number(reward.amount ?? 0);
         } else if (reward.type === 'xp') {
-          progression.xp += reward.amount;
+          progression.xp += Number(reward.amount ?? 0);
           progression.level = levelFromXp(progression.xp).level;
         } else if (reward.type === 'crystals') {
-          progression.dragonCrystals += reward.amount;
-        } else if (reward.type === 'banner' && 'banner' in reward) {
-          if (!progression.castle.ownedDecorations.includes(reward.banner)) progression.castle.ownedDecorations.push(reward.banner);
-        } else if (reward.type === 'weather' && 'weather' in reward) {
-          if (!progression.castle.ownedDecorations.includes(reward.weather)) progression.castle.ownedDecorations.push(reward.weather);
-        } else if (reward.type === 'guardian' && 'guardian' in reward) {
-          if (!progression.castle.ownedDecorations.includes(reward.guardian)) progression.castle.ownedDecorations.push(reward.guardian);
-        } else if (reward.type === 'theme' && 'theme' in reward) {
-          if (!progression.castle.ownedDecorations.includes(reward.theme)) progression.castle.ownedDecorations.push(reward.theme);
-          if (!progression.castle.ownedThemes.includes(reward.theme)) progression.castle.ownedThemes.push(reward.theme);
-        } else if (reward.type === 'guardian_theme') {
-          if ('guardian' in reward && !progression.castle.ownedDecorations.includes(reward.guardian)) {
-            progression.castle.ownedDecorations.push(reward.guardian);
-          }
-          if ('theme' in reward) {
-            if (!progression.castle.ownedDecorations.includes(reward.theme)) progression.castle.ownedDecorations.push(reward.theme);
-            if (!progression.castle.ownedThemes.includes(reward.theme)) progression.castle.ownedThemes.push(reward.theme);
-          }
+          progression.dragonCrystals += Number(reward.amount ?? 0);
+        } else if ((reward.type === 'item' || reward.type === 'collectible') && reward.id) {
+          progression.inventory[reward.id] = Number(progression.inventory[reward.id] ?? 0) + Number(reward.amount ?? 1);
+        } else if (reward.type === 'cosmetic' && reward.id) {
+          if (!progression.ownedCosmetics.includes(reward.id)) progression.ownedCosmetics.push(reward.id);
         }
       }
       progression.battlePass.claimed.push(claimId);
