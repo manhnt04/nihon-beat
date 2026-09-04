@@ -5962,96 +5962,31 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       )}
       {screen === 'songs' && (
         <section className="page lessons-page">
-          <div className="title">
-            <span className="eyebrow">CHẾ ĐỘ CHƠI ĐƠN</span>
-            <h1>Chọn Độ Khó & Gói Bài Học</h1>
-            <p>Học từ vựng HSK căn bản, kết hợp từ thông dụng và mẫu câu giao tiếp ngữ cảnh thực tế.</p>
-          </div>
-          <div className="mode-picker">
-            <button
-              className={mode === 'audition' ? 'active' : ''}
-              onClick={() => setMode('audition')}
-            >
-              <span className="mode-artwork"><img src="/lesson-rhythm-quiz.webp" alt="Minh họa Rhythm Quiz với thẻ từ vựng và bốn đáp án theo nhịp" /></span>
-              <b>Rhythm Quiz</b>
-              <small>Luân phiên chọn nghĩa tiếng Việt và chữ Hán</small>
-            </button>
-            <button
-              className={mode === 'typing' ? 'active typing' : ''}
-              onClick={() => setMode('typing')}
-            >
-              <span className="mode-artwork"><img src="/lesson-typing-battle.webp" alt="Minh họa Typing Battle với bàn phím Hán tự phát sáng" /></span>
-              <b>Typing Battle</b>
-              <small>Luân phiên dịch chữ Hán và nghĩa tiếng Việt</small>
-            </button>
-          </div>
-
-          <div className="difficulty-tier-picker" role="tablist" aria-label="Chọn độ khó">
+          <div className="lessons-header-bar">
             <button
               type="button"
-              role="tab"
-              aria-selected={difficultyTab === 'easy'}
-              className={`difficulty-tier-card easy ${difficultyTab === 'easy' ? 'active' : ''}`}
-              onClick={() => {
-                setDifficultyTab('easy');
-                setActivePackInfo(null);
-                activeMatchPool.current = null;
-              }}
+              className="lessons-change-mode-btn"
+              onClick={() => openPlayModeModal()}
+              title="Nhấn để đổi hình thức chơi hoặc cấp độ thử thách"
             >
-              <span className="difficulty-tier-icon">🟢</span>
-              <div className="difficulty-tier-text">
-                <span className="difficulty-tier-badge">CẤP ĐỘ 1</span>
-                <h3>DỄ (HSK 1 - 4)</h3>
-                <p>Kho từ vựng HSK nền tảng, luyện từ đơn và từ vựng thông dụng</p>
-                <small>4 Cấp HSK · {allVocabulary.length} từ vựng</small>
-              </div>
+              ← Đổi Chế Độ / Độ Khó
             </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={difficultyTab === 'normal'}
-              className={`difficulty-tier-card normal ${difficultyTab === 'normal' ? 'active' : ''}`}
-              onClick={() => {
-                setDifficultyTab('normal');
-                setSelectedNormalPack(0);
-              }}
-            >
-              <span className="difficulty-tier-icon">🟡</span>
-              <div className="difficulty-tier-text">
-                <span className="difficulty-tier-badge">CẤP ĐỘ 2</span>
-                <h3>BÌNH THƯỜNG</h3>
-                <p>Collocations (kết hợp từ thường gặp) & Quán ngữ, Thành ngữ 4 chữ</p>
-                <small>3 Gói luyện · {normalDifficultyPool.length} mục chọn lọc</small>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={difficultyTab === 'hard'}
-              className={`difficulty-tier-card hard ${difficultyTab === 'hard' ? 'active' : ''}`}
-              onClick={() => {
-                setDifficultyTab('hard');
-                setSelectedHardPack(0);
-              }}
-            >
-              <span className="difficulty-tier-icon">🔴</span>
-              <div className="difficulty-tier-text">
-                <span className="difficulty-tier-badge">CẤP ĐỘ 3</span>
-                <h3>KHÓ (MẪU CÂU)</h3>
-                <p>Sentence patterns (mẫu câu liên từ) & Câu ngắn có ngữ cảnh</p>
-                <small>3 Gói thử thách · {hardDifficultyPool.length} câu ngữ cảnh</small>
-              </div>
-            </button>
+            <div className="lessons-current-badges">
+              <span className="badge-item mode">
+                {mode === 'audition' ? '🎵 Rhythm Quiz' : '⌨️ Typing Battle'}
+              </span>
+              <span className="badge-item diff">
+                {difficultyTab === 'easy'
+                  ? '🟢 Cấp 1 · Dễ (HSK)'
+                  : difficultyTab === 'normal'
+                  ? '🟡 Cấp 2 · Bình Thường'
+                  : '🔴 Cấp 3 · Khó (Mẫu Câu)'}
+              </span>
+            </div>
           </div>
 
           {difficultyTab === 'easy' && (
             <div className="difficulty-content-section">
-              <div className="difficulty-section-header">
-                <h2>🟢 Kho từ vựng HSK Căn Bản</h2>
-                <p>Chọn cấp độ HSK bạn muốn luyện tập theo nhịp điệu bài hát.</p>
-              </div>
               <div className="filters">
                 {songs.map((song, index) => (
                   <button
@@ -6103,10 +6038,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
 
           {difficultyTab === 'normal' && (
             <div className="difficulty-content-section">
-              <div className="difficulty-section-header">
-                <h2>🟡 Collocations & Thành Ngữ / Quán Ngữ Thường Gặp</h2>
-                <p>Nâng cao khả năng diễn đạt tự nhiên qua các cụm từ ghép chuẩn ngữ dụng Trung Quốc.</p>
-              </div>
               <div className="filters">
                 {normalPacks.map((pack, index) => (
                   <button
@@ -6161,10 +6092,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
 
           {difficultyTab === 'hard' && (
             <div className="difficulty-content-section">
-              <div className="difficulty-section-header">
-                <h2>🔴 Mẫu Câu Liên Từ & Câu Ngắn Có Ngữ Cảnh</h2>
-                <p>Chinh phục các mẫu câu ngữ pháp phức và câu đàm thoại tình huống thực tế đầy thử thách.</p>
-              </div>
               <div className="filters">
                 {hardPacks.map((pack, index) => (
                   <button

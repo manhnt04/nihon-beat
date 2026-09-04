@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert';
+import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -145,12 +145,13 @@ console.log('  ✅ PASS: Mobile bottom nav không còn nút Thành Trì.');
 assert(pageCode.includes('className="castle-fab"'), 'Floating Castle FAB vẫn tồn tại');
 console.log('  ✅ PASS: Icon nổi Hán Tự Thành (FAB) trên vòng quay vẫn nguyên vẹn.');
 
-// Giao diện chọn độ khó 3 cấp
-assert(pageCode.includes('difficulty-tier-picker'), 'Có difficulty-tier-picker');
-assert(pageCode.includes('DỄ (HSK 1 - 4)'), 'Có thẻ DỄ');
-assert(pageCode.includes('BÌNH THƯỜNG'), 'Có thẻ BÌNH THƯỜNG');
-assert(pageCode.includes('KHÓ (MẪU CÂU)'), 'Có thẻ KHÓ');
-console.log('  ✅ PASS: Giao diện chọn độ khó 3 cấp (DỄ, BÌNH THƯỜNG, KHÓ) hiển thị đầy đủ trong trang bài học.');
+// Giao diện chọn độ khó 3 cấp trong modal và thanh điều hướng gọn nhẹ trong lessons-page
+assert(pageCode.includes('lessons-header-bar'), 'Có thanh điều hướng gọn nhẹ lessons-header-bar');
+assert(pageCode.includes('lessons-change-mode-btn'), 'Có nút Đổi Chế Độ / Độ Khó');
+assert(pageCode.includes('Dễ (HSK)'), 'Có thẻ Dễ (HSK)');
+assert(pageCode.includes('Bình Thường'), 'Có thẻ Bình Thường');
+assert(pageCode.includes('Khó (Mẫu Câu)'), 'Có thẻ Khó (Mẫu Câu)');
+console.log('  ✅ PASS: Giao diện chọn độ khó 3 cấp trong popup và thanh trạng thái tinh gọn trong trang bài học đạt chuẩn.');
 
 // 6. Kiểm tra luồng popup 3 bước (Mode -> Gameplay với mode-picker artwork -> Difficulty)
 console.log('\n6. Kiểm tra luồng Popup Modal 3 Bước:');
