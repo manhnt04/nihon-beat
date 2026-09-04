@@ -327,3 +327,669 @@
 .castle-rank-list article button.attack{background:#a42b2f}.castle-combat-panel{margin-top:18px;padding:18px;border:1px solid #c99a58;border-radius:10px;background:linear-gradient(145deg,#3b1c18,#61231f);color:#f7e8c6}.castle-combat-panel>header{display:flex;align-items:center;gap:12px}.castle-combat-panel>header>div{flex:1}.castle-combat-panel>header span{color:#e4bc5f;font-size:8px;font-weight:900}.castle-combat-panel h2{margin:3px 0;font:700 24px "Songti SC","SimSun",serif}.castle-combat-panel>header>b{font-size:16px;color:#ffe074}.castle-combat-panel>header>button{padding:8px;border:1px solid #c2984a;border-radius:5px;background:#765425;color:#fff;font-size:8px;font-weight:900}.castle-combat-panel>header>button.on{background:#176b5b}.castle-combat-panel>p{color:#d4c09e;font-size:9px}.combat-protection{display:flex;gap:8px;margin:10px 0}.combat-protection span{flex:1;padding:7px;border:1px solid #ffffff20;border-radius:5px;background:#ffffff0d;font-size:8px}.combat-log-list{display:grid;gap:6px}.combat-log-list article{display:grid;grid-template-columns:65px 1fr auto;align-items:center;gap:8px;padding:8px;border-radius:5px;background:#fff7e9;color:#4d2a25}.combat-log-list article>b{font-size:8px}.combat-log-list .win{color:#21805f}.combat-log-list .lose{color:#a52c31}.combat-log-list span strong,.combat-log-list span small{display:block}.combat-log-list span small{margin-top:2px;color:#8d7465;font-size:7px}.combat-log-list button{padding:6px;border:0;border-radius:4px;background:#a42b2e;color:white;font-size:8px;font-weight:900}.combat-quiz-backdrop,.combat-result-backdrop{position:fixed;inset:0;z-index:250;display:grid;place-items:center;padding:18px;background:#160b09d9;backdrop-filter:blur(7px)}.combat-quiz,.combat-result-backdrop>section{width:min(520px,94vw);padding:25px;border:3px solid #bd8d3c;border-radius:12px;background:#fff6e1;text-align:center;box-shadow:0 25px 80px #0009}.combat-quiz>span,.combat-result-backdrop span{color:#a62c30;font-size:9px;font-weight:900;letter-spacing:.1em}.combat-quiz h2{margin:4px;font-family:"Songti SC","SimSun",serif}.combat-quiz-progress{height:7px;margin:12px 0;border-radius:5px;background:#e5d5b6;overflow:hidden}.combat-quiz-progress i{display:block;height:100%;background:linear-gradient(90deg,#a62c30,#e8bc55)}.combat-quiz>strong{display:block;color:#852629;font:700 52px "Songti SC","SimSun",serif}.combat-quiz>small{color:#8b7161}.combat-quiz>div:not(.combat-quiz-progress){display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.combat-quiz>div button{min-height:50px;padding:8px;border:1px solid #d6bd90;border-radius:6px;background:#fffdf7;color:#5e382f;font-weight:800}.combat-quiz>p{font-size:9px;font-weight:900}.combat-result-backdrop>section>b{display:block;font-size:60px}.combat-result-backdrop h2{font-family:"Songti SC","SimSun",serif}.combat-result-backdrop strong{display:block;margin:12px;color:#197058}.combat-result-backdrop button{padding:10px 30px;border:0;border-radius:5px;background:#a62c30;color:#fff;font-weight:900}@media(max-width:600px){.castle-combat-panel>header{flex-wrap:wrap}.combat-protection{flex-direction:column}.combat-log-list article{grid-template-columns:55px 1fr}.combat-log-list article button{grid-column:2}.combat-quiz>div:not(.combat-quiz-progress){grid-template-columns:1fr}}
 
 .castle-shop-trigger{width:100%;margin:20px 0 4px;padding:13px;border:2px solid #8b4a21;border-radius:9px;background:linear-gradient(#d99a43,#a85a25);color:#fff4d4;box-shadow:inset 0 0 0 2px #efc36c,0 7px 15px #4d231b28;text-align:center}.castle-shop-trigger span,.castle-shop-trigger small{display:block;font-size:8px;font-weight:900;letter-spacing:.1em}.castle-shop-trigger b{display:block;margin:2px;font:900 18px "Songti SC","SimSun",serif}.castle-shop-backdrop{position:fixed;inset:0;z-index:210;display:grid;place-items:center;padding:16px;background:#1b0d09bb;backdrop-filter:blur(6px)}.castle-shop-modal{width:min(690px,95vw);max-height:90vh;overflow:auto;padding:14px;border:5px solid #8e4b26;border-radius:14px;background:#f4dbad;box-shadow:inset 0 0 0 3px #fff0c9,0 22px 70px #0008}.castle-shop-modal>header{position:relative;margin:-5px auto 14px;padding:7px 45px;border:3px solid #75401f;border-radius:8px;background:linear-gradient(#bd7138,#8d4725);color:#fff4d6;text-align:center}.castle-shop-modal>header small{font-size:8px}.castle-shop-modal>header h2{margin:1px;font:900 24px "Songti SC","SimSun",serif}.castle-shop-modal>header button{position:absolute;right:8px;top:7px;width:34px;height:34px;border:3px solid #fff0c9;border-radius:50%;background:#b72f2b;color:#fff;font-size:22px;font-weight:900}.castle-shop-list{display:grid;gap:8px}.castle-shop-list>article{min-height:125px;display:grid;grid-template-columns:210px 1fr 125px;align-items:center;gap:12px;padding:10px;border:2px solid #d6b27a;border-radius:6px;background:#fff0d0}.castle-shop-art{display:flex;align-items:center;justify-content:center;gap:2px}.castle-shop-art img{width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 7px 7px #52281733)}.castle-shop-art>i{color:#e69a20;font-size:30px;font-style:normal;font-weight:1000}.castle-shop-info>span{color:#a32d2d;font-size:9px;font-weight:900}.castle-shop-info h3{margin:2px 0;font:700 18px "Songti SC","SimSun",serif}.castle-shop-stars{display:flex;gap:1px}.castle-shop-stars i{color:#a9a095;font-size:13px;font-style:normal}.castle-shop-stars i.on{color:#f2ad20;text-shadow:0 1px #9f5e16}.castle-shop-info>small{display:block;margin-top:5px;color:#7d6655;font-size:8px;font-weight:800}.castle-shop-buy{text-align:center}.castle-shop-buy b{display:block;margin-bottom:7px;color:#a96a16;font-size:11px}.castle-shop-buy button{width:100%;padding:9px 5px;border:2px solid #277a27;border-radius:6px;background:linear-gradient(#82d64a,#48a72c);color:#fff;font-size:10px;font-weight:1000;box-shadow:0 3px 0 #236e24}.castle-shop-buy button:disabled{border-color:#948874;background:#b4a995;box-shadow:none}.castle-shop-list>article>strong{color:#d89a1b;text-align:center;font-size:11px;transform:rotate(-5deg)}@media(max-width:650px){.castle-shop-list>article{grid-template-columns:120px 1fr}.castle-shop-art img{width:58px;height:58px}.castle-shop-buy,.castle-shop-list>article>strong{grid-column:1/-1}.castle-shop-info h3{font-size:15px}}
+
+/* ==========================================================================
+   FULLSCREEN ISOMETRIC KINGDOM VIEWPORT & OVERLAY HUD
+   ========================================================================== */
+.castle-fullscreen-app {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 50% 30%, #2c161d 0%, #150912 60%, #0c050a 100%);
+  z-index: 100;
+  touch-action: none;
+  user-select: none;
+}
+
+.castle-fullscreen-app.castle-theme-moon {
+  background: radial-gradient(ellipse at 50% 30%, #122338 0%, #091321 60%, #050a12 100%);
+}
+
+.castle-fullscreen-app.castle-theme-crimson {
+  background: radial-gradient(ellipse at 50% 30%, #381212 0%, #210a0a 60%, #120505 100%);
+}
+
+/* --- Top Floating HUD --- */
+.castle-top-hud {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.castle-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.castle-hud-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(239, 205, 104, 0.45);
+  border-radius: 30px;
+  background: rgba(30, 13, 17, 0.88);
+  color: #f7e8c6;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.castle-hud-back:hover {
+  background: #8b2b2b;
+  border-color: #efcd68;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.castle-hud-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px 4px 5px;
+  border: 1px solid rgba(239, 205, 104, 0.35);
+  border-radius: 30px;
+  background: rgba(30, 13, 17, 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.castle-hud-player .header-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  font-size: 16px;
+}
+
+.castle-hud-player b {
+  display: block;
+  font-size: 12px;
+  color: #fff0d0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.castle-hud-player small {
+  display: block;
+  font-size: 9px;
+  color: #dfbe6c;
+  font-weight: 800;
+}
+
+.castle-hud-resources {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid rgba(239, 205, 104, 0.4);
+  border-radius: 30px;
+  background: rgba(26, 11, 15, 0.88);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  overflow-x: auto;
+  max-width: 60vw;
+}
+
+.hud-res-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #e5d2b3;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.hud-res-pill b {
+  color: #fff;
+  font-weight: 800;
+}
+
+.hud-res-pill.hud-res-crystal b {
+  color: #7ce8ff;
+  text-shadow: 0 0 8px rgba(124, 232, 255, 0.4);
+}
+
+.hud-res-pill.hud-res-energy b {
+  color: #ffd858;
+}
+
+.hud-res-pill.hud-res-buff b {
+  color: #72f2be;
+}
+
+.castle-hud-right {
+  pointer-events: auto;
+}
+
+.castle-hud-realm-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 5px 14px;
+  border: 1.5px solid #dfbe6c;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(140, 36, 40, 0.9), rgba(58, 14, 18, 0.9));
+  color: #fff3d4;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(223, 190, 108, 0.2);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.castle-hud-realm-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(223, 190, 108, 0.35);
+  border-color: #ffd978;
+}
+
+.castle-hud-realm-badge small {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #ffd978;
+}
+
+.castle-hud-realm-badge b {
+  font: 700 13px "Songti SC", "SimSun", serif;
+  color: #fff9e8;
+}
+
+/* --- Bottom Floating Action Dock --- */
+.castle-bottom-dock {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 96vw;
+  pointer-events: none;
+}
+
+.dock-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(224, 190, 105, 0.38);
+  border-radius: 18px;
+  background: rgba(25, 11, 15, 0.9);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+}
+
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 58px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: #cfbc9f;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.dock-item i {
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.dock-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.dock-item.active {
+  background: linear-gradient(135deg, rgba(167, 43, 49, 0.9), rgba(95, 21, 26, 0.9));
+  border-color: #efcd68;
+  color: #fff2d0;
+  box-shadow: 0 4px 14px rgba(239, 205, 104, 0.4);
+}
+
+.dock-item.highlight-gold {
+  background: linear-gradient(135deg, rgba(166, 122, 38, 0.4), rgba(100, 70, 16, 0.4));
+  border-color: rgba(239, 205, 104, 0.5);
+  color: #ffe699;
+}
+
+.dock-item.highlight-gold:hover {
+  background: linear-gradient(135deg, rgba(190, 140, 45, 0.55), rgba(120, 85, 20, 0.55));
+}
+
+/* --- Toast Notification --- */
+.castle-iso-toast {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  padding: 8px 20px;
+  border-radius: 30px;
+  border: 1px solid #efcd68;
+  background: rgba(26, 11, 15, 0.94);
+  color: #fff1cf;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: castle-toast-in 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.castle-iso-toast.ok {
+  border-color: #3ec46f;
+  background: rgba(12, 36, 21, 0.95);
+  color: #d7ffd7;
+}
+
+.castle-iso-toast.bad {
+  border-color: #f04e54;
+  background: rgba(45, 12, 16, 0.95);
+  color: #ffd8d8;
+}
+
+@keyframes castle-toast-in {
+  from { opacity: 0; transform: translate(-50%, -10px) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* --- Modals for Castle Social, Combat, Commerce, Realm --- */
+.castle-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 4, 7, 0.8);
+  backdrop-filter: blur(8px);
+  animation: castle-fade-in 0.18s ease;
+}
+
+@keyframes castle-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.castle-modal-dialog {
+  position: relative;
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85);
+}
+
+.castle-modal-dialog.castle-modal-wide {
+  width: min(880px, 96vw);
+}
+
+.castle-modal-dialog .castle-social-panel,
+.castle-modal-dialog .castle-combat-panel,
+.castle-modal-dialog .castle-commerce-panel {
+  margin-top: 0;
+}
+
+.modal-close-btn {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 20;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.modal-close-btn:hover {
+  background: #a52a2d;
+  border-color: #efcd68;
+}
+
+/* --- Realm Progression Modal Card --- */
+.castle-realm-card {
+  position: relative;
+  width: min(520px, 92vw);
+  padding: 26px 22px;
+  border: 2px solid #e0be69;
+  border-radius: 16px;
+  background: linear-gradient(150deg, #2c141a, #16080d);
+  color: #faeed2;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.8);
+}
+
+.castle-realm-card .eyebrow {
+  color: #efcd68;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.castle-realm-card h3 {
+  font: 700 24px "Songti SC", "SimSun", serif;
+  margin: 6px 0 10px;
+  color: #ffe699;
+}
+
+.castle-realm-card p {
+  font-size: 12px;
+  color: #d8c4a6;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.castle-realm-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.realm-step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  opacity: 0.45;
+}
+
+.realm-step-item i {
+  font-style: normal;
+  font-size: 14px;
+}
+
+.realm-step-item.unlocked {
+  opacity: 1;
+  border-color: #efcd68;
+  background: rgba(239, 205, 104, 0.12);
+  color: #ffe699;
+  font-weight: 700;
+}
+
+/* --- Battle Pass Styles in Commerce Modal --- */
+.commerce-pass-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pass-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid rgba(224, 190, 105, 0.45);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(82, 38, 122, 0.6), rgba(36, 17, 56, 0.8));
+}
+
+.pass-banner h3 {
+  margin: 0 0 4px;
+  font: 700 22px "Songti SC", "SimSun", serif;
+  color: #ffd978;
+}
+
+.pass-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: #dccae9;
+}
+
+.pass-status .premium-badge {
+  display: inline-block;
+  padding: 8px 16px;
+  border: 1.5px solid #efcd68;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #a7771f, #573b06);
+  color: #fff4d2;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 15px rgba(239, 205, 104, 0.3);
+}
+
+.pass-status button {
+  padding: 10px 18px;
+  border: 1.5px solid #efcd68;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #b88626, #7a5511);
+  color: #fff9e6;
+  font-weight: 900;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s;
+}
+
+.pass-status button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 205, 104, 0.4);
+}
+
+.pass-progress-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ebdff7;
+}
+
+.pass-bar {
+  position: relative;
+  height: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+.pass-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8857d4, #f0c355);
+  transition: width 0.3s ease;
+}
+
+.castle-pass-v2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pass-tier-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.2s;
+}
+
+.pass-tier-card.reached {
+  border-color: #efcd68;
+  background: rgba(239, 205, 104, 0.08);
+}
+
+.tier-badge {
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffd978;
+  text-align: center;
+}
+
+.tier-track {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(18, 8, 28, 0.7);
+}
+
+.tier-track.premium-track {
+  border: 1px solid rgba(239, 205, 104, 0.25);
+  background: linear-gradient(135deg, rgba(46, 23, 14, 0.7), rgba(28, 11, 40, 0.7));
+}
+
+.tier-track small {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #dfceef;
+}
+
+.tier-track.premium-track small {
+  color: #ffe39f;
+}
+
+.tier-track button {
+  padding: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: #754ab8;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tier-track button.claimed {
+  background: #236b53;
+  color: #d6ffe7;
+  cursor: default;
+}
+
+.tier-track button:disabled:not(.claimed) {
+  background: #463b52;
+  color: #837593;
+  cursor: not-allowed;
+}
+
+/* --- Castle Login Prompt --- */
+.castle-login-prompt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(14, 6, 9, 0.85);
+  backdrop-filter: blur(10px);
+  color: #f7ebd1;
+  z-index: 60;
+}
+
+.castle-login-prompt h2 {
+  font: 700 26px "Songti SC", "SimSun", serif;
+  margin: 0;
+  color: #ffd878;
+}
+
+.castle-login-prompt p {
+  max-width: 380px;
+  font-size: 13px;
+  color: #d1bda2;
+  margin: 0;
+}
+
+.castle-login-prompt button {
+  padding: 10px 28px;
+  border: 1px solid #efcd68;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #a72b31, #69191d);
+  color: #fff;
+  font-weight: 900;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+  .castle-top-hud {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    flex-wrap: wrap;
+  }
+  .castle-hud-resources {
+    order: 3;
+    max-width: 100%;
+    width: 100%;
+    justify-content: space-around;
+    padding: 4px 8px;
+  }
+  .castle-bottom-dock {
+    bottom: 10px;
+    gap: 8px;
+  }
+  .dock-group {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+  .dock-item {
+    min-width: 48px;
+    padding: 4px 6px;
+    font-size: 9.5px;
+  }
+  .dock-item i {
+    font-size: 16px;
+  }
+}
