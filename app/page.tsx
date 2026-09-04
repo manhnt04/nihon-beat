@@ -64,6 +64,12 @@ import { defaultAudioTracks } from '@/lib/default-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
 import { hsk4Vocabulary } from '@/lib/hsk4-vocabulary';
+import {
+  normalPacks,
+  hardPacks,
+  normalDifficultyPool,
+  hardDifficultyPool,
+} from '@/lib/difficulty-vocabulary';
 import { firebaseAuth, firebaseDb } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
@@ -758,6 +764,15 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   });
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
   const [selected, setSelected] = useState(0);
+  const [difficultyTab, setDifficultyTab] = useState<'easy' | 'normal' | 'hard'>('easy');
+  const [selectedNormalPack, setSelectedNormalPack] = useState(0);
+  const [selectedHardPack, setSelectedHardPack] = useState(0);
+  const [activePackInfo, setActivePackInfo] = useState<{
+    title: string;
+    subtitle: string;
+    bpm: string;
+  } | null>(null);
+  const activeMatchPool = useRef<VocabularyEntry[] | null>(null);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [word, setWord] = useState(0);
@@ -1557,14 +1572,24 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     );
   }, [dictionaryQuery, selectedHskFolder]);
   const options = useMemo(() => {
+    if (!vocab.length || !vocab[word]) return [];
     const column = round <= 10 ? 3 : 0;
-    return [
-      vocab[word][column],
-      vocab[(word + 2) % vocab.length][column],
-      vocab[(word + 4) % vocab.length][column],
-      vocab[(word + 6) % vocab.length][column],
-    ].sort(() => 0.5 - Math.random());
-  }, [word, round, selected]);
+    const correct = vocab[word][column];
+    const uniqueDistractors: string[] = [];
+    for (let offset = 1; offset < vocab.length; offset++) {
+      const candidate = vocab[(word + offset) % vocab.length][column];
+      if (candidate !== correct && !uniqueDistractors.includes(candidate)) {
+        uniqueDistractors.push(candidate);
+        if (uniqueDistractors.length === 3) break;
+      }
+    }
+    const opts = [correct, ...uniqueDistractors];
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+    return opts;
+  }, [word, round, vocab]);
   const makeRound = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
@@ -1650,6 +1675,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     songIndex = selected,
     forcedVocabulary?: VocabularyEntry[],
     isDailyChallenge = false,
+    packInfo?: { title: string; subtitle: string; bpm: string } | null,
   ) => {
     const nextSong = Number.isInteger(songIndex) ? songIndex : selected;
     const requestedPool =
@@ -1662,8 +1688,31 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             : baseVocabulary;
     const pool =
       requestedPool.length >= WORDS_PER_MATCH ? requestedPool : allVocabulary;
-    const nextVocabulary = forcedVocabulary ?? shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
-    if (!forcedVocabulary) setPvpRoom(null);
+
+    let nextVocabulary: VocabularyEntry[];
+    if (forcedVocabulary) {
+      activeMatchPool.current = forcedVocabulary;
+      if (pvpStarted.current) {
+        nextVocabulary = forcedVocabulary.slice(0, WORDS_PER_MATCH);
+      } else if (forcedVocabulary.length > WORDS_PER_MATCH) {
+        nextVocabulary = shuffleVocabulary(forcedVocabulary).slice(0, WORDS_PER_MATCH);
+      } else {
+        nextVocabulary = shuffleVocabulary(forcedVocabulary);
+      }
+      if (packInfo !== undefined) {
+        setActivePackInfo(packInfo);
+      }
+    } else if (activeMatchPool.current && !isDailyChallenge) {
+      nextVocabulary = activeMatchPool.current.length > WORDS_PER_MATCH
+        ? shuffleVocabulary(activeMatchPool.current).slice(0, WORDS_PER_MATCH)
+        : shuffleVocabulary(activeMatchPool.current);
+    } else {
+      activeMatchPool.current = null;
+      setActivePackInfo(null);
+      nextVocabulary = shuffleVocabulary(pool).slice(0, WORDS_PER_MATCH);
+    }
+
+    if (!forcedVocabulary && !activeMatchPool.current) setPvpRoom(null);
     setDailyChallenge(isDailyChallenge);
     setSelected(nextSong);
     setMatchVocabulary(nextVocabulary);
@@ -1929,9 +1978,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       </button>
       <button className={screen === 'dictionary' ? 'on' : ''} onClick={() => navigate('dictionary')}>
         <BookOpen /><span>Từ vựng</span>
-      </button>
-      <button className={screen === 'castle' ? 'on' : ''} onClick={() => navigate('castle')}>
-        <MapIcon /><span>Thành trì</span>
       </button>
       <button className={screen === 'leaderboard' ? 'on' : ''} onClick={openLeaderboard}>
         <Trophy /><span>Xếp hạng</span>
@@ -2230,7 +2276,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     const target = vocab[word][typingToHanzi ? 0 : 3];
     const normalizedInput = normalizeAnswer(typingInput);
     const acceptedAnswers = typingToHanzi
-      ? [normalizeAnswer(target)]
+      ? [
+          normalizeAnswer(target),
+          normalizeAnswer(vocab[word][1]),
+          normalizeAnswer(vocab[word][2]),
+        ].filter(Boolean)
       : target
           .replace(/\([^)]*\)/g, '')
           .split(/[,;/]/)
@@ -2504,7 +2554,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <b>{score.toLocaleString()}</b>
           </div>
           <div className="now">
-            <b>TYPING BATTLE · {songs[selected][0]}</b>
+            <b>TYPING BATTLE · {activePackInfo?.title ?? songs[selected][0]}</b>
             <small>♪ {currentTrackName} · 02:30</small>
             <button className={`sound-toggle ${audioStatus}`} onClick={toggleAudio}>
               {audioStatus === 'playing' ? <Volume2 /> : <VolumeX />}
@@ -2622,9 +2672,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <b>{score.toLocaleString()}</b>
           </div>
           <div className="now">
-            <b>{songs[selected][0]}</b>
+            <b>{activePackInfo?.title ?? songs[selected][0]}</b>
             <small>
-              ♪ {currentTrackName} · {songs[selected][2]} BPM · 02:30
+              ♪ {currentTrackName} · {activePackInfo?.bpm ?? songs[selected][2]} BPM · 02:30
             </small>
             <button className={`sound-toggle ${audioStatus}`} onClick={toggleAudio}>
               {audioStatus === 'playing' ? <Volume2 /> : <VolumeX />}
@@ -2707,8 +2757,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             {mode === 'typing' ? 'TYPING BATTLE COMPLETE!' : 'RHYTHM QUIZ COMPLETE!'}
           </span>
           <div className="rank">A</div>
-          <h1>{dailyChallenge ? '每日挑战' : songs[selected][0]}</h1>
-          <p>{dailyChallenge ? 'Daily Challenge · HSK 1–9' : songs[selected][1]}</p>
+          <h1>{dailyChallenge ? '每日挑战' : (activePackInfo?.title ?? songs[selected][0])}</h1>
+          <p>{dailyChallenge ? 'Daily Challenge · HSK 1–9' : (activePackInfo?.subtitle ?? songs[selected][1])}</p>
           <b className="final">{score.toLocaleString()}</b>
           <div className="stats">
             <span>
@@ -5451,7 +5501,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           >
             Từ điển
           </button>
-          <button onClick={() => navigate('castle')}>🏯 Thành Trì</button>
           <button onClick={openLeaderboard}>Xếp hạng</button>
           <button onClick={() => navigate('inventory')}>Inventory</button>
           <button onClick={() => navigate('shop')}>Cửa hàng</button>
@@ -5470,7 +5519,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </b>
         </button>
       </header>
-      {playModeOpen && <div className="play-mode-backdrop" onMouseDown={() => setPlayModeOpen(false)}><section className="play-mode-modal" role="dialog" aria-modal="true" aria-labelledby="play-mode-title" onMouseDown={(event) => event.stopPropagation()}><button className="play-mode-close" onClick={() => setPlayModeOpen(false)} aria-label="Đóng">×</button><div className="play-mode-heading"><span>选择模式 · CHỌN CHẾ ĐỘ</span><h2 id="play-mode-title">Bạn muốn chơi theo cách nào?</h2><p>Mỗi hành trình đều giúp mở khóa Hán tự và phần thưởng tài khoản.</p></div><div className="play-mode-options"><button onClick={() => { setPlayModeOpen(false); navigate('songs'); }}><i>单</i><span><small>SOLO JOURNEY</small><b>Chơi đơn</b><p>Chọn bài học HSK và luyện tập theo nhịp của riêng bạn.</p><em>Vào Bài học →</em></span></button><button className="pvp-option" onClick={() => { setPlayModeOpen(false); openPvp(); }}><i>战</i><span><small>ONLINE ARENA</small><b>PvP Online</b><p>Ghép trận hoặc tạo phòng, thi đấu Rank cùng người chơi khác.</p><em>Vào Đấu trường →</em></span></button></div><footer><span>汉</span> Học một mình · Tiến bộ cùng nhau</footer></section></div>}
+      {playModeOpen && <div className="play-mode-backdrop" onMouseDown={() => setPlayModeOpen(false)}><section className="play-mode-modal" role="dialog" aria-modal="true" aria-labelledby="play-mode-title" onMouseDown={(event) => event.stopPropagation()}><button className="play-mode-close" onClick={() => setPlayModeOpen(false)} aria-label="Đóng">×</button><div className="play-mode-heading"><span>选择模式 · CHỌN CHẾ ĐỘ</span><h2 id="play-mode-title">Bạn muốn chơi theo cách nào?</h2><p>Mỗi hành trình đều giúp mở khóa Hán tự và phần thưởng tài khoản.</p></div><div className="play-mode-options"><button onClick={() => { setPlayModeOpen(false); navigate('songs'); }}><i>单</i><span><small>SOLO JOURNEY</small><b>Chơi đơn</b><p>Lựa chọn độ khó từ Dễ (HSK), Bình Thường (Collocation, Quán ngữ) đến Khó (Mẫu câu, Ngữ cảnh).</p><em>Chọn Độ Khó →</em></span></button><button className="pvp-option" onClick={() => { setPlayModeOpen(false); openPvp(); }}><i>战</i><span><small>ONLINE ARENA</small><b>PvP Online</b><p>Ghép trận hoặc tạo phòng, thi đấu Rank cùng người chơi khác.</p><em>Vào Đấu trường →</em></span></button></div><footer><span>汉</span> Học một mình · Tiến bộ cùng nhau</footer></section></div>}
       {audioOpen && (
         <div
           className="audio-modal-backdrop"
@@ -5711,11 +5760,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         </div>
       )}
       {screen === 'songs' && (
-        <section className="page">
+        <section className="page lessons-page">
           <div className="title">
-            <span className="eyebrow">FREE PLAY</span>
-            <h1>Chọn kho từ vựng</h1>
-            <p>Mỗi cấp HSK dùng trực tiếp từ vựng đang có trong từ điển.</p>
+            <span className="eyebrow">CHẾ ĐỘ CHƠI ĐƠN</span>
+            <h1>Chọn Độ Khó & Gói Bài Học</h1>
+            <p>Học từ vựng HSK căn bản, kết hợp từ thông dụng và mẫu câu giao tiếp ngữ cảnh thực tế.</p>
           </div>
           <div className="mode-picker">
             <button
@@ -5735,49 +5784,237 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <small>Luân phiên dịch chữ Hán và nghĩa tiếng Việt</small>
             </button>
           </div>
-          <div className="filters">
-            {songs.map((song, index) => (
-              <button
-                key={song[3]}
-                className={selected === index ? 'on' : ''}
-                onClick={() => setSelected(index)}
-              >
-                {song[3]} · {allVocabulary.filter((entry) => entry[4] === song[3]).length} từ
-              </button>
-            ))}
+
+          <div className="difficulty-tier-picker" role="tablist" aria-label="Chọn độ khó">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={difficultyTab === 'easy'}
+              className={`difficulty-tier-card easy ${difficultyTab === 'easy' ? 'active' : ''}`}
+              onClick={() => {
+                setDifficultyTab('easy');
+                setActivePackInfo(null);
+                activeMatchPool.current = null;
+              }}
+            >
+              <span className="difficulty-tier-icon">🟢</span>
+              <div className="difficulty-tier-text">
+                <span className="difficulty-tier-badge">CẤP ĐỘ 1</span>
+                <h3>DỄ (HSK 1 - 4)</h3>
+                <p>Kho từ vựng HSK nền tảng, luyện từ đơn và từ vựng thông dụng</p>
+                <small>4 Cấp HSK · {allVocabulary.length} từ vựng</small>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={difficultyTab === 'normal'}
+              className={`difficulty-tier-card normal ${difficultyTab === 'normal' ? 'active' : ''}`}
+              onClick={() => {
+                setDifficultyTab('normal');
+                setSelectedNormalPack(0);
+              }}
+            >
+              <span className="difficulty-tier-icon">🟡</span>
+              <div className="difficulty-tier-text">
+                <span className="difficulty-tier-badge">CẤP ĐỘ 2</span>
+                <h3>BÌNH THƯỜNG</h3>
+                <p>Collocations (kết hợp từ thường gặp) & Quán ngữ, Thành ngữ 4 chữ</p>
+                <small>3 Gói luyện · {normalDifficultyPool.length} mục chọn lọc</small>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={difficultyTab === 'hard'}
+              className={`difficulty-tier-card hard ${difficultyTab === 'hard' ? 'active' : ''}`}
+              onClick={() => {
+                setDifficultyTab('hard');
+                setSelectedHardPack(0);
+              }}
+            >
+              <span className="difficulty-tier-icon">🔴</span>
+              <div className="difficulty-tier-text">
+                <span className="difficulty-tier-badge">CẤP ĐỘ 3</span>
+                <h3>KHÓ (MẪU CÂU)</h3>
+                <p>Sentence patterns (mẫu câu liên từ) & Câu ngắn có ngữ cảnh</p>
+                <small>3 Gói thử thách · {hardDifficultyPool.length} câu ngữ cảnh</small>
+              </div>
+            </button>
           </div>
-          <div className="songs">
-            {songs.map((s, i) => (
-              <article
-                className={selected === i ? 'selected' : ''}
-                onClick={() => setSelected(i)}
-                key={s[0]}
-              >
-                <div className="album" style={{ background: s[5] }}>
-                  {s[0][0]}
-                  <Music2 />
-                </div>
-                <div>
-                  <small>{s[3]}</small>
-                  <h2>{s[0]}</h2>
-                  <p>{s[1]}</p>
-                </div>
-                <strong>
-                  {s[4]}
-                  <small>
-                    {s[2]} BPM · {allVocabulary.filter((entry) => entry[4] === s[3]).length} từ
-                  </small>
-                </strong>
-                <button
-                  onClick={() => {
-                    start(i);
-                  }}
-                >
-                  <Play />
-                </button>
-              </article>
-            ))}
-          </div>
+
+          {difficultyTab === 'easy' && (
+            <div className="difficulty-content-section">
+              <div className="difficulty-section-header">
+                <h2>🟢 Kho từ vựng HSK Căn Bản</h2>
+                <p>Chọn cấp độ HSK bạn muốn luyện tập theo nhịp điệu bài hát.</p>
+              </div>
+              <div className="filters">
+                {songs.map((song, index) => (
+                  <button
+                    key={song[3]}
+                    className={selected === index ? 'on' : ''}
+                    onClick={() => setSelected(index)}
+                  >
+                    {song[3]} · {allVocabulary.filter((entry) => entry[4] === song[3]).length} từ
+                  </button>
+                ))}
+              </div>
+              <div className="songs">
+                {songs.map((s, i) => (
+                  <article
+                    className={selected === i ? 'selected' : ''}
+                    onClick={() => setSelected(i)}
+                    key={s[0]}
+                  >
+                    <div className="album" style={{ background: s[5] }}>
+                      {s[0][0]}
+                      <Music2 />
+                    </div>
+                    <div>
+                      <small>{s[3]}</small>
+                      <h2>{s[0]}</h2>
+                      <p>{s[1]}</p>
+                    </div>
+                    <strong>
+                      {s[4]}
+                      <small>
+                        {s[2]} BPM · {allVocabulary.filter((entry) => entry[4] === s[3]).length} từ
+                      </small>
+                    </strong>
+                    <button
+                      aria-label={`Bắt đầu bài ${s[0]}`}
+                      onClick={() => {
+                        setActivePackInfo(null);
+                        activeMatchPool.current = null;
+                        start(i);
+                      }}
+                    >
+                      <Play />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {difficultyTab === 'normal' && (
+            <div className="difficulty-content-section">
+              <div className="difficulty-section-header">
+                <h2>🟡 Collocations & Thành Ngữ / Quán Ngữ Thường Gặp</h2>
+                <p>Nâng cao khả năng diễn đạt tự nhiên qua các cụm từ ghép chuẩn ngữ dụng Trung Quốc.</p>
+              </div>
+              <div className="filters">
+                {normalPacks.map((pack, index) => (
+                  <button
+                    key={pack.id}
+                    className={selectedNormalPack === index ? 'on' : ''}
+                    onClick={() => setSelectedNormalPack(index)}
+                  >
+                    {pack.name} · {pack.vocabulary.length} mục
+                  </button>
+                ))}
+              </div>
+              <div className="songs">
+                {normalPacks.map((pack, i) => (
+                  <article
+                    className={selectedNormalPack === i ? 'selected' : ''}
+                    onClick={() => setSelectedNormalPack(i)}
+                    key={pack.id}
+                  >
+                    <div className="album" style={{ background: pack.color }}>
+                      {pack.name.slice(0, 2)}
+                      <Sparkles />
+                    </div>
+                    <div>
+                      <small>{pack.tag}</small>
+                      <h2>{pack.name}</h2>
+                      <p>{pack.description}</p>
+                    </div>
+                    <strong>
+                      {pack.levelBadge}
+                      <small>
+                        {pack.bpm} BPM · {pack.vocabulary.length} mục
+                      </small>
+                    </strong>
+                    <button
+                      aria-label={`Bắt đầu gói ${pack.name}`}
+                      onClick={() => {
+                        start(
+                          i,
+                          pack.vocabulary,
+                          false,
+                          { title: pack.name, subtitle: pack.subtitle, bpm: pack.bpm },
+                        );
+                      }}
+                    >
+                      <Play />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {difficultyTab === 'hard' && (
+            <div className="difficulty-content-section">
+              <div className="difficulty-section-header">
+                <h2>🔴 Mẫu Câu Liên Từ & Câu Ngắn Có Ngữ Cảnh</h2>
+                <p>Chinh phục các mẫu câu ngữ pháp phức và câu đàm thoại tình huống thực tế đầy thử thách.</p>
+              </div>
+              <div className="filters">
+                {hardPacks.map((pack, index) => (
+                  <button
+                    key={pack.id}
+                    className={selectedHardPack === index ? 'on' : ''}
+                    onClick={() => setSelectedHardPack(index)}
+                  >
+                    {pack.name} · {pack.vocabulary.length} câu
+                  </button>
+                ))}
+              </div>
+              <div className="songs">
+                {hardPacks.map((pack, i) => (
+                  <article
+                    className={selectedHardPack === i ? 'selected' : ''}
+                    onClick={() => setSelectedHardPack(i)}
+                    key={pack.id}
+                  >
+                    <div className="album" style={{ background: pack.color }}>
+                      {pack.name.slice(0, 2)}
+                      <Sparkles />
+                    </div>
+                    <div>
+                      <small>{pack.tag}</small>
+                      <h2>{pack.name}</h2>
+                      <p>{pack.description}</p>
+                    </div>
+                    <strong>
+                      {pack.levelBadge}
+                      <small>
+                        {pack.bpm} BPM · {pack.vocabulary.length} câu
+                      </small>
+                    </strong>
+                    <button
+                      aria-label={`Bắt đầu gói ${pack.name}`}
+                      onClick={() => {
+                        start(
+                          i,
+                          pack.vocabulary,
+                          false,
+                          { title: pack.name, subtitle: pack.subtitle, bpm: pack.bpm },
+                        );
+                      }}
+                    >
+                      <Play />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
       {screen === 'dictionary' && (
