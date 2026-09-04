@@ -794,6 +794,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [directionBreakDone, setDirectionBreakDone] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
   const [playModeOpen, setPlayModeOpen] = useState(false);
+  const [playModeStep, setPlayModeStep] = useState<'mode' | 'gameplay' | 'difficulty'>('mode');
+  const openPlayModeModal = () => {
+    setPlayModeStep('mode');
+    setPlayModeOpen(true);
+  };
   const [dictionaryQuery, setDictionaryQuery] = useState('');
   const [selectedHskFolder, setSelectedHskFolder] = useState<number | null>(null);
   const [playerName, setPlayerName] = useState('');
@@ -5519,7 +5524,201 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </b>
         </button>
       </header>
-      {playModeOpen && <div className="play-mode-backdrop" onMouseDown={() => setPlayModeOpen(false)}><section className="play-mode-modal" role="dialog" aria-modal="true" aria-labelledby="play-mode-title" onMouseDown={(event) => event.stopPropagation()}><button className="play-mode-close" onClick={() => setPlayModeOpen(false)} aria-label="Đóng">×</button><div className="play-mode-heading"><span>选择模式 · CHỌN CHẾ ĐỘ</span><h2 id="play-mode-title">Bạn muốn chơi theo cách nào?</h2><p>Mỗi hành trình đều giúp mở khóa Hán tự và phần thưởng tài khoản.</p></div><div className="play-mode-options"><button onClick={() => { setPlayModeOpen(false); navigate('songs'); }}><i>单</i><span><small>SOLO JOURNEY</small><b>Chơi đơn</b><p>Lựa chọn độ khó từ Dễ (HSK), Bình Thường (Collocation, Quán ngữ) đến Khó (Mẫu câu, Ngữ cảnh).</p><em>Chọn Độ Khó →</em></span></button><button className="pvp-option" onClick={() => { setPlayModeOpen(false); openPvp(); }}><i>战</i><span><small>ONLINE ARENA</small><b>PvP Online</b><p>Ghép trận hoặc tạo phòng, thi đấu Rank cùng người chơi khác.</p><em>Vào Đấu trường →</em></span></button></div><footer><span>汉</span> Học một mình · Tiến bộ cùng nhau</footer></section></div>}
+      {playModeOpen && (
+        <div
+          className="play-mode-backdrop"
+          onMouseDown={() => setPlayModeOpen(false)}
+        >
+          <section
+            className={`play-mode-modal step-${playModeStep}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="play-mode-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {playModeStep !== 'mode' && (
+              <button
+                className="play-mode-back"
+                onClick={() =>
+                  setPlayModeStep(playModeStep === 'difficulty' ? 'gameplay' : 'mode')
+                }
+                aria-label="Quay lại bước trước"
+                type="button"
+              >
+                <ChevronLeft size={16} /> Quay lại
+              </button>
+            )}
+            <button
+              className="play-mode-close"
+              onClick={() => setPlayModeOpen(false)}
+              aria-label="Đóng"
+              type="button"
+            >
+              ×
+            </button>
+
+            {playModeStep === 'mode' && (
+              <div className="play-mode-step-content">
+                <div className="play-mode-heading">
+                  <span>选择模式 · CHỌN CHẾ ĐỘ</span>
+                  <h2 id="play-mode-title">Bạn muốn chơi theo cách nào?</h2>
+                  <p>Mỗi hành trình đều giúp mở khóa Hán tự và phần thưởng tài khoản.</p>
+                </div>
+                <div className="play-mode-options">
+                  <button
+                    type="button"
+                    onClick={() => setPlayModeStep('gameplay')}
+                  >
+                    <i>单</i>
+                    <span>
+                      <small>SOLO JOURNEY</small>
+                      <b>Chơi đơn</b>
+                      <p>Rèn luyện theo tốc độ của bạn: chọn lối chơi và cấp độ từ HSK đến mẫu câu.</p>
+                      <em>Tiếp tục chọn lối chơi →</em>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="pvp-option"
+                    onClick={() => {
+                      setPlayModeOpen(false);
+                      openPvp();
+                    }}
+                  >
+                    <i>战</i>
+                    <span>
+                      <small>ONLINE ARENA</small>
+                      <b>PvP Online</b>
+                      <p>Ghép trận hoặc tạo phòng, thi đấu Rank cùng người chơi khác.</p>
+                      <em>Vào Đấu trường →</em>
+                    </span>
+                  </button>
+                </div>
+                <footer>
+                  <span>汉</span> Học một mình · Tiến bộ cùng nhau
+                </footer>
+              </div>
+            )}
+
+            {playModeStep === 'gameplay' && (
+              <div className="play-mode-step-content">
+                <div className="play-mode-heading">
+                  <span>选择玩法 · CHỌN LỐI CHƠI</span>
+                  <h2 id="play-mode-title">Bạn muốn luyện tập theo hình thức nào?</h2>
+                  <p>Lựa chọn cơ chế thử thách phù hợp với mục tiêu học tập của bạn.</p>
+                </div>
+                <div className="play-mode-options">
+                  <button
+                    type="button"
+                    className="gameplay-option audition-option"
+                    onClick={() => {
+                      setMode('audition');
+                      setPlayModeStep('difficulty');
+                    }}
+                  >
+                    <i>🎵</i>
+                    <span>
+                      <small>RHYTHM QUIZ</small>
+                      <b>Trắc Nghiệm Theo Nhịp</b>
+                      <p>Luân phiên chọn nghĩa tiếng Việt và chữ Hán theo giai điệu bài hát sôi động.</p>
+                      <em>Chọn độ khó →</em>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="gameplay-option typing-option"
+                    onClick={() => {
+                      setMode('typing');
+                      setPlayModeStep('difficulty');
+                    }}
+                  >
+                    <i>⌨️</i>
+                    <span>
+                      <small>TYPING BATTLE</small>
+                      <b>Đại Chiến Gõ Phím</b>
+                      <p>Luyện phản xạ gõ Hán tự / Pinyin và nhập nghĩa tiếng Việt với tốc độ cao.</p>
+                      <em>Chọn độ khó →</em>
+                    </span>
+                  </button>
+                </div>
+                <footer>
+                  <span>♪</span> Bắt nhịp âm thanh · Khắc sâu Hán tự
+                </footer>
+              </div>
+            )}
+
+            {playModeStep === 'difficulty' && (
+              <div className="play-mode-step-content">
+                <div className="play-mode-heading">
+                  <span>选择难度 · CHỌN ĐỘ KHÓ</span>
+                  <h2 id="play-mode-title">Chọn cấp độ thử thách của bạn</h2>
+                  <p>Từ từ vựng HSK nền tảng đến cụm từ kết hợp và mẫu câu đàm thoại thực tế.</p>
+                </div>
+                <div className="play-mode-options difficulty-grid">
+                  <button
+                    type="button"
+                    className="diff-card diff-easy"
+                    onClick={() => {
+                      setDifficultyTab('easy');
+                      setActivePackInfo(null);
+                      activeMatchPool.current = null;
+                      setPlayModeOpen(false);
+                      navigate('songs');
+                    }}
+                  >
+                    <i>🟢</i>
+                    <span>
+                      <small>CẤP ĐỘ 1 · HSK 1 - 4</small>
+                      <b>Dễ (HSK)</b>
+                      <p>Kho từ vựng HSK 1 đến 4, rèn từ đơn và từ vựng thông dụng theo bài hát.</p>
+                      <em>Vào cấp Dễ →</em>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="diff-card diff-normal"
+                    onClick={() => {
+                      setDifficultyTab('normal');
+                      setSelectedNormalPack(0);
+                      setPlayModeOpen(false);
+                      navigate('songs');
+                    }}
+                  >
+                    <i>🟡</i>
+                    <span>
+                      <small>CẤP ĐỘ 2 · COLLOCATIONS</small>
+                      <b>Bình Thường</b>
+                      <p>Kết hợp từ thường gặp & Quán ngữ, Thành ngữ 4 chữ chuẩn bản xứ.</p>
+                      <em>Vào cấp Bình Thường →</em>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="diff-card diff-hard"
+                    onClick={() => {
+                      setDifficultyTab('hard');
+                      setSelectedHardPack(0);
+                      setPlayModeOpen(false);
+                      navigate('songs');
+                    }}
+                  >
+                    <i>🔴</i>
+                    <span>
+                      <small>CẤP ĐỘ 3 · MẪU CÂU</small>
+                      <b>Khó (Mẫu Câu)</b>
+                      <p>Sentence patterns liên từ phức & Câu ngắn ngữ cảnh đàm thoại thực chiến.</p>
+                      <em>Vào cấp Khó →</em>
+                    </span>
+                  </button>
+                </div>
+                <footer>
+                  <span>阶</span> Tiến bước từng cấp · Chinh phục đỉnh cao
+                </footer>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
       {audioOpen && (
         <div
           className="audio-modal-backdrop"
@@ -5645,7 +5844,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 qua giai điệu, pinyin và phản xạ thật tự nhiên.
               </p>
               <div className="actions">
-                <button onClick={() => setPlayModeOpen(true)}>
+                <button onClick={openPlayModeModal}>
                   <Play /> Chơi ngay
                 </button>
                 <button onClick={() => navigate('dictionary')}>

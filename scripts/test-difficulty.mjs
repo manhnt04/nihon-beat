@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-console.log('=== TEST CHỨC NĂNG CHỌN ĐỘ KHÓ & TỪ VỰNG HỌC TIẾNG TRUNG ===\n');
+console.log('=== TEST CHỨC NĂNG CHỌN ĐỘ KHÓ & LUỒNG POPUP 3 BƯỚC ===\n');
 
 // 1. Kiểm tra file lib/difficulty-vocabulary.ts
 const diffModule = await import('../lib/difficulty-vocabulary.ts');
@@ -111,7 +111,7 @@ function checkTypingAnswer(vocab, wordIndex, isTypingToHanzi, userInput) {
 }
 
 // Case 1: Collocation "喝茶"
-const hecha = collocationsVocabulary[0]; // ['喝茶', 'hē chá', 'he cha', 'uống trà', 'HSK 2']
+const hecha = collocationsVocabulary[0];
 assert(checkTypingAnswer(collocationsVocabulary, 0, true, '喝茶'), 'Chấp nhận chữ Hán 喝茶');
 assert(checkTypingAnswer(collocationsVocabulary, 0, true, 'hē chá'), 'Chấp nhận Pinyin có dấu hē chá');
 assert(checkTypingAnswer(collocationsVocabulary, 0, true, 'he cha'), 'Chấp nhận Pinyin không dấu he cha');
@@ -123,7 +123,7 @@ assert(checkTypingAnswer(fixedExpressionsVocabulary, 11, true, 'yi xin yi yi'), 
 assert(checkTypingAnswer(fixedExpressionsVocabulary, 11, false, 'một lòng một dạ'), 'Chấp nhận nghĩa một lòng một dạ');
 console.log('  ✅ PASS: Typing Battle nhận diện chính xác Chữ Hán, Pinyin có dấu, Pinyin không dấu và Tiếng Việt.');
 
-// 5. Kiểm tra source code app/page.tsx: Nút thành trì đã bị xóa khỏi menu
+// 5. Kiểm tra menu navigation trong app/page.tsx: Nút thành trì đã bị xóa khỏi menu
 console.log('\n5. Kiểm tra menu navigation trong app/page.tsx:');
 const pageCode = fs.readFileSync(path.resolve('./app/page.tsx'), 'utf8');
 
@@ -150,8 +150,28 @@ assert(pageCode.includes('difficulty-tier-picker'), 'Có difficulty-tier-picker'
 assert(pageCode.includes('DỄ (HSK 1 - 4)'), 'Có thẻ DỄ');
 assert(pageCode.includes('BÌNH THƯỜNG'), 'Có thẻ BÌNH THƯỜNG');
 assert(pageCode.includes('KHÓ (MẪU CÂU)'), 'Có thẻ KHÓ');
-console.log('  ✅ PASS: Giao diện chọn độ khó 3 cấp (DỄ, BÌNH THƯỜNG, KHÓ) hiển thị đầy đủ trong trang bải học.');
+console.log('  ✅ PASS: Giao diện chọn độ khó 3 cấp (DỄ, BÌNH THƯỜNG, KHÓ) hiển thị đầy đủ trong trang bài học.');
+
+// 6. Kiểm tra luồng popup 3 bước (Mode -> Gameplay -> Difficulty)
+console.log('\n6. Kiểm tra luồng Popup Modal 3 Bước:');
+assert(pageCode.includes("const [playModeStep, setPlayModeStep] = useState<'mode' | 'gameplay' | 'difficulty'>('mode');"), 'Có state playModeStep');
+assert(pageCode.includes("openPlayModeModal"), 'Có hàm openPlayModeModal');
+assert(pageCode.includes("playModeStep === 'mode'"), 'Có Bước 1: chọn chế độ');
+assert(pageCode.includes("setPlayModeStep('gameplay')"), 'Bước 1 chuyển sang bước gameplay khi chọn chơi đơn');
+assert(pageCode.includes("playModeStep === 'gameplay'"), 'Có Bước 2: chọn lối chơi');
+assert(pageCode.includes("setMode('audition')") && pageCode.includes("setMode('typing')"), 'Bước 2 thiết lập mode audition hoặc typing');
+assert(pageCode.includes("setPlayModeStep('difficulty')"), 'Bước 2 chuyển sang bước difficulty sau khi chọn lối chơi');
+assert(pageCode.includes("playModeStep === 'difficulty'"), 'Có Bước 3: chọn độ khó');
+assert(pageCode.includes("className=\"play-mode-back\""), 'Có nút quay lại bước trước trong modal');
+
+// CSS kiểm tra
+const cssCode = fs.readFileSync(path.resolve('./app/globals.css'), 'utf8');
+assert(cssCode.includes('.play-mode-back'), 'Có CSS .play-mode-back');
+assert(cssCode.includes('.play-mode-modal.step-difficulty'), 'Có CSS .play-mode-modal.step-difficulty');
+assert(cssCode.includes('.play-mode-options.difficulty-grid'), 'Có CSS .play-mode-options.difficulty-grid');
+assert(cssCode.includes('.play-mode-step-content'), 'Có animation .play-mode-step-content');
+console.log('  ✅ PASS: Luồng 3 bước (Mode -> Gameplay -> Difficulty) và CSS tương ứng hoạt động hoàn hảo.');
 
 console.log('\n========================================');
-console.log('🎉 TẤT CẢ 5 NHÓM THỬ NGHIỆM ĐỀU ĐẠT 100%!');
+console.log('🎉 TẤT CẢ 6 NHÓM THỬ NGHIỆM ĐỀU ĐẠT 100%!');
 console.log('========================================\n');

@@ -327,3 +327,150 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Multi-Step Play Mode Modal (Chế độ -> Lối chơi -> Độ khó)                  */
+/* -------------------------------------------------------------------------- */
+.play-mode-modal.step-difficulty {
+  width: min(880px, 95vw);
+}
+.play-mode-back {
+  position: absolute;
+  z-index: 3;
+  left: 14px;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border: 1px solid #d8c39c;
+  border-radius: 20px;
+  background: #fffaf0;
+  color: #8d2a29;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.play-mode-back:hover {
+  background: #fbf1de;
+  border-color: #b5272d;
+  transform: translateX(-2px);
+}
+.play-mode-step-content {
+  animation: play-step-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes play-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.play-mode-options button.gameplay-option.audition-option>i {
+  background: #176b5b;
+  border-color: #5cdbb5;
+}
+.play-mode-options button.gameplay-option.typing-option>i {
+  background: #7c2d12;
+  border-color: #fb923c;
+}
+
+.play-mode-options.difficulty-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.play-mode-options button.diff-card {
+  min-height: 225px;
+  padding: 18px 14px;
+  grid-template-columns: 46px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+}
+.play-mode-options button.diff-card>i {
+  width: 46px;
+  height: 46px;
+  font-size: 20px;
+}
+.play-mode-options button.diff-card p {
+  min-height: 52px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.play-mode-options button.diff-easy {
+  border-color: #a7f3d0;
+}
+.play-mode-options button.diff-easy:hover {
+  border-color: #10b981;
+}
+.play-mode-options button.diff-easy>i {
+  background: #065f46;
+  border-color: #34d399;
+}
+.play-mode-options button.diff-easy small {
+  color: #047857;
+}
+.play-mode-options button.diff-easy em {
+  color: #059669;
+}
+
+.play-mode-options button.diff-normal {
+  border-color: #fde68a;
+}
+.play-mode-options button.diff-normal:hover {
+  border-color: #f59e0b;
+}
+.play-mode-options button.diff-normal>i {
+  background: #92400e;
+  border-color: #fbbf24;
+}
+.play-mode-options button.diff-normal small {
+  color: #b45309;
+}
+.play-mode-options button.diff-normal em {
+  color: #d97706;
+}
+
+.play-mode-options button.diff-hard {
+  border-color: #fecaca;
+}
+.play-mode-options button.diff-hard:hover {
+  border-color: #ef4444;
+}
+.play-mode-options button.diff-hard>i {
+  background: #991b1b;
+  border-color: #f87171;
+}
+.play-mode-options button.diff-hard small {
+  color: #b91c1c;
+}
+.play-mode-options button.diff-hard em {
+  color: #dc2626;
+}
+
+@media (max-width: 720px) {
+  .play-mode-options.difficulty-grid {
+    grid-template-columns: 1fr;
+  }
+  .play-mode-options button.diff-card {
+    min-height: 120px;
+    padding: 14px;
+    align-items: center;
+  }
+  .play-mode-options button.diff-card p {
+    min-height: 0;
+    margin: 4px 0;
+  }
+  .play-mode-back {
+    top: 10px;
+    left: 10px;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+}
+
+
