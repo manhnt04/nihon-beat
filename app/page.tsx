@@ -5363,11 +5363,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       { id: 'enlightenment-pill', type: 'timed', name: 'Khai Khiếu Đan', hanzi: '开窍丹', image: '/items/enlightenment-pill.png', rarity: 'Sử thi', description: 'Vật phẩm học tập có hạn 24 giờ.' },
       { id: 'peerless-order', type: 'timed', name: 'Vô Song Lệnh', hanzi: '无双令', image: '/items/peerless-order.png', rarity: 'Sử thi', description: 'Vật phẩm PvP giới hạn tuần · có hạn 24 giờ.' },
       { id: 'diamond-guard', type: 'timed', name: 'Kim Cương Tráo', hanzi: '金刚罩', image: '/items/diamond-guard.png', rarity: 'Sử thi', description: 'Vật phẩm phòng hộ PvP có hạn 24 giờ.' },
-      { id: 'destiny-card', type: 'timed', name: 'Thiên Mệnh Bài', hanzi: '天命牌', icon: '🎴', rarity: 'Huyền thoại', description: 'Vật phẩm mạo hiểm PvP có hạn 24 giờ.' },
-      { id: 'treasure-basin', type: 'timed', name: 'Tụ Bảo Bồn', hanzi: '聚宝盆', icon: '✨', rarity: 'Huyền thoại', description: 'Vật phẩm sự kiện có hạn 24 giờ.' },
-      { id: 'combo-charm', type: 'timed', name: 'Liên Hoàn Phù', hanzi: '连环符', icon: '🔗', rarity: 'Hiếm', description: 'Vật phẩm chuỗi PvP có hạn 24 giờ.' },
-      { id: 'time-spell', type: 'timed', name: 'Định Thân Chú', hanzi: '定身咒', icon: '⏳', rarity: 'Hiếm', description: 'Chỉ dùng khi luyện tập PvE · có hạn 24 giờ.' },
-      { id: 'insight-lens', type: 'timed', name: 'Thiên Cơ Lậu', hanzi: '天机漏', icon: '👁️', rarity: 'Hiếm', description: 'Gợi ý nhỏ, chỉ dùng trong luyện tập PvE · có hạn 24 giờ.' },
+      { id: 'destiny-card', type: 'timed', name: 'Thiên Mệnh Bài', hanzi: '天命牌', image: '/items/destiny-card.png', rarity: 'Huyền thoại', description: 'Vật phẩm mạo hiểm PvP có hạn 24 giờ.' },
+      { id: 'treasure-basin', type: 'timed', name: 'Tụ Bảo Bồn', hanzi: '聚宝盆', image: '/items/treasure-basin.png', rarity: 'Huyền thoại', description: 'Vật phẩm sự kiện có hạn 24 giờ.' },
+      { id: 'combo-charm', type: 'timed', name: 'Liên Hoàn Phù', hanzi: '连环符', image: '/items/combo-charm.png', rarity: 'Hiếm', description: 'Vật phẩm chuỗi PvP có hạn 24 giờ.' },
+      { id: 'time-spell', type: 'timed', name: 'Định Thân Chú', hanzi: '定身咒', image: '/items/time-spell.png', rarity: 'Hiếm', description: 'Chỉ dùng khi luyện tập PvE · có hạn 24 giờ.' },
+      { id: 'insight-lens', type: 'timed', name: 'Thiên Cơ Lậu', hanzi: '天机漏', image: '/items/insight-lens.png', rarity: 'Hiếm', description: 'Gợi ý nhỏ, chỉ dùng trong luyện tập PvE · có hạn 24 giờ.' },
       ...shopItems.filter((item) => item.type !== 'consumable'),
     ] as const;
     const totalItems = Object.values(progression?.inventory ?? {}).reduce((sum, count) => sum + count, 0)
@@ -5420,7 +5420,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
                       : 'Vật phẩm sưu tầm';
                 return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
-                  <div className="inventory-art">{'image' in item ? <img src={item.image} alt={item.name} /> : <i className="inventory-symbol">{'icon' in item ? item.icon : '物'}</i>}{quantity > 0 && <b>×{quantity}</b>}</div>
+                  <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
                   {item.type === 'timed' && owned && <em className="item-expiry">Hết hạn: {new Date(progression?.inventoryExpiries?.[item.id] ?? Date.now() + 86_400_000).toLocaleString('vi-VN')}</em>}
                   <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || (item.type === 'collectible' && !isCastleItem)}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
@@ -5478,10 +5478,12 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </div>
             }
             {shopTab === 'items' && <div className="shop-coming-grid">{[
-              ['🛡️','Hộ Thân Phù','护身符','PvP thường · 2/tuần'], ['💠','Kim Cương Tráo','金刚罩','PvP thường · 3/tuần'],
-              ['🎯','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['🔗','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
-              ['📜','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['⏳','Định Thân Chú','定身咒','Chỉ dùng PvE'],
-            ].map(([icon,name,hanzi,note]) => <article key={name}><i>{icon}</i><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
+              ['/items/protect-charm.png','Hộ Thân Phù','护身符','PvP thường · 2/tuần'], ['/items/diamond-guard.png','Kim Cương Tráo','金刚罩','PvP thường · 3/tuần'],
+              ['/items/peerless-order.png','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['/items/combo-charm.png','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
+              ['/items/enlightenment-pill.png','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['/items/time-spell.png','Định Thân Chú','定身咒','Chỉ dùng PvE'],
+              ['/items/revenge-order.png','Ân Oán Lệnh','恩怨令','Phần thưởng PvP'], ['/items/destiny-card.png','Thiên Mệnh Bài','天命牌','Vật phẩm PvP mạo hiểm'],
+              ['/items/treasure-basin.png','Tụ Bảo Bồn','聚宝盆','Phần thưởng sự kiện'], ['/items/insight-lens.png','Thiên Cơ Lậu','天机漏','Gợi ý trong PvE'],
+            ].map(([image,name,hanzi,note]) => <article key={name}><img className="shop-coming-art" src={image} alt={name}/><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
             {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Linh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => navigate('battle-pass')}>Xem Battle Pass</button></section>}
             {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Linh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Linh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Linh Thạch</button></section>}
           </>}
