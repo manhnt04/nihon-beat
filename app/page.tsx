@@ -235,6 +235,14 @@ const shopItems = [
   { id: 'effect-golden', type: 'effect', name: 'Kim Vân', hanzi: '金云', price: 180, image: '/items/shop-effect-golden.png', rarity: 'Sử thi', description: 'Hiệu ứng mây vàng cho chuỗi Perfect.' },
   { id: 'frame-dragon', type: 'frame', name: 'Khung Long Môn', hanzi: '龙门框', price: 300, image: '/items/shop-frame-dragon.png', rarity: 'Huyền thoại', description: 'Khung rồng dành cho người chinh phục hành trình.' },
 ] as const;
+type ItemDetail = {
+  name: string;
+  hanzi: string;
+  image: string;
+  rarity: string;
+  description: string;
+  meta?: string;
+};
 const jadeRelics = [
   { id: 'sprout', name: 'Ngọc Bội Khai Văn', hanzi: '开文玉佩', threshold: 25, image: '/items/jade-fragment.png' },
   { id: 'scholar', name: 'Ngọc Bội Bác Học', hanzi: '博学玉佩', threshold: 100, image: '/items/shop-effect-jade.png' },
@@ -921,6 +929,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [sepayError, setSepayError] = useState<string>('');
   const [sepayCopied, setSepayCopied] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<'special' | 'cosmetics' | 'items' | 'pass' | 'crystals'>('special');
+  const [itemDetail, setItemDetail] = useState<ItemDetail | null>(null);
   const [spinOpen, setSpinOpen] = useState(false);
   const [slotResult, setSlotResult] = useState<SlotResult | null>(null);
   const [reelOffsets, setReelOffsets] = useState([0, 0, 0]);
@@ -2241,6 +2250,20 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     pvpStarted.current = false;
     navigate('pvp');
   };
+  const renderItemDetail = () => itemDetail && (
+    <div className="item-detail-backdrop" onClick={() => setItemDetail(null)}>
+      <section className="item-detail-modal" role="dialog" aria-modal="true" aria-label={`Thông tin ${itemDetail.name}`} onClick={(event) => event.stopPropagation()}>
+        <button className="item-detail-close" onClick={() => setItemDetail(null)} aria-label="Đóng">×</button>
+        <img src={itemDetail.image} alt={itemDetail.name} />
+        <span>{itemDetail.rarity}</span>
+        <h2>{itemDetail.name}</h2>
+        <small>{itemDetail.hanzi}</small>
+        <div><b>TÁC DỤNG</b><p>{itemDetail.description}</p></div>
+        {itemDetail.meta && <strong>{itemDetail.meta}</strong>}
+        <button className="item-detail-done" onClick={() => setItemDetail(null)}>Đã hiểu</button>
+      </section>
+    </div>
+  );
   const mobileNavigation = (
     <nav className="mobile-nav" aria-label="Điều hướng điện thoại">
       <button className={screen === 'home' ? 'on' : ''} onClick={() => navigate('home')}>
@@ -5423,7 +5446,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                     : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
                       : 'Vật phẩm sưu tầm';
                 return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
-                  <div className="inventory-art"><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}</div>
+                  <div className="inventory-art item-info-trigger" role="button" tabIndex={0} aria-label={`Xem tác dụng ${item.name}`} onClick={() => setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? `Đang sở hữu: ×${quantity}` : 'Chưa sở hữu' })} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? `Đang sở hữu: ×${quantity}` : 'Chưa sở hữu' }); }}><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}<div className="item-hover-info"><strong>{item.name}</strong><span>{item.description}</span><em>Chạm để xem</em></div></div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
                   {item.type === 'timed' && owned && <em className="item-expiry">Hết hạn: {new Date(progression?.inventoryExpiries?.[item.id] ?? Date.now() + 86_400_000).toLocaleString('vi-VN')}</em>}
                   <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || (item.type === 'collectible' && !isCastleItem)}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
@@ -5434,6 +5457,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </>}
         </section>
         {chestReward && <div className="chest-reward-backdrop" onClick={() => setChestReward(null)}><section className="chest-reward" onClick={(event) => event.stopPropagation()}><img src="/items/daily-chest.png" alt="Rương đã mở" /><span>宝箱开启 · RƯƠNG ĐÃ MỞ</span><h2>+{chestReward.jade} 玉片 · +{chestReward.xp} XP</h2>{chestReward.bonus && <p>Bonus hiếm: {shopItems.find((item) => item.id === chestReward.bonus)?.name}</p>}<button onClick={() => setChestReward(null)}>Nhận thưởng</button></section></div>}
+        {renderItemDetail()}
       </main>
     );
   }
@@ -5464,7 +5488,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 const isMaxGuard = item.id === 'streak-guard' && guardCount >= 2;
                 const notEnoughJade = (progression?.jade ?? 0) < item.price;
                 return <article key={item.id} className={`${item.rarity === 'Huyền thoại' ? 'legendary' : ''} ${owned ? 'owned' : ''} ${isMaxGuard ? 'sold-out' : ''}`}>
-                  <div className="shop-item-art"><img src={item.image} alt={item.name} />{item.id === 'streak-guard' && <b>{guardCount}/2</b>}</div>
+                  <div className="shop-item-art item-info-trigger" role="button" tabIndex={0} aria-label={`Xem tác dụng ${item.name}`} onClick={() => setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? 'Đã sở hữu' : `Giá: ${item.price} 玉片` })} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? 'Đã sở hữu' : `Giá: ${item.price} 玉片` }); }}><img src={item.image} alt={item.name} />{item.id === 'streak-guard' && <b>{guardCount}/2</b>}<div className="item-hover-info"><strong>{item.name}</strong><span>{item.description}</span><em>Chạm để xem</em></div></div>
                   <span>{item.rarity}</span><h2>{item.name}</h2><small>{item.hanzi}</small><p>{item.description}</p>
                   {owned ? (
                     <button className="shop-btn-owned" disabled>Đã mua</button>
@@ -5572,6 +5596,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </section>
         </section>
         {renderTopupModal()}
+        {renderItemDetail()}
       </main>
     );
   }
