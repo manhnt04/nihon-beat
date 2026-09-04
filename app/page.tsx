@@ -101,6 +101,7 @@ type Screen =
   | 'pvp'
   | 'inventory'
   | 'shop'
+  | 'battle-pass'
   | 'codex'
   | 'castle'
   | 'castle-test'
@@ -108,7 +109,7 @@ type Screen =
 const screenPaths: Record<Screen, string> = {
   home: '/', songs: '/lessons', game: '/play', result: '/result',
   dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
-  inventory: '/inventory', shop: '/shop', codex: '/profile/codex', castle: '/castle',
+  inventory: '/inventory', shop: '/shop', 'battle-pass': '/battle-pass', codex: '/profile/codex', castle: '/castle',
   'castle-test': '/castle-test', auth: '/profile',
 };
 const screenFromPath = (pathname: string): Screen => {
@@ -901,7 +902,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [castleCombatTrigger, setCastleCombatTrigger] = useState<CombatFxTrigger | null>(null);
   const [sandboxShieldActive, setSandboxShieldActive] = useState<boolean>(false);
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
-  const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
+  const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
   type SepayOrderInfo = {
     orderCode: string;
@@ -1578,7 +1579,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         </button>
       )}
       <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
-      <button className="battle-pass-fab" onClick={() => { if (!authUser) return navigate('auth'); setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }} aria-label="Mở Hành Trình Long Mạch"><img src="/items/battle-pass-icon.png" alt=""/><span><b>PASS</b><small>MÙA 1</small></span></button>
+      <button className="battle-pass-fab" onClick={() => authUser ? navigate('battle-pass') : navigate('auth')} aria-label="Mở Hành Trình Long Mạch"><img src="/items/battle-pass-icon.png" alt=""/><span><b>PASS</b><small>MÙA 1</small></span></button>
       {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
         <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <div className="jackpot-topbar"><span><img src="/items/coin.png" alt="Coin"/><b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span><strong>天机 JACKPOT</strong><span><img src="/items/spin-refund.png" alt="Spin"/><b>{progression?.spins.balance ?? 0}</b></span></div>
@@ -3849,7 +3850,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 <div className="commerce-tabs">
                   <button className={commerceTab === 'themes' ? 'on' : ''} onClick={() => setCommerceTab('themes')}>🏯 Theme Pack</button>
                   <button className={commerceTab === 'cosmetics' ? 'on' : ''} onClick={() => setCommerceTab('cosmetics')}>✨ Khí Tượng & Linh Thú</button>
-                  <button className={commerceTab === 'pass' ? 'on' : ''} onClick={() => setCommerceTab('pass')}>📜 Long Vân Pass (Mùa 1)</button>
                 </div>
 
                 {commerceTab === 'themes' && (
@@ -3977,61 +3977,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   </div>
                 )}
 
-                {commerceTab === 'pass' && (
-                  <div className="commerce-pass-section">
-                    <header className="battle-pass-title"><div><span>龙脉之旅 · SEASON 1</span><h2>HÀNH TRÌNH LONG MẠCH</h2></div><b>⏳ 49 ngày còn lại</b></header>
-                    <div className="battle-pass-summary">
-                      <section className="pass-mission-card"><span>NHIỆM VỤ MÙA</span><h3>Đánh thức Long Mạch bằng tri thức!</h3><p>Hoàn thành bài học, Daily Challenge và PvP để thu thập Điểm Hành Trình.</p><div><b>Cấp {Math.min(50, Math.floor((progression?.battlePass?.xp ?? 0) / 100))}</b><small>{progression?.battlePass?.xp ?? 0}/5000 Điểm</small></div><div className="pass-bar"><i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 5000) * 100)}%` }} /></div></section>
-                      <section className="pass-premium-card"><span>PREMIUM TRACK</span><h3>Kho báu Thanh Long</h3><p>Avatar, hiệu ứng, nhạc, collectible độc quyền và hoàn lại 80 Linh Thạch.</p><div className="pass-status">
-                        {progression?.battlePass?.premium ? (
-                          <span className="premium-badge">★ LONG VÂN PREMIUM ĐÃ MỞ ★</span>
-                        ) : (
-                          <button
-                            disabled={(progression?.dragonCrystals ?? 0) < 129}
-                            onClick={() => void runCastleCommerce('buy', { itemId: 'premium-pass' })}
-                          >
-                            Mở Premium Track (🔮 129)
-                          </button>
-                        )}
-                      </div></section>
-                    </div>
-                    <div className="pass-track-labels"><b>FREE TRACK</b><span>← Kéo ngang để xem đủ 50 cấp →</span><b>PREMIUM TRACK</b></div>
-                    <div className="castle-pass-v2">
-                      {BATTLE_PASS_TIERS.map((row) => {
-                        const curXp = progression?.battlePass?.xp ?? 0;
-                        const ready = curXp >= row.xpReq;
-                        const isPremUser = Boolean(progression?.battlePass?.premium);
-                        const freeClaimed = (progression?.battlePass?.claimed ?? []).includes(`free-${row.tier}`);
-                        const premiumClaimed = (progression?.battlePass?.claimed ?? []).includes(`premium-${row.tier}`);
-                        return (
-                          <article key={row.tier} className={`pass-tier-card ${ready ? 'reached' : ''}`}>
-                            <div className="tier-badge">Cấp {row.tier} ({row.xpReq} XP)</div>
-                            <div className="tier-track free-track">
-                              <small>{row.free.icon} Miễn phí: {row.free.name}</small>
-                              <button
-                                className={freeClaimed ? 'claimed' : ''}
-                                disabled={!ready || freeClaimed}
-                                onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}
-                              >
-                                {freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận quà' : 'Chưa đạt'}
-                              </button>
-                            </div>
-                            <div className="tier-track premium-track">
-                              <small>{row.premium.icon} Premium: {row.premium.name}</small>
-                              <button
-                                className={premiumClaimed ? 'claimed' : ''}
-                                disabled={!ready || !isPremUser || premiumClaimed}
-                                onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}
-                              >
-                                {premiumClaimed ? '✓ Đã nhận' : !isPremUser ? 'Khóa (Cần Pass)' : ready ? 'Nhận Premium' : 'Chưa đạt'}
-                              </button>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </section>
             </div>
           </div>
@@ -5533,13 +5478,75 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               ['🎯','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['🔗','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
               ['📜','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['⏳','Định Thân Chú','定身咒','Chỉ dùng PvE'],
             ].map(([icon,name,hanzi,note]) => <article key={name}><i>{icon}</i><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
-            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Linh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
+            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm đủ 50 cấp, hai nhánh phần thưởng và 80 Linh Thạch hoàn lại. Premium chỉ chứa cosmetic và vật phẩm sưu tầm.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => navigate('battle-pass')}>Xem Battle Pass</button></section>}
             {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Linh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Linh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Linh Thạch</button></section>}
           </>}
         </section>
         {renderTopupModal()}
       </main>
     );
+  if (screen === 'battle-pass') {
+    const passXp = progression?.battlePass?.xp ?? 0;
+    const passLevel = Math.min(50, Math.floor(passXp / 100));
+    const levelXp = passLevel >= 50 ? 100 : passXp % 100;
+    const premiumActive = Boolean(progression?.battlePass?.premium);
+    return (
+      <main className="app battle-pass-page">
+        {historyControls}
+        {mobileNavigation}
+        <header className="battle-pass-nav">
+          <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Season Pass</small></b></button>
+          <div className="battle-pass-nav-actions">
+            <button className="pass-crystal-balance" onClick={() => setTopupOpen(true)}><img src="/items/crystal.png" alt="" />{progression?.dragonCrystals ?? 0}</button>
+            <button className="leaderboard-back" onClick={() => navigate('home')}>Đóng</button>
+          </div>
+        </header>
+
+        <section className="battle-pass-shell">
+          <div className="battle-pass-hero">
+            <div className="pass-hero-copy">
+              <span>龙脉之旅 · MÙA 1</span>
+              <h1>Hành Trình Long Mạch</h1>
+              <p>Học tập, hoàn thành Daily Challenge và thi đấu PvP để mở khóa phần thưởng theo mùa.</p>
+              <b className="pass-season-time">49 ngày còn lại</b>
+            </div>
+            <img src="/items/battle-pass-icon.png" alt="Hành Trình Long Mạch" />
+          </div>
+
+          <div className="pass-dashboard">
+            <section className="pass-progress-card">
+              <div><span>CẤP HIỆN TẠI</span><strong>{passLevel}</strong></div>
+              <div className="pass-progress-main"><b>{passLevel >= 50 ? 'Đã hoàn thành hành trình' : `Còn ${100 - levelXp} điểm để lên cấp ${passLevel + 1}`}</b><small>{passXp}/5000 Điểm Hành Trình</small><div className="pass-bar"><i style={{ width: `${Math.min(100, levelXp)}%` }} /></div></div>
+            </section>
+            <section className={`pass-premium-offer ${premiumActive ? 'active' : ''}`}>
+              <div><span>PREMIUM TRACK</span><h2>{premiumActive ? 'Long Vân Pass đã mở' : 'Mở kho báu Thanh Long'}</h2><p>Nhận toàn bộ phần thưởng Premium đã đạt cấp.</p></div>
+              {premiumActive ? <b>✓ ĐÃ KÍCH HOẠT</b> : <button disabled={(progression?.dragonCrystals ?? 0) < 129} onClick={() => void runCastleCommerce('buy', { itemId: 'premium-pass' })}><img src="/items/crystal.png" alt="" /> 129 · Mở Premium</button>}
+            </section>
+          </div>
+
+          <section className="pass-rewards-panel">
+            <header><div><span>PHẦN THƯỞNG MÙA</span><h2>50 cấp hành trình</h2></div><small>Kéo ngang để xem các cấp tiếp theo →</small></header>
+            <div className="pass-track-heading"><b>MIỄN PHÍ</b><span>CẤP</span><b>PREMIUM</b></div>
+            <div className="battle-pass-track">
+              {BATTLE_PASS_TIERS.map((row) => {
+                const ready = passXp >= row.xpReq;
+                const freeClaimed = (progression?.battlePass?.claimed ?? []).includes(`free-${row.tier}`);
+                const premiumClaimed = (progression?.battlePass?.claimed ?? []).includes(`premium-${row.tier}`);
+                return (
+                  <article key={row.tier} className={`battle-pass-tier ${ready ? 'reached' : ''} ${row.tier % 10 === 0 ? 'milestone' : ''}`}>
+                    <div className="pass-reward-cell free"><i>{row.free.icon}</i><strong>{row.free.name}</strong><button className={freeClaimed ? 'claimed' : ''} disabled={!ready || freeClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: false })}>{freeClaimed ? '✓ Đã nhận' : ready ? 'Nhận' : 'Khóa'}</button></div>
+                    <div className="pass-level-marker"><b>{row.tier}</b><small>{row.xpReq} XP</small></div>
+                    <div className="pass-reward-cell premium"><i>{row.premium.icon}</i><strong>{row.premium.name}</strong><button className={premiumClaimed ? 'claimed' : ''} disabled={!ready || !premiumActive || premiumClaimed} onClick={() => void runCastleCommerce('claim-pass', { tier: row.tier, premium: true })}>{premiumClaimed ? '✓ Đã nhận' : !premiumActive ? 'Premium' : ready ? 'Nhận' : 'Khóa'}</button></div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </section>
+        {renderTopupModal()}
+      </main>
+    );
+  }
   if (screen === 'pvp')
     return (
       <main className="app pvp-page">

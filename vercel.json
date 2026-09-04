@@ -6,6 +6,7 @@
   "rewrites": [
     { "source": "/inventory", "destination": "/" },
     { "source": "/shop", "destination": "/" },
+    { "source": "/battle-pass", "destination": "/" },
     { "source": "/profile", "destination": "/" },
     { "source": "/profile/codex", "destination": "/" },
     { "source": "/profile/castle", "destination": "/" },
