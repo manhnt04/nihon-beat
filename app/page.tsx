@@ -688,8 +688,14 @@ const BUILDING_CATALOG: BuildingCatalogItem[] = [
   },
 ];
 
-export default function Home() {
-  const [screen, setScreen] = useState<Screen>('home');
+export default function Home({ initialScreen }: { initialScreen?: Screen } = {}) {
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (initialScreen) return initialScreen;
+    if (typeof window !== 'undefined') {
+      return screenFromPath(window.location.pathname);
+    }
+    return 'home';
+  });
   const [mode, setMode] = useState<'audition' | 'typing'>('audition');
   const [selected, setSelected] = useState(0);
   const [score, setScore] = useState(0);
@@ -1467,16 +1473,16 @@ export default function Home() {
     }
   }, [screen, authUser?.id, pvpRoom?.code, dailyChallenge, scoreStatus, submitScore]);
   useEffect(() => {
-    const initialScreen = screenFromPath(window.location.pathname);
-    if (initialScreen !== screen) animateScreenChange(() => setScreen(initialScreen));
-    window.history.replaceState({ hanzibeatScreen: initialScreen }, '', screenPaths[initialScreen]);
+    const targetInitialScreen = initialScreen ?? screenFromPath(window.location.pathname);
+    if (targetInitialScreen !== screen) animateScreenChange(() => setScreen(targetInitialScreen));
+    window.history.replaceState({ hanzibeatScreen: targetInitialScreen }, '', screenPaths[targetInitialScreen]);
     const handleHistory = (event: PopStateEvent) => {
       const previousScreen = (event.state?.hanzibeatScreen as Screen | undefined) ?? screenFromPath(window.location.pathname);
       animateScreenChange(() => setScreen(previousScreen));
     };
     window.addEventListener('popstate', handleHistory);
     return () => window.removeEventListener('popstate', handleHistory);
-  }, [animateScreenChange]);
+  }, [animateScreenChange, initialScreen]);
   useEffect(() => {
     if (!playModeOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setPlayModeOpen(false); };
@@ -3051,9 +3057,9 @@ export default function Home() {
       peaceUntil: 0,
       newbieUntil: 0,
       buildings: {
-        main: sandboxMainLevel,
-        library: sandboxLibraryLevel,
-        listening: sandboxListeningLevel,
+        main: sandboxMainLevel * 2 - 1,
+        library: sandboxLibraryLevel * 2 - 1,
+        listening: sandboxListeningLevel * 2 - 1,
       },
     };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
@@ -3097,7 +3103,6 @@ export default function Home() {
 
     return (
       <main className={`app castle-fullscreen-app castle-theme-${castle.theme} castle-sandbox-screen`}>
-        {historyControls}
 
         {/* Top Floating Sandbox Control Bar */}
         <header className="castle-top-hud castle-sandbox-hud">
@@ -3237,22 +3242,33 @@ export default function Home() {
           </div>
         )}
 
+        {/* Floating Placement Helper Banner */}
+        {pendingBuildingToPlace && (
+          <aside className="castle-placement-bar">
+            <div className="placement-bar-info">
+              <b>Đang xây: {pendingBuildingToPlace.name} ({pendingBuildingToPlace.w}×{pendingBuildingToPlace.h} ô)</b>
+              <small>Chạm vào ô đất còn trống trên Tiên Đảo để xây dựng</small>
+            </div>
+            <button className="placement-cancel-btn" onClick={() => setPendingBuildingToPlace(null)}>
+              ✕ Hủy bỏ
+            </button>
+          </aside>
+        )}
+
         {/* 2.5D Isometric Fullscreen Canvas */}
-        <section className="castle-canvas-viewport">
-          <CastleIsoCanvas
-            castle={castle}
-            environmentStage={environmentStage}
-            selectedBuildingId={selectedCastleBuilding}
-            onSelectBuilding={(buildingId) => setSelectedCastleBuilding(buildingId)}
-            showGrid={castleShowGrid}
-            extraBuildings={sandboxExtraBuildings}
-            pendingBuilding={pendingBuildingToPlace}
-            onPlacedBuilding={handleSandboxPlace}
-            onRemoveBuilding={handleSandboxRemove}
-            onCancelPlacement={() => setPendingBuildingToPlace(null)}
-            onToast={showCastleToast}
-          />
-        </section>
+        <CastleIsoCanvas
+          castle={castle}
+          environmentStage={environmentStage}
+          selectedBuildingId={selectedCastleBuilding}
+          onSelectBuilding={(buildingId) => setSelectedCastleBuilding(buildingId)}
+          showGrid={castleShowGrid}
+          extraBuildings={sandboxExtraBuildings}
+          pendingBuilding={pendingBuildingToPlace}
+          onPlacedBuilding={handleSandboxPlace}
+          onRemoveBuilding={handleSandboxRemove}
+          onCancelPlacement={() => setPendingBuildingToPlace(null)}
+          onToast={showCastleToast}
+        />
 
         {/* Bottom Floating Action Dock */}
         <footer className="castle-bottom-dock">

@@ -357,6 +357,20 @@
   background: radial-gradient(ellipse at 50% 30%, #381212 0%, #210a0a 60%, #120505 100%);
 }
 
+.castle-fullscreen-app .history-controls,
+.castle-fullscreen-app .spin-fab {
+  display: none !important;
+}
+
+.castle-canvas-viewport {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 1;
+}
+
 /* --- Top Floating HUD --- */
 .castle-top-hud {
   position: absolute;

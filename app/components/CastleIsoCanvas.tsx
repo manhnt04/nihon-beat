@@ -725,19 +725,24 @@ export default function CastleIsoCanvas({
       const canvas = canvasRef.current;
       if (!container || !canvas) return;
       const rect = container.getBoundingClientRect();
-      rectRef.current = { width: rect.width, height: rect.height };
+      const w = rect.width > 0 ? rect.width : (typeof window !== 'undefined' ? window.innerWidth : 800);
+      const h = rect.height > 0 ? rect.height : (typeof window !== 'undefined' ? window.innerHeight : 600);
+      rectRef.current = { width: w, height: h };
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
 
     const loop = () => {
+      if (rectRef.current.width <= 0 || rectRef.current.height <= 0) {
+        handleResize();
+      }
       drawFrame();
       animId = requestAnimationFrame(loop);
     };
@@ -889,6 +894,7 @@ export default function CastleIsoCanvas({
         overflow: 'hidden',
         touchAction: 'none',
         userSelect: 'none',
+        zIndex: 1,
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
