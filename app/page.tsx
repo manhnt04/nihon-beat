@@ -2091,6 +2091,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         >
           <header>
             <button className="close-btn" onClick={closeTopupModal}>×</button>
+            {!sepayOrder && sepayStatus !== 'completed' && <img className="topup-title-crystal" src="/items/crystal.png" alt="" />}
             <span>晶石阁 · TIỆM LINH THẠCH</span>
             <h2>{sepayStatus === 'completed' ? 'Nạp Thành Công!' : sepayOrder ? 'Thanh Toán' : 'Nạp Linh Thạch'}</h2>
             {sepayStatus === 'completed' ? (
@@ -2193,19 +2194,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <>
               <div className="topup-grid">
                 {[
-                  { id: 'topup-60', name: 'Túi Linh Thạch', crystals: 60, tag: '29.000đ', desc: 'Thích hợp mua cờ hiệu và khí tượng nhỏ.' },
-                  { id: 'topup-180', name: 'Hòm Linh Thạch', crystals: 180, tag: '79.000đ (+20 bonus)', desc: 'Tặng thêm 20 🔮 · Đủ mua Theme Pack bất kỳ hoặc Pass!' },
-                  { id: 'topup-450', name: 'Rương Linh Thạch', crystals: 450, tag: '179.000đ (+60 bonus)', desc: 'Tặng thêm 60 🔮 · Bộ sưu tập trọn vẹn Hán Tự Thành.' },
+                  { id: 'topup-60', name: 'Túi Linh Thạch', crystals: 60, price: '29.000đ', bonus: '', featured: false },
+                  { id: 'topup-180', name: 'Hòm Linh Thạch', crystals: 180, price: '79.000đ', bonus: '+20 tặng thêm', featured: true },
+                  { id: 'topup-450', name: 'Rương Linh Thạch', crystals: 450, price: '179.000đ', bonus: '+60 tặng thêm', featured: false },
                 ].map((pack) => (
-                  <article key={pack.id} className="topup-card">
+                  <article key={pack.id} className={`topup-card ${pack.featured ? 'featured' : ''}`}>
+                    {pack.featured && <span className="topup-popular">PHỔ BIẾN</span>}
+                    <img src="/items/crystal.png" alt="" />
                     <h4>{pack.name}</h4>
-                    <b className="crystals">🔮 +{pack.crystals}</b>
-                    <small>{pack.desc}</small>
+                    <b className="crystals">{pack.crystals} <small>晶石</small></b>
+                    <span className="topup-bonus">{pack.bonus || 'Gói tiêu chuẩn'}</span>
                     <button
                       disabled={sepayStatus === 'creating'}
                       onClick={() => void startSepayTopup(pack.id)}
                     >
-                      {sepayStatus === 'creating' ? 'Đang tạo đơn...' : `Nạp ngay (${pack.tag})`}
+                      {sepayStatus === 'creating' ? 'Đang tạo đơn...' : pack.price}
                     </button>
                   </article>
                 ))}
