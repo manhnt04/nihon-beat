@@ -2092,14 +2092,12 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <header>
             <button className="close-btn" onClick={closeTopupModal}>×</button>
             <span>晶石阁 · TIỆM LINH THẠCH</span>
-            <h2>{sepayStatus === 'completed' ? 'Nạp Thành Công!' : sepayOrder ? 'Thanh Toán QR Ngân Hàng' : 'Nạp Linh Thạch'}</h2>
-            <p>
-              {sepayStatus === 'completed'
-                ? 'Linh Thạch đã được cộng vào tài khoản của bạn.'
-                : sepayOrder
-                  ? 'Quét mã VietQR bằng bất kỳ ứng dụng ngân hàng hoặc ví điện tử để nạp tự động.'
-                  : 'Mở khóa Theme Pack, Khí Tượng, Linh Thú và Long Vân Pass.'}
-            </p>
+            <h2>{sepayStatus === 'completed' ? 'Nạp Thành Công!' : sepayOrder ? 'Thanh Toán' : 'Nạp Linh Thạch'}</h2>
+            {sepayStatus === 'completed' ? (
+              <p>Linh Thạch đã được cộng vào tài khoản của bạn.</p>
+            ) : !sepayOrder ? (
+              <p>Mở khóa Theme Pack, Khí Tượng, Linh Thú và Long Vân Pass.</p>
+            ) : null}
           </header>
 
           {sepayError && <div className="sepay-error-banner">{sepayError}</div>}
@@ -2184,31 +2182,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="sepay-status-card">
-                  <div className="sepay-pulsing-dot" />
-                  <span>Đang chờ giao dịch từ ngân hàng... Hệ thống tự động xác nhận trong 3-10 giây.</span>
-                </div>
-
-                <div className="sepay-actions">
-                  <button
-                    type="button"
-                    className="sepay-check-btn"
-                    onClick={() => void checkSepayOrder(sepayOrder.orderCode)}
-                  >
-                    Kiểm Tra Thanh Toán Ngay
-                  </button>
-                  <button
-                    type="button"
-                    className="sepay-back-btn"
-                    onClick={() => {
-                      setSepayOrder(null);
-                      setSepayStatus('idle');
-                    }}
-                  >
-                    ← Đổi gói khác
-                  </button>
                 </div>
 
                 <div className="sepay-warning-note">
