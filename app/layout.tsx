@@ -14,17 +14,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Hanzi Beat — Học tiếng Trung theo nhịp',
-  description: 'Game nhịp điệu kết hợp học chữ Hán, pinyin và từ vựng tiếng Trung từ HSK 1 đến HSK 6.',
+  metadataBase: new URL('https://hanzibeat.online'),
+  applicationName: 'Hanzi Beat',
+  title: {
+    default: 'Hanzi Beat — Học Hán tự qua trò chơi',
+    template: '%s · Hanzi Beat',
+  },
+  description: 'Game học tiếng Trung, chữ Hán, pinyin và từ vựng HSK qua thử thách, PvP và Hán Tự Thành.',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: 'Hanzi Beat',
-    description: 'Bắt đúng nhịp. Nhớ trọn Hán tự.',
+    description: 'Học Hán tự qua trò chơi, thử thách và PvP.',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Hanzi Beat',
-    description: 'Bắt đúng nhịp. Nhớ trọn Hán tự.',
+    description: 'Học Hán tự qua trò chơi, thử thách và PvP.',
     images: ['/og.png'],
   },
 };

@@ -3071,7 +3071,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="hud-res-pill" title="木材 · Gỗ xây dựng">🪵 <b>{castle.wood.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="墨 · Mực học thuật">🖌 <b>{castle.ink.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="铜钱 · Coin xây dựng">🪙 <b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></div>
-            <div className="hud-res-pill hud-res-crystal" title="晶石 · Tinh Thạch cao cấp">🔮 <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
+            <div className="hud-res-pill hud-res-crystal" title="晶石 · Tinh Thạch cao cấp"><img className="inline-crystal-icon" src="/items/crystal.png" alt="" /> <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill hud-res-energy" title="Năng lượng công thành">⚡ <b>{castle.attackEnergy}/5</b></div>
             <div className="hud-res-pill hud-res-buff" title="Phúc lợi Mảnh Ngọc Chủ Thành">玉 <b>+{mainBonusRate}%</b></div>
           </div>
@@ -5254,7 +5254,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           {!authUser ? <div className="inventory-login"><Package /><h2>Kho đồ cần tài khoản</h2><p>Đăng nhập để đồng bộ Mảnh Ngọc và vật phẩm trên mọi thiết bị.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             <div className="inventory-wallet">
               <article><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>CURRENCY</small><b>{progression?.jade ?? 0} 玉片</b><p>Mảnh Ngọc Hán Tự</p></span></article>
-              <article className="crystal-wallet"><span className="currency-gem">晶</span><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Tinh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
+              <article className="crystal-wallet"><img src="/items/crystal.png" alt="Tinh Thạch"/><div><small>PREMIUM CURRENCY</small><b>{progression?.dragonCrystals ?? 0} 晶石</b><p>Tinh Thạch · chỉ dùng cho cosmetic và Pass</p></div></article>
               <article className="xp-wallet"><span>XP</span><div><small>KINH NGHIỆM</small><b>{progression?.xp ?? 0} XP</b><p>Level {progression?.level ?? 1}</p></div></article>
               <article className="spin-wallet"><img src="/items/celestial-wheel-icon.png" alt="Spin"/><span><small>THIÊN CƠ LUÂN</small><b>{progression?.spins.balance ?? 0} Spin</b><p>Giữ nút vòng quay để sử dụng</p></span></article>
             </div>
@@ -5310,7 +5310,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {mobileNavigation}
         <header>
           <button className="brand" onClick={() => navigate('home')}><span>汉</span><b>Hanzi Beat<small>Cosmetic shop</small></b></button>
-          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}>🔮 Nạp Tinh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
+          <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> Nạp Tinh Thạch</button><button onClick={() => navigate('inventory')}><Package /> Inventory</button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
           <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
