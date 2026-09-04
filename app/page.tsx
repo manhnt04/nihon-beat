@@ -906,6 +906,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
+  const [shopTab, setShopTab] = useState<'special' | 'cosmetics' | 'items' | 'pass' | 'crystals'>('special');
   const [spinOpen, setSpinOpen] = useState(false);
   const [slotResult, setSlotResult] = useState<SlotResult | null>(null);
   const [reelOffsets, setReelOffsets] = useState([0, 0, 0]);
@@ -5314,10 +5315,17 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         </header>
         <section className="shop-panel">
           <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
+          <nav className="shop-tabs" aria-label="Danh mục cửa hàng">
+            <button className={shopTab === 'special' ? 'on' : ''} onClick={() => setShopTab('special')}>✦ Đặc Biệt</button>
+            <button className={shopTab === 'cosmetics' ? 'on' : ''} onClick={() => setShopTab('cosmetics')}>🎨 Ngoại Trang</button>
+            <button className={shopTab === 'items' ? 'on' : ''} onClick={() => setShopTab('items')}>🛡 Vật Phẩm</button>
+            <button className={shopTab === 'pass' ? 'on' : ''} onClick={() => setShopTab('pass')}>🎫 Battle Pass</button>
+            <button className={shopTab === 'crystals' ? 'on' : ''} onClick={() => setShopTab('crystals')}>🔮 Tinh Thạch</button>
+          </nav>
           {!authUser ? <div className="inventory-login"><ShoppingBag /><h2>Đăng nhập để mua vật phẩm</h2><p>Cosmetic và Mảnh Ngọc sẽ được đồng bộ theo tài khoản.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : <>
             {rewardActionError && <p className="reward-action-error">{rewardActionError}</p>}
-            <div className="shop-grid">
-              {shopItems.map((item) => {
+            {(shopTab === 'special' || shopTab === 'cosmetics' || shopTab === 'items') && <div className="shop-grid">
+              {shopItems.filter((item) => shopTab === 'special' ? ['frame-dragon', 'effect-golden', 'streak-guard'].includes(item.id) : shopTab === 'cosmetics' ? item.type !== 'consumable' : item.type === 'consumable').map((item) => {
                 const owned = item.type !== 'consumable' && progression?.ownedCosmetics.includes(item.id);
                 const guardCount = progression?.inventory['streak-guard'] ?? 0;
                 const isMaxGuard = item.id === 'streak-guard' && guardCount >= 2;
@@ -5338,6 +5346,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 </article>;
               })}
             </div>
+            }
+            {shopTab === 'items' && <div className="shop-coming-grid">{[
+              ['🛡️','Hộ Thân Phù','护身符','PvP thường · 2/tuần'], ['💠','Kim Cương Tráo','金刚罩','PvP thường · 3/tuần'],
+              ['🎯','Vô Song Lệnh','无双令','PvP thường · 2/tuần'], ['🔗','Liên Hoàn Phù','连环符','PvP thường · 3/tuần'],
+              ['📜','Khai Khiếu Đan','开窍丹','Phần thưởng học tập'], ['⏳','Định Thân Chú','定身咒','Chỉ dùng PvE'],
+            ].map(([icon,name,hanzi,note]) => <article key={name}><i>{icon}</i><span>SẮP MỞ</span><h3>{name}</h3><small>{hanzi}</small><p>{note}</p><button disabled>Đang hoàn thiện</button></article>)}</div>}
+            {shopTab === 'pass' && <section className="shop-feature-panel pass"><div><span>龙脉之旅 · MÙA 1</span><h2>Hành Trình Long Mạch</h2><p>Battle Pass gồm 50 cấp với nhánh Miễn phí và Premium. Hiện 10 cấp đầu đã có phần thưởng.</p><b>{progression?.battlePass.xp ?? 0}/5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass.xp ?? 0) / 100))}</b></div><button onClick={() => { setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }}>Xem Battle Pass</button></section>}
+            {shopTab === 'crystals' && <section className="shop-feature-panel crystals"><img src="/items/crystal.png" alt="Tinh Thạch"/><div><span>晶石 · PREMIUM CURRENCY</span><h2>{progression?.dragonCrystals ?? 0} Tinh Thạch</h2><p>Chỉ dùng cho cosmetic, trải nghiệm tùy biến và Battle Pass. Không đổi được thành sức mạnh hoặc tài nguyên xây dựng.</p></div><button onClick={() => setTopupOpen(true)}>Nạp Tinh Thạch</button></section>}
           </>}
         </section>
         {topupOpen && <div className="topup-modal-backdrop" onClick={() => setTopupOpen(false)}><section className="topup-modal" role="dialog" aria-modal="true" aria-label="Tiệm Tinh Thạch" onClick={(event) => event.stopPropagation()}><header><button className="close-btn" onClick={() => setTopupOpen(false)}>×</button><span>晶石阁 · TIỆM TINH THẠCH</span><h2>Nạp Tinh Thạch</h2><p>Mở khóa cosmetic, Theme Pack và Long Vân Pass.</p></header><div className="topup-grid">{[
