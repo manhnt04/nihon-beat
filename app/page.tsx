@@ -1567,6 +1567,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         </button>
       )}
       <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
+      <button className="battle-pass-fab" onClick={() => { if (!authUser) return navigate('auth'); setCommerceTab('pass'); setCastleCommerceOpen(true); navigate('castle'); }} aria-label="Mở Hành Trình Long Mạch"><img src="/items/battle-pass-icon.png" alt=""/><span><b>PASS</b><small>MÙA 1</small></span></button>
       {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
         <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <div className="jackpot-topbar"><span><img src="/items/coin.png" alt="Coin"/><b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span><strong>天机 JACKPOT</strong><span><img src="/items/spin-refund.png" alt="Spin"/><b>{progression?.spins.balance ?? 0}</b></span></div>
@@ -3748,12 +3749,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
 
                 {commerceTab === 'pass' && (
                   <div className="commerce-pass-section">
-                    <div className="pass-banner">
-                      <div>
-                        <h3>Long Vân Pass · Mùa 1</h3>
-                        <p>Học từ vựng và làm bài mỗi ngày để tiến qua 50 cấp, nhận quà từ nhánh Miễn phí và Premium.</p>
-                      </div>
-                      <div className="pass-status">
+                    <header className="battle-pass-title"><div><span>龙脉之旅 · SEASON 1</span><h2>HÀNH TRÌNH LONG MẠCH</h2></div><b>⏳ 49 ngày còn lại</b></header>
+                    <div className="battle-pass-summary">
+                      <section className="pass-mission-card"><span>NHIỆM VỤ MÙA</span><h3>Đánh thức Long Mạch bằng tri thức!</h3><p>Hoàn thành bài học, Daily Challenge và PvP để thu thập Điểm Hành Trình.</p><div><b>Cấp {Math.min(50, Math.floor((progression?.battlePass?.xp ?? 0) / 100))}</b><small>{progression?.battlePass?.xp ?? 0}/5000 Điểm</small></div><div className="pass-bar"><i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 5000) * 100)}%` }} /></div></section>
+                      <section className="pass-premium-card"><span>PREMIUM TRACK</span><h3>Kho báu Thanh Long</h3><p>Avatar, hiệu ứng, nhạc, collectible độc quyền và hoàn lại 80 Tinh Thạch.</p><div className="pass-status">
                         {progression?.battlePass?.premium ? (
                           <span className="premium-badge">★ LONG VÂN PREMIUM ĐÃ MỞ ★</span>
                         ) : (
@@ -3764,16 +3763,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                             Mở Premium Track (🔮 129)
                           </button>
                         )}
-                      </div>
+                      </div></section>
                     </div>
-
-                    <div className="pass-progress-header">
-                      <span>Tiến độ Pass: {progression?.battlePass?.xp ?? 0} / 5000 XP · Cấp {Math.min(50, Math.floor((progression?.battlePass?.xp ?? 0) / 100))}</span>
-                      <div className="pass-bar">
-                        <i style={{ width: `${Math.min(100, ((progression?.battlePass?.xp ?? 0) / 5000) * 100)}%` }} />
-                      </div>
-                    </div>
-
+                    <div className="pass-track-labels"><b>FREE TRACK</b><span>← Kéo ngang để xem đủ 50 cấp →</span><b>PREMIUM TRACK</b></div>
                     <div className="castle-pass-v2">
                       {BATTLE_PASS_TIERS.map((row) => {
                         const curXp = progression?.battlePass?.xp ?? 0;
