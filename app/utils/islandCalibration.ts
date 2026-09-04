@@ -336,4 +336,23 @@ export const NATURAL_ISLAND_CALIBRATION: IslandCalibration = {
   gridRows: 12,
 };
 
-export const DEFAULT_ISLAND_CALIBRATION = RIM_ISLAND_CALIBRATION;
+/**
+ * Preset: natural cliff island v2. The whole grass diamond is a clean 12x12
+ * placement surface; cliff art stays outside the interactive grid.
+ */
+export const NATURAL_GRID_V2_CALIBRATION: IslandCalibration = {
+  id: 'natural-grid-v2-12x12',
+  name: 'Đảo Vách Đá Tự Nhiên (12×12)',
+  imageSrc: '/castle/empty-island-natural-grid-v2.webp',
+  sourceImageSize: { w: 1024, h: 1024 },
+  plateauCorners: {
+    top: { x: 512, y: 79 },
+    right: { x: 974, y: 397 },
+    bottom: { x: 512, y: 711 },
+    left: { x: 50, y: 397 },
+  },
+  gridCols: 12,
+  gridRows: 12,
+};
+
+export const DEFAULT_ISLAND_CALIBRATION = NATURAL_GRID_V2_CALIBRATION;

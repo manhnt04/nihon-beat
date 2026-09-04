@@ -25,6 +25,7 @@ import {
   IslandCalibration,
   RIM_ISLAND_CALIBRATION,
   NATURAL_ISLAND_CALIBRATION,
+  NATURAL_GRID_V2_CALIBRATION,
   DEFAULT_ISLAND_CALIBRATION,
 } from './utils/islandCalibration';
 
@@ -3506,6 +3507,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                         setIslandCalibration(RIM_ISLAND_CALIBRATION);
                       } else if (e.target.value === 'natural-12x12') {
                         setIslandCalibration(NATURAL_ISLAND_CALIBRATION);
+                      } else if (e.target.value === 'natural-grid-v2-12x12') {
+                        setIslandCalibration(NATURAL_GRID_V2_CALIBRATION);
                       }
                     }}
                     style={{
@@ -3520,6 +3523,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   >
                     <option value="rim-12x12">Đảo Thành Cổ Viền Đá (1024×1024)</option>
                     <option value="natural-12x12">Đảo Tiên Tự Nhiên (1024×1024)</option>
+                    <option value="natural-grid-v2-12x12">Đảo Vách Đá Tự Nhiên V2 (1024×1024)</option>
                   </select>
                 </div>
 
