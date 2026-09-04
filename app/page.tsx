@@ -5354,11 +5354,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/spin-siege-ticket.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
       { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/spin-destiny-fragment.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
       { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/spin-jackpot.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
-      { id: 'protect-charm', type: 'timed', name: 'Hộ Thân Phù', hanzi: '护身符', icon: '🛡️', rarity: 'Hiếm', description: 'Vật phẩm PvP có hạn 24 giờ · bảo vệ điểm khi thua.' },
-      { id: 'revenge-order', type: 'timed', name: 'Ân Oán Lệnh', hanzi: '恩怨令', icon: '⚔️', rarity: 'Sử thi', description: 'Vật phẩm cày PvP có hạn 24 giờ · dùng cho trận tái đấu.' },
-      { id: 'enlightenment-pill', type: 'timed', name: 'Khai Khiếu Đan', hanzi: '开窍丹', icon: '📜', rarity: 'Sử thi', description: 'Vật phẩm học tập có hạn 24 giờ.' },
-      { id: 'peerless-order', type: 'timed', name: 'Vô Song Lệnh', hanzi: '无双令', icon: '🎯', rarity: 'Sử thi', description: 'Vật phẩm PvP giới hạn tuần · có hạn 24 giờ.' },
-      { id: 'diamond-guard', type: 'timed', name: 'Kim Cương Tráo', hanzi: '金刚罩', icon: '💠', rarity: 'Sử thi', description: 'Vật phẩm phòng hộ PvP có hạn 24 giờ.' },
+      { id: 'protect-charm', type: 'timed', name: 'Hộ Thân Phù', hanzi: '护身符', image: '/items/protect-charm.png', rarity: 'Hiếm', description: 'Vật phẩm PvP có hạn 24 giờ · bảo vệ điểm khi thua.' },
+      { id: 'revenge-order', type: 'timed', name: 'Ân Oán Lệnh', hanzi: '恩怨令', image: '/items/revenge-order.png', rarity: 'Sử thi', description: 'Vật phẩm cày PvP có hạn 24 giờ · dùng cho trận tái đấu.' },
+      { id: 'enlightenment-pill', type: 'timed', name: 'Khai Khiếu Đan', hanzi: '开窍丹', image: '/items/enlightenment-pill.png', rarity: 'Sử thi', description: 'Vật phẩm học tập có hạn 24 giờ.' },
+      { id: 'peerless-order', type: 'timed', name: 'Vô Song Lệnh', hanzi: '无双令', image: '/items/peerless-order.png', rarity: 'Sử thi', description: 'Vật phẩm PvP giới hạn tuần · có hạn 24 giờ.' },
+      { id: 'diamond-guard', type: 'timed', name: 'Kim Cương Tráo', hanzi: '金刚罩', image: '/items/diamond-guard.png', rarity: 'Sử thi', description: 'Vật phẩm phòng hộ PvP có hạn 24 giờ.' },
       { id: 'destiny-card', type: 'timed', name: 'Thiên Mệnh Bài', hanzi: '天命牌', icon: '🎴', rarity: 'Huyền thoại', description: 'Vật phẩm mạo hiểm PvP có hạn 24 giờ.' },
       { id: 'treasure-basin', type: 'timed', name: 'Tụ Bảo Bồn', hanzi: '聚宝盆', icon: '✨', rarity: 'Huyền thoại', description: 'Vật phẩm sự kiện có hạn 24 giờ.' },
       { id: 'combo-charm', type: 'timed', name: 'Liên Hoàn Phù', hanzi: '连环符', icon: '🔗', rarity: 'Hiếm', description: 'Vật phẩm chuỗi PvP có hạn 24 giờ.' },
@@ -5494,10 +5494,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (reward.type === 'jade') return '/items/jade-fragment.png';
       if (reward.type === 'crystals') return '/items/crystal.png';
       const rewardAssets: Record<string, string> = {
-        'protect-charm': '/items/shop-streak-guard.png',
-        'diamond-guard': '/items/spin-castle-shield.png',
-        'revenge-order': '/items/spin-siege-ticket.png',
-        'enlightenment-pill': '/items/daily-seal.png',
+        'protect-charm': '/items/protect-charm.png',
+        'diamond-guard': '/items/diamond-guard.png',
+        'revenge-order': '/items/revenge-order.png',
+        'enlightenment-pill': '/items/enlightenment-pill.png',
         'longmai-medal-s1': '/items/battle-pass-icon.png',
         'frame-longmai-s1': '/items/shop-frame-dragon.png',
         'effect-dragon-aura-s1': '/items/shop-effect-golden.png',
@@ -5542,7 +5542,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </div>
 
           <section className="pass-rewards-panel">
-            <header><div><span>PHẦN THƯỞNG MÙA</span><h2>50 cấp hành trình</h2></div><small>Kéo ngang để xem các cấp tiếp theo →</small></header>
+            <header><div><span>PHẦN THƯỞNG MÙA</span><h2>50 cấp hành trình</h2></div><div className="pass-track-jump"><button onClick={() => document.querySelector('.battle-pass-track')?.scrollTo({ left: 0, behavior: 'smooth' })}>← Cấp 1</button><button onClick={() => { const track = document.querySelector('.battle-pass-track'); track?.scrollTo({ left: track.scrollWidth, behavior: 'smooth' }); }}>Cấp 50 →</button></div></header>
             <div className="pass-track-heading"><b>MIỄN PHÍ</b><span>CẤP</span><b>PREMIUM</b></div>
             <div className="battle-pass-track">
               {BATTLE_PASS_TIERS.map((row) => {
