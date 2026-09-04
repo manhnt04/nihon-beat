@@ -778,6 +778,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [sandboxInk, setSandboxInk] = useState<number>(99999);
   const [sandboxCoins, setSandboxCoins] = useState<number>(999999);
   const [sandboxExtraBuildings, setSandboxExtraBuildings] = useState<IsoBuildingData[]>(DEFAULT_EXTRA_BUILDINGS);
+  const [castleBurstBuildingId, setCastleBurstBuildingId] = useState<string | null>(null);
+  const [castleBurstText, setCastleBurstText] = useState<string>('');
+  const [sandboxAnimState, setSandboxAnimState] = useState<'idle' | 'upgrading'>('idle');
+  const [sandboxIdleFx, setSandboxIdleFx] = useState<boolean>(true);
   const [realmInfoOpen, setRealmInfoOpen] = useState(false);
   const [commerceTab, setCommerceTab] = useState<'themes' | 'cosmetics' | 'pass'>('themes');
   const [topupOpen, setTopupOpen] = useState(false);
@@ -2391,6 +2395,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               pendingBuilding={pendingBuildingToPlace}
               onCancelPlacement={() => setPendingBuildingToPlace(null)}
               onToast={showCastleToast}
+              burstBuildingId={castleBurstBuildingId}
+              burstText={castleBurstText}
+              onBurstComplete={() => setCastleBurstBuildingId(null)}
+              enableIdleFx={true}
             />
 
             {/* Bottom Floating Action Dock */}
@@ -2882,7 +2890,17 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             </div>
             <div className="castle-condition-progress"><i><em style={{ width: `${completedConditions / 7 * 100}%` }} /></i><span>{completedConditions}/7 hoàn tất</span></div>
             {rewardActionError && <p className="castle-upgrade-error">{rewardActionError}</p>}
-            <button className="castle-upgrade-submit" disabled={rewardActionStatus === 'loading' || !canUpgrade} onClick={() => runProgressionAction('upgrade-castle', selectedBuilding.id)}>{rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ điều kiện'}</button>
+            <button
+              className="castle-upgrade-submit"
+              disabled={rewardActionStatus === 'loading' || !canUpgrade}
+              onClick={() => {
+                setCastleBurstBuildingId(selectedBuilding.id);
+                setCastleBurstText(`Lv.${level + 1} · THĂNG CẤP!`);
+                runProgressionAction('upgrade-castle', selectedBuilding.id);
+              }}
+            >
+              {rewardActionStatus === 'loading' ? 'Đang xây dựng…' : maxed ? 'Đã đạt cấp tối đa' : canUpgrade ? `Nâng lên Lv.${level + 1}` : 'Chưa đủ điều kiện'}
+            </button>
             <footer>Nâng cấp tức thời · Dữ liệu được đồng bộ theo tài khoản</footer>
           </section></div>;
         })()}
@@ -3232,6 +3250,52 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               ))}
             </div>
           </div>
+
+          <div className="sandbox-panel-section">
+            <label>🎬 Diễn Hoạt & State Machine:</label>
+            <div className="sandbox-btn-row">
+              <button
+                style={{
+                  background: 'linear-gradient(135deg, #d97706, #b45309)',
+                  borderColor: '#f59e0b',
+                  color: '#fff',
+                  fontWeight: 900,
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)',
+                }}
+                onClick={() => {
+                  const target = selectedCastleBuilding || 'main';
+                  setCastleBurstBuildingId(target);
+                  setCastleBurstText('+1 CẤP · THĂNG CẤP!');
+                  showCastleToast(`✨ Đã bắn hiệu ứng Level-Up Burst trên [${target}]!`);
+                }}
+                title="Bắn hiệu ứng thăng cấp điện ảnh: Co 0.9x -> Chớp trắng -> Hạt sao vàng -> Overshoot 1.08x -> Chữ bay -> Rung camera"
+              >
+                🌟 Bắn Burst
+              </button>
+              <button
+                className={sandboxAnimState === 'upgrading' ? 'active' : ''}
+                onClick={() => {
+                  const next = sandboxAnimState === 'upgrading' ? 'idle' : 'upgrading';
+                  setSandboxAnimState(next);
+                  showCastleToast(next === 'upgrading' ? '🔨 Đã bật Giàn giáo 3D, búa nhấp nhô & thanh tiến độ' : 'Đã về trạng thái Idle');
+                }}
+                title="Bật/tắt giàn giáo gỗ/tre, búa đập nhấp nhô và thanh % tiến độ lơ lửng"
+              >
+                🔨 Giàn giáo
+              </button>
+              <button
+                className={sandboxIdleFx ? 'active' : ''}
+                onClick={() => {
+                  const next = !sandboxIdleFx;
+                  setSandboxIdleFx(next);
+                  showCastleToast(next ? '💨 Đã bật khói nóc lầu & tiên khí' : 'Đã tắt khói & tiên khí');
+                }}
+                title="Bật/tắt khói bay từ nóc các lầu điện và hào quang tiên khí"
+              >
+                💨 Khói bay
+              </button>
+            </div>
+          </div>
         </aside>
 
         {/* Floating Toast Notification */}
@@ -3268,6 +3332,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           onRemoveBuilding={handleSandboxRemove}
           onCancelPlacement={() => setPendingBuildingToPlace(null)}
           onToast={showCastleToast}
+          burstBuildingId={castleBurstBuildingId}
+          burstText={castleBurstText}
+          onBurstComplete={() => setCastleBurstBuildingId(null)}
+          enableIdleFx={sandboxIdleFx}
+          buildingAnimStates={{
+            [selectedCastleBuilding || 'main']: { state: sandboxAnimState },
+          }}
         />
 
         {/* Bottom Floating Action Dock */}

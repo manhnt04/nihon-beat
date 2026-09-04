@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
+export type BuildingAnimState = 'idle' | 'working' | 'upgrading' | 'level_up_burst';
+
 export interface IsoBuildingData {
   id: string;
   name: string;
@@ -23,6 +25,8 @@ export interface IsoBuildingData {
   isRemovable?: boolean;
   prosperity?: number;
   cost?: { wood: number; ink: number; coin: number };
+  animState?: BuildingAnimState;
+  upgradeProgress?: number;
 }
 
 export interface PendingBuildingTemplate {
@@ -68,6 +72,11 @@ interface CastleIsoCanvasProps {
   pendingBuilding: PendingBuildingTemplate | null;
   onCancelPlacement?: () => void;
   onToast: (msg: string, kind?: 'ok' | 'bad') => void;
+  burstBuildingId?: string | null;
+  burstText?: string;
+  onBurstComplete?: () => void;
+  enableIdleFx?: boolean;
+  buildingAnimStates?: Record<string, { state: BuildingAnimState; progress?: number }>;
 }
 
 const GRID = 8;
@@ -100,6 +109,11 @@ export default function CastleIsoCanvas({
   pendingBuilding,
   onCancelPlacement,
   onToast,
+  burstBuildingId,
+  burstText,
+  onBurstComplete,
+  enableIdleFx = true,
+  buildingAnimStates,
 }: CastleIsoCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -113,6 +127,31 @@ export default function CastleIsoCanvas({
 
   // Hover grid cell for placement preview
   const hoverGridRef = useRef<{ col: number; row: number } | null>(null);
+
+  // Animation Engine Refs (State Machine & Particle Systems)
+  const activeBurstsRef = useRef<
+    Map<string, { startTime: number; duration: number; text: string; particlesSpawned: boolean }>
+  >(new Map());
+  const burstParticlesRef = useRef<
+    { x: number; y: number; vx: number; vy: number; size: number; alpha: number; maxLife: number; life: number; color: string }[]
+  >([]);
+  const smokeParticlesRef = useRef<
+    { x: number; y: number; vx: number; vy: number; size: number; alpha: number; maxLife: number; life: number }[]
+  >([]);
+  const lastSmokeSpawnRef = useRef<number>(0);
+
+  // Trigger burst animation when burstBuildingId prop changes
+  useEffect(() => {
+    if (!burstBuildingId) return;
+    const building = allBuildingsRef.current.find((b) => b.id === burstBuildingId);
+    const label = building ? `${building.name} Thăng Cấp!` : 'Thăng Cấp Thành Công!';
+    activeBurstsRef.current.set(burstBuildingId, {
+      startTime: performance.now(),
+      duration: 1200,
+      text: burstText || label,
+      particlesSpawned: false,
+    });
+  }, [burstBuildingId, burstText]);
 
   // Preload official building assets on mount
   useEffect(() => {
@@ -233,8 +272,14 @@ export default function CastleIsoCanvas({
       ...coreBuildings,
       ...(guardianBuilding ? [guardianBuilding] : []),
       ...extraBuildings,
-    ];
-  }, [coreBuildings, guardianBuilding, extraBuildings]);
+    ].map((b) => {
+      const custom = buildingAnimStates?.[b.id];
+      if (custom) {
+        return { ...b, animState: custom.state, upgradeProgress: custom.progress };
+      }
+      return b;
+    });
+  }, [coreBuildings, guardianBuilding, extraBuildings, buildingAnimStates]);
 
   const allBuildingsRef = useRef(allBuildings);
   allBuildingsRef.current = allBuildings;
@@ -251,6 +296,8 @@ export default function CastleIsoCanvas({
     onRemoveBuilding,
     onCancelPlacement,
     onToast,
+    onBurstComplete,
+    enableIdleFx,
   });
   propsRef.current = {
     castle,
@@ -263,6 +310,8 @@ export default function CastleIsoCanvas({
     onRemoveBuilding,
     onCancelPlacement,
     onToast,
+    onBurstComplete,
+    enableIdleFx,
   };
 
   // Algorithm 1: Grid ↔ Screen
@@ -411,9 +460,23 @@ export default function CastleIsoCanvas({
     const tileW = BASE_TILE_W * scaleFactor;
     const tileH = BASE_TILE_H * scaleFactor;
 
-    // Center the island with current pan
-    const originX = width / 2 + panRef.current.x;
-    const originY = height * 0.3 + panRef.current.y;
+    const now = performance.now();
+
+    // Screen Shake effect for active Level-Up Bursts (Section 1.3: 150ms - 350ms)
+    let shakeX = 0;
+    let shakeY = 0;
+    for (const [, burst] of activeBurstsRef.current) {
+      const elapsed = now - burst.startTime;
+      if (elapsed >= 150 && elapsed <= 350) {
+        const mag = (1 - (elapsed - 150) / 200) * 3.5 * scaleFactor;
+        shakeX += (Math.random() - 0.5) * 2 * mag;
+        shakeY += (Math.random() - 0.5) * 2 * mag;
+      }
+    }
+
+    // Center the island with current pan and screen shake
+    const originX = width / 2 + panRef.current.x + shakeX;
+    const originY = height * 0.3 + panRef.current.y + shakeY;
 
     // --- 1. Draw Floating Island Cliff Depth (Underbelly) ---
     const islandE = gridToScreen(GRID - 1, 0, originX, originY, tileW, tileH);
@@ -559,38 +622,100 @@ export default function CastleIsoCanvas({
     // --- 4. Depth Sorting (Algorithm 4) ---
     const sorted = [...curBuildings].sort((a, b) => depthKey(a) - depthKey(b));
 
-    // --- 5. Draw Buildings with Real Images & Footprints ---
+    // --- 5. Draw Buildings with Two-Tier Shadows & Animations ---
     sorted.forEach((b) => {
       const c = footprintCorners(b, originX, originY, tileW, tileH);
       const h = b.height * scaleFactor;
       const isSelected = b.id === selId;
       const footCenterX = (c.N.x + c.E.x + c.S.x + c.W.x) / 4;
+      const contactY = (c.N.y + c.S.y) / 2 + 1;
 
-      // Fast Feathered Footprint Shadow (Radial Gradient)
-      const bShadowCenterX = (c.W.x + c.E.x) / 2;
-      const bShadowCenterY = (c.N.y + c.S.y) / 2 + 2;
-      const bShadowRadX = (b.w * tileW) / 2.1;
-      const bShadowRadY = (b.h * tileH) / 2.2;
+      // --- SECTION 2.1 & 2.3: TWO-TIER REALISTIC SHADOW SYSTEM ---
+      // Layer 1: Ambient Contact Shadow (AO) - Sharp & Dark right at base
+      const contactRadX = (b.w * tileW) / 2.35;
+      const contactRadY = (b.h * tileH) / 2.4;
+      ctx.fillStyle = 'rgba(10, 5, 5, 0.42)';
+      ctx.beginPath();
+      ctx.ellipse(footCenterX, contactY, contactRadX, contactRadY, 0, 0, Math.PI * 2);
+      ctx.fill();
 
+      // Layer 2: Main Directional Shadow - Cast along light angle (top-left -> bottom-right)
+      const dirOffsetX = 8 * scaleFactor;
+      const dirOffsetY = 5 * scaleFactor;
+      const dirRadX = ((b.w * tileW) / 1.85) * (b.level && b.level >= 5 ? 1.15 : 1.0);
+      const dirRadY = (b.h * tileH) / 1.95;
+      const dirCenterX = footCenterX + dirOffsetX;
+      const dirCenterY = contactY + dirOffsetY;
       const bGrad = ctx.createRadialGradient(
-        bShadowCenterX,
-        bShadowCenterY,
-        bShadowRadX * 0.2,
-        bShadowCenterX,
-        bShadowCenterY,
-        bShadowRadX
+        dirCenterX,
+        dirCenterY,
+        dirRadX * 0.15,
+        dirCenterX,
+        dirCenterY,
+        dirRadX
       );
-      bGrad.addColorStop(0, 'rgba(15, 8, 7, 0.36)');
-      bGrad.addColorStop(0.75, 'rgba(15, 8, 7, 0.12)');
-      bGrad.addColorStop(1, 'rgba(15, 8, 7, 0)');
-
+      bGrad.addColorStop(0, 'rgba(12, 6, 6, 0.34)');
+      bGrad.addColorStop(0.65, 'rgba(12, 6, 6, 0.12)');
+      bGrad.addColorStop(1, 'rgba(12, 6, 6, 0)');
       ctx.fillStyle = bGrad;
       ctx.beginPath();
-      ctx.ellipse(bShadowCenterX, bShadowCenterY, bShadowRadX, bShadowRadY, 0, 0, Math.PI * 2);
+      ctx.ellipse(dirCenterX, dirCenterY, dirRadX, dirRadY, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Check if real webp image is available & loaded in cache!
       const spriteImg = b.imageSrc ? getLoadedImage(b.imageSrc) : null;
+
+      // --- SECTION 1.3: LEVEL-UP BURST CINEMATIC TIMELINE ---
+      let spriteScale = 1.0;
+      let isFlashing = false;
+      const burst = activeBurstsRef.current.get(b.id);
+      let burstElapsed = 0;
+      if (burst) {
+        burstElapsed = now - burst.startTime;
+        if (burstElapsed < 150) {
+          // Phase 1 (0-150ms): Squeeze down to 0.9x
+          spriteScale = 1.0 - 0.1 * (burstElapsed / 150);
+        } else if (burstElapsed < 250) {
+          // Phase 2 (150-250ms): White flash + expand
+          isFlashing = true;
+          spriteScale = 0.9 + 0.15 * ((burstElapsed - 150) / 100);
+          if (!burst.particlesSpawned) {
+            burst.particlesSpawned = true;
+            // Spawn 32 starburst particles
+            for (let k = 0; k < 32; k++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = Math.random() * 4.5 + 2.5;
+              const colors = ['#ffd700', '#fff3bf', '#ffec99', '#ffffff', '#69db7c', '#ffa94d'];
+              burstParticlesRef.current.push({
+                x: footCenterX,
+                y: c.S.y - h * 0.6,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 1.5,
+                size: Math.random() * 4 + 3,
+                alpha: 1,
+                maxLife: 45 + Math.random() * 25,
+                life: 0,
+                color: colors[Math.floor(Math.random() * colors.length)],
+              });
+            }
+          }
+        } else if (burstElapsed < 650) {
+          // Phase 4 (250-650ms): Overshoot spring scale (0.8 -> 1.08 -> 1.0)
+          const t = (burstElapsed - 250) / 400;
+          const overshoot = 1 + 1.8 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
+          spriteScale = 0.8 + 0.2 * overshoot;
+        } else if (burstElapsed < burst.duration) {
+          spriteScale = 1.0;
+        } else {
+          activeBurstsRef.current.delete(b.id);
+          propsRef.current.onBurstComplete?.();
+        }
+      }
+
+      // Upgrading state subtle pulsing vibration
+      if (b.animState === 'upgrading') {
+        spriteScale *= 1.0 + 0.012 * Math.sin(now * 0.015);
+      }
 
       if (spriteImg) {
         // Compute scaled dimension matching isometric footprint
@@ -603,15 +728,101 @@ export default function CastleIsoCanvas({
         const drawX = footCenterX - imgW / 2;
         const drawY = c.S.y - imgH + tileH * 0.45;
 
-        // Selected building golden aura
-        if (isSelected) {
-          ctx.save();
+        // --- SECTION 2.4: HIGH-LEVEL CELESTIAL AURA ---
+        if ((b.id === 'main' && mainStage >= 4) || (b.level && b.level >= 7)) {
+          const auraAlpha = 0.22 + 0.12 * Math.sin(now * 0.003);
+          const auraGrad = ctx.createRadialGradient(
+            footCenterX, drawY + imgH * 0.35, 10,
+            footCenterX, drawY + imgH * 0.35, imgW * 0.65
+          );
+          auraGrad.addColorStop(0, `rgba(255, 215, 80, ${auraAlpha})`);
+          auraGrad.addColorStop(0.65, `rgba(255, 180, 50, ${auraAlpha * 0.35})`);
+          auraGrad.addColorStop(1, 'rgba(255, 215, 80, 0)');
+          ctx.fillStyle = auraGrad;
+          ctx.beginPath();
+          ctx.arc(footCenterX, drawY + imgH * 0.35, imgW * 0.65, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Draw Sprite with transform anchor at South base
+        ctx.save();
+        ctx.translate(footCenterX, c.S.y + tileH * 0.45);
+        ctx.scale(spriteScale, spriteScale);
+        ctx.translate(-footCenterX, -(c.S.y + tileH * 0.45));
+
+        if (isFlashing) {
+          ctx.filter = 'brightness(3.2) contrast(1.4)';
+        } else if (isSelected) {
           ctx.shadowColor = '#ffd43b';
-          ctx.shadowBlur = 16;
-          ctx.drawImage(spriteImg, drawX, drawY, imgW, imgH);
+          ctx.shadowBlur = 18;
+        }
+
+        ctx.drawImage(spriteImg, drawX, drawY, imgW, imgH);
+        ctx.restore();
+
+        // --- SECTION 1.2: UPGRADING STATE OVERLAYS (SCAFFOLDING, HAMMER, PROGRESS BAR) ---
+        if (b.animState === 'upgrading') {
+          ctx.save();
+          // Scaffolding lattice frame
+          ctx.strokeStyle = 'rgba(235, 185, 75, 0.78)';
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash([6, 4]);
+          const scaffoldTopY = drawY - 8 * scaleFactor;
+          const scaffoldBottomY = c.S.y + tileH * 0.2;
+          const scaffoldLeftX = footCenterX - imgW * 0.52;
+          const scaffoldRightX = footCenterX + imgW * 0.52;
+          const scaffoldW = scaffoldRightX - scaffoldLeftX;
+          const scaffoldH = scaffoldBottomY - scaffoldTopY;
+          ctx.strokeRect(scaffoldLeftX, scaffoldTopY, scaffoldW, scaffoldH);
+          // Diagonal braces
+          ctx.beginPath();
+          ctx.moveTo(scaffoldLeftX, scaffoldTopY);
+          ctx.lineTo(scaffoldRightX, scaffoldBottomY);
+          ctx.moveTo(scaffoldRightX, scaffoldTopY);
+          ctx.lineTo(scaffoldLeftX, scaffoldBottomY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Bobbing Hammer
+          const hammerBob = Math.sin(now * 0.009) * 6 * scaleFactor;
+          const hammerY = drawY - 24 * scaleFactor + hammerBob;
+          ctx.font = `${Math.round(22 * scaleFactor)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('🔨', footCenterX, hammerY);
+
+          // Floating Progress Bar
+          const barW = Math.max(54, b.w * tileW * 0.65);
+          const barH = 7 * scaleFactor;
+          const barX = footCenterX - barW / 2;
+          const barY = hammerY + 18 * scaleFactor;
+          const pct = Math.min(1, Math.max(0, b.upgradeProgress ?? ((now % 5000) / 5000)));
+          ctx.fillStyle = 'rgba(20, 12, 10, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(barX, barY, barW, barH, 4);
+          ctx.fill();
+          ctx.strokeStyle = '#ffd43b';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.fillStyle = '#48c774';
+          ctx.beginPath();
+          ctx.roundRect(barX + 1, barY + 1, Math.max(2, (barW - 2) * pct), barH - 2, 3);
+          ctx.fill();
           ctx.restore();
-        } else {
-          ctx.drawImage(spriteImg, drawX, drawY, imgW, imgH);
+        }
+
+        // --- SECTION 1.3: FLOATING LEVEL-UP BURST TEXT ---
+        if (burst && burstElapsed > 180) {
+          const textProgress = (burstElapsed - 180) / (burst.duration - 180);
+          const textY = drawY - 12 * scaleFactor - textProgress * 45 * scaleFactor;
+          const textAlpha = Math.max(0, 1 - textProgress);
+          ctx.save();
+          ctx.font = `bold ${Math.round(13 * scaleFactor)}px "Songti SC", "SimSun", serif`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = `rgba(255, 230, 120, ${textAlpha})`;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+          ctx.shadowBlur = 6;
+          ctx.fillText(`✨ ${burst.text} ✨`, footCenterX, textY);
+          ctx.restore();
         }
       } else {
         // Fallback: 3D stylized isometric block for tree, stone, or until image loads
@@ -683,6 +894,80 @@ export default function CastleIsoCanvas({
         ctx.setLineDash([]);
       }
     });
+
+    // --- 6. Idle Rooftop Smoke Particles (Section 1.1) ---
+    const isIdleEnabled = propsRef.current.enableIdleFx !== false;
+    if (isIdleEnabled) {
+      if (now - lastSmokeSpawnRef.current > 340) {
+        lastSmokeSpawnRef.current = now;
+        for (const b of curBuildings) {
+          if (b.id === 'main' || b.id === 'library' || b.id === 'listening') {
+            const c = footprintCorners(b, originX, originY, tileW, tileH);
+            const footCenterX = (c.N.x + c.E.x + c.S.x + c.W.x) / 4;
+            const roofPeakY = c.S.y - (b.height * scaleFactor * 1.32);
+            if (smokeParticlesRef.current.length < 35) {
+              smokeParticlesRef.current.push({
+                x: footCenterX + (Math.random() - 0.5) * 10 * scaleFactor,
+                y: roofPeakY,
+                vx: (Math.random() - 0.5) * 0.35 + 0.18,
+                vy: Math.random() * 0.55 + 0.45,
+                size: Math.random() * 2.8 + 2.2,
+                alpha: 0.42,
+                maxLife: 55 + Math.random() * 30,
+                life: 0,
+              });
+            }
+          }
+        }
+      }
+
+      if (smokeParticlesRef.current.length > 0) {
+        ctx.save();
+        for (let i = smokeParticlesRef.current.length - 1; i >= 0; i--) {
+          const p = smokeParticlesRef.current[i];
+          p.life++;
+          p.x += p.vx + Math.sin(p.life * 0.05) * 0.4;
+          p.y -= p.vy;
+          p.size += 0.1;
+          const progress = p.life / p.maxLife;
+          const alpha = p.alpha * (1 - progress);
+          if (progress >= 1 || alpha <= 0.01) {
+            smokeParticlesRef.current.splice(i, 1);
+            continue;
+          }
+          ctx.fillStyle = `rgba(235, 230, 225, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * scaleFactor, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // --- 7. Level-Up Burst Particles (Section 1.3) ---
+    if (burstParticlesRef.current.length > 0) {
+      ctx.save();
+      for (let i = burstParticlesRef.current.length - 1; i >= 0; i--) {
+        const p = burstParticlesRef.current[i];
+        p.life++;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.12;
+        p.vx *= 0.98;
+        const progress = p.life / p.maxLife;
+        const alpha = p.alpha * (1 - progress);
+        if (progress >= 1 || alpha <= 0.01) {
+          burstParticlesRef.current.splice(i, 1);
+          continue;
+        }
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 - progress * 0.5) * scaleFactor, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
 
     // --- 6. Atmospheric Weather Particles (Batched) ---
     if (particlesRef.current.length > 0) {

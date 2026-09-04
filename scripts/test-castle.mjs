@@ -168,6 +168,42 @@ for (const asset of requiredAssets) {
   assert(exists && stats.size > 1000, `Asset ${asset} tồn tại (${stats ? Math.round(stats.size / 1024) : 0} KB)`);
 }
 
+// 6. Kiểm thử Animation State Machine & Easing Thăng Cấp (Building System Guide)
+console.log('\n6. Kiểm thử Animation State Machine & Easing Thăng Cấp:');
+
+function calculateBurstTimeline(elapsed) {
+  let scale = 1.0;
+  let isFlashing = false;
+  let isShaking = false;
+  if (elapsed < 150) {
+    scale = 1.0 - 0.1 * (elapsed / 150);
+  } else if (elapsed < 250) {
+    isFlashing = true;
+    scale = 0.9 + 0.15 * ((elapsed - 150) / 100);
+    isShaking = true;
+  } else if (elapsed < 650) {
+    const t = (elapsed - 250) / 400;
+    const overshoot = 1 + 1.8 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
+    scale = 0.8 + 0.2 * overshoot;
+    if (elapsed <= 350) isShaking = true;
+  } else {
+    scale = 1.0;
+  }
+  return { scale, isFlashing, isShaking };
+}
+
+const t0 = calculateBurstTimeline(75);
+assert(t0.scale < 1.0 && t0.scale >= 0.9, `Phase 1 (Squeeze): scale = ${t0.scale.toFixed(3)} (co nén nhẹ)`);
+
+const t1 = calculateBurstTimeline(200);
+assert(t1.isFlashing === true && t1.isShaking === true, `Phase 2 (Flash & Shake): isFlashing = true, isShaking = true`);
+
+const t2 = calculateBurstTimeline(450);
+assert(t2.scale > 1.0, `Phase 3 (Overshoot Spring): scale = ${t2.scale.toFixed(3)} (> 1.0 nảy đàn hồi)`);
+
+const t3 = calculateBurstTimeline(800);
+assert(Math.abs(t3.scale - 1.0) < 0.001, `Phase 4 (Settle): scale = ${t3.scale.toFixed(3)} (định hình ổn định)`);
+
 console.log('\n========================================');
 console.log(`📊 TỔNG KẾT: ${passed} ĐẠT, ${failed} LỖI`);
 console.log('========================================\n');
