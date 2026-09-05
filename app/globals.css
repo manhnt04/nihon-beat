@@ -500,14 +500,24 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
 .play-mode-options button.diff-card {
   min-height: 225px;
   padding: 18px 14px;
-  grid-template-columns: 46px 1fr;
+  grid-template-columns: 72px 1fr;
   gap: 10px;
   align-items: flex-start;
 }
 .play-mode-options button.diff-card>i {
-  width: 46px;
-  height: 46px;
+  width: 72px;
+  height: 72px;
   font-size: 20px;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+.play-mode-options button.diff-card>i img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 9px #3f211f35);
 }
 .play-mode-options button.diff-card p {
   min-height: 52px;
@@ -522,8 +532,8 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
   border-color: #10b981;
 }
 .play-mode-options button.diff-easy>i {
-  background: #065f46;
-  border-color: #34d399;
+  background: transparent;
+  border-color: transparent;
 }
 .play-mode-options button.diff-easy small {
   color: #047857;
@@ -539,8 +549,8 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
   border-color: #f59e0b;
 }
 .play-mode-options button.diff-normal>i {
-  background: #92400e;
-  border-color: #fbbf24;
+  background: transparent;
+  border-color: transparent;
 }
 .play-mode-options button.diff-normal small {
   color: #b45309;
@@ -556,8 +566,8 @@ nav button.on{color:var(--cinnabar)}nav button.on:after{height:2px;background:va
   border-color: #ef4444;
 }
 .play-mode-options button.diff-hard>i {
-  background: #991b1b;
-  border-color: #f87171;
+  background: transparent;
+  border-color: transparent;
 }
 .play-mode-options button.diff-hard small {
   color: #b91c1c;

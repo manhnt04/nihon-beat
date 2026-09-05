@@ -5970,7 +5970,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       navigate('songs');
                     }}
                   >
-                    <i>🟢</i>
+                    <i><img src="/items/difficulty-easy.webp" alt="Huy hiệu độ khó Dễ" /></i>
                     <span>
                       <small>CẤP ĐỘ 1 · HSK 1 - 4</small>
                       <b>Dễ (HSK)</b>
@@ -5988,7 +5988,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       navigate('songs');
                     }}
                   >
-                    <i>🟡</i>
+                    <i><img src="/items/difficulty-normal.webp" alt="Huy hiệu độ khó Thường" /></i>
                     <span>
                       <small>CẤP ĐỘ 2 · COLLOCATIONS</small>
                       <b>Bình Thường</b>
@@ -6006,7 +6006,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       navigate('songs');
                     }}
                   >
-                    <i>🔴</i>
+                    <i><img src="/items/difficulty-hard.webp" alt="Huy hiệu độ khó Khó" /></i>
                     <span>
                       <small>CẤP ĐỘ 3 · MẪU CÂU</small>
                       <b>Khó (Mẫu Câu)</b>
