@@ -162,6 +162,7 @@ type Progression = {
     ink: number;
     jadeBonusCarry: number;
     shieldActiveUntil: number;
+    shieldCount: number;
     likes: number;
     theme: string;
     ownedThemes: string[];
@@ -176,6 +177,10 @@ type Progression = {
     attackUpdatedAt: number;
     peaceUntil: number;
     newbieUntil: number;
+    newbieProtected: boolean;
+    newbieProtectionEndedAt: number;
+    newbieProtectionReason: 'hammer' | 'shield' | null;
+    damagedBuildings: Record<string, number>;
     buildings: { main: number; library: number; listening: number };
   };
   battlePass: { season: string; xp: number; premium: boolean; claimed: string[] };
@@ -302,10 +307,10 @@ const playAnswerSound = (result: 'correct' | 'wrong') => {
 
 type CastleBuildingKind = 'main' | 'library' | 'listening';
 type SlotRewards = { coins: number; spins: number; wood: number; ink: number; jade: number; chests: number; shields: number; tickets: number; fragments: number; jackpots: number };
-type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean };
-type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; buildings: { main: number; library: number; listening: number }; buildingsLayout?: IsoBuildingData[]; corePositions?: CoreBuildingPositions };
+type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean; event?: 'attack' | 'shield' | 'raid' | null; shieldFull?: boolean };
+type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; shieldCount?: number; newbieProtected?: boolean; damagedBuildings?: Record<string, number>; buildings: { main: number; library: number; listening: number }; buildingsLayout?: IsoBuildingData[]; corePositions?: CoreBuildingPositions };
 type CastleVisitor = { uid: string; name: string; visitedAt: number };
-type CombatLog = { id: string; attackerId: string; attackerName: string; defenderId: string; defenderName: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
+type CombatLog = { id: string; attackerId: string; attackerName: string; defenderId: string; defenderName: string; attackedBuilding?: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
 const slotSymbols = [
   { id: 'coin', label: 'Coin', image: '/items/coin.png' },
   { id: 'spin', label: 'Spin', image: '/items/spin-refund.png' },
@@ -314,7 +319,8 @@ const slotSymbols = [
   { id: 'jade', label: 'Ngọc', image: '/items/jade-fragment.png' },
   { id: 'chest', label: 'Rương', image: '/items/daily-chest.png' },
   { id: 'shield', label: 'Khiên', image: '/items/spin-castle-shield.png' },
-  { id: 'ticket', label: 'Vé', image: '/items/spin-siege-ticket.png' },
+  { id: 'ticket', label: 'Búa Sấm Sét', image: '/items/spin-siege-ticket.png' },
+  { id: 'raid', label: 'Raid', image: '/items/treasure-basin.png' },
   { id: 'rare', label: 'Mảnh hiếm', image: '/items/spin-destiny-fragment.png' },
   { id: 'jackpot', label: 'Jackpot', image: '/items/spin-jackpot.png' },
 ] as const;
@@ -863,6 +869,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [combatLogs, setCombatLogs] = useState<CombatLog[]>([]);
   const [combatQuiz, setCombatQuiz] = useState<{ id: string; targetId: string; targetName: string; questions: VocabularyEntry[]; index: number; correct: number } | null>(null);
   const [combatResult, setCombatResult] = useState<CombatLog | null>(null);
+  const [slotAction, setSlotAction] = useState<'attack' | 'raid' | null>(null);
+  const [slotTarget, setSlotTarget] = useState<PublicCastle | null>(null);
+  const [newbieNotice, setNewbieNotice] = useState(false);
+  const [raidSession, setRaidSession] = useState<{ id: string; targetId: string; targetName: string; spotCount: number; digsLeft: number } | null>(null);
+  const [raidFinds, setRaidFinds] = useState<Record<number, { kind: 'coin' | 'wood' | 'ink' | 'empty'; amount: number }>>({});
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -1502,6 +1513,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     spinBusyRef.current = true;
     setSpinBusy(true);
     setSpinError('');
+    const wasNewbieProtected = Boolean(progression?.castle.newbieProtected);
     try {
       const token = await user.getIdToken();
       const response = await fetch('/api/progression', {
@@ -1512,6 +1524,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       const data = await response.json() as { progression?: Progression; slotResult?: SlotResult; error?: string };
       if (!response.ok || !data.slotResult) throw new Error(data.error || 'Không thể quay Thiên Cơ Luân.');
       if (data.progression) setProgression(data.progression);
+      if (wasNewbieProtected && (data.slotResult.event === 'attack' || data.slotResult.event === 'shield')) setNewbieNotice(true);
       setSlotResult(null);
       setReelOffsets([0, 0, 0]);
       setReelRun((current) => current + 1);
@@ -1526,6 +1539,18 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       })));
       await new Promise((resolve) => window.setTimeout(resolve, 1050));
       setSlotResult(data.slotResult);
+      if (data.slotResult.event === 'attack' || data.slotResult.event === 'raid') {
+        autoSpinRef.current = false;
+        setAutoSpin(false);
+        setSpinOpen(false);
+        setSlotAction(data.slotResult.event);
+        void runCastleSocial();
+        return;
+      }
+      if (data.slotResult.event === 'shield') {
+        setCastleEffect({ type: 'shield' });
+        window.setTimeout(() => setCastleEffect(null), 2200);
+      }
       if (autoSpinRef.current && (data.progression?.spins.balance ?? 0) > 0) {
         spinBusyRef.current = false;
         setSpinBusy(false);
@@ -1598,6 +1623,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {spinError && <p className="spin-error">{spinError}</p>}
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''} ${autoSpin ? 'auto-spinning' : ''}`} disabled={!authUser || (!autoSpin && (progression?.spins.balance ?? 0) < 1)} onClick={toggleAutoSpin}>{autoSpin ? 'DỪNG' : (progression?.spins.balance ?? 0) > 0 ? 'QUAY' : 'HẾT LƯỢT'}<small>{autoSpin ? 'Đang tự động quay' : 'Nhấn để tự động quay'}</small></button>
       </section></div>}
+      {slotAction && <div className="slot-action-backdrop"><section className="slot-action-modal" role="dialog" aria-modal="true"><header><img src={slotAction === 'attack' ? '/items/spin-siege-ticket.png' : '/items/treasure-basin.png'} alt=""/><div><small>{slotAction === 'attack' ? '雷锤 · BÚA SẤM SÉT' : '夺宝 · RAID'}</small><h2>{slotAction === 'attack' && slotTarget ? `Chọn công trình của ${slotTarget.name}` : slotAction === 'attack' ? 'Chọn thành để Công Thành' : 'Chọn thành để Raid'}</h2><p>Kết quả này không thể tích trữ và sẽ hết hạn sau 10 phút.</p></div></header>{slotAction === 'attack' && slotTarget ? <div className="attack-building-list">{([['main','Chủ Thành'],['library','Tàng Thư Các'],['listening','Thính Âm Các']] as const).map(([id,name])=><button key={id} onClick={() => void runCastleCombat('start',{targetId:slotTarget.uid,buildingId:id})}><img src={`/castle/buildings/${id}/stage-${id === 'main' ? Math.max(1,Math.ceil(slotTarget.buildings[id]/2)) : 1}.webp`} alt=""/><span><b>{name}</b><small>Lv.{slotTarget.buildings[id]}</small></span><strong>PHÁ</strong></button>)}<button className="attack-target-back" onClick={()=>setSlotTarget(null)}>← Chọn thành khác</button></div> : <div className="slot-target-list">{castleSocial?.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).length ? castleSocial.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).map((entry) => <button key={entry.uid} onClick={() => slotAction === 'attack' ? setSlotTarget(entry) : void runCastleCombat('raid-start', { targetId: entry.uid })}><i>{entry.name.slice(0,1).toUpperCase()}</i><span><b>{entry.name}</b><small>Chủ Thành Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><strong>{slotAction === 'attack' ? 'CHỌN' : 'RAID'}</strong></button>) : <p>Đang tìm thành có thể tấn công…</p>}</div>}</section></div>}
+      {raidSession && <div className="slot-action-backdrop"><section className="raid-modal" role="dialog" aria-modal="true"><header><small>夺宝 · RAID</small><h2>Kho báu của {raidSession.targetName}</h2><p>Chọn 3 điểm để đào · Còn <b>{raidSession.digsLeft}</b> lượt</p></header><div className="raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{ const found=raidFinds[index]; return <button key={index} className={found ? `opened ${found.kind}` : ''} disabled={Boolean(found) || raidSession.digsLeft < 1} onClick={() => void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found ? <><span>{found.kind === 'coin' ? '🪙' : found.kind === 'wood' ? '🪵' : found.kind === 'ink' ? '🖌' : '💨'}</span><b>{found.kind === 'empty' ? 'Trống' : `×${found.amount}`}</b></> : <><span>⛏</span><b>Đào</b></>}</button>})}</div>{raidSession.digsLeft < 1 && <button className="raid-done" onClick={() => setRaidSession(null)}>Nhận và quay tiếp</button>}</section></div>}
+      {newbieNotice && <div className="newbie-unlock-backdrop"><section><span>城战解锁</span><h2>ĐÃ MỞ KHÓA CÔNG THÀNH</h2><p>Từ bây giờ, thành của bạn có thể bị người chơi khác tấn công hoặc Raid.</p><button onClick={()=>setNewbieNotice(false)}>Đã hiểu</button></section></div>}
     </>
   );
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
@@ -1967,21 +1995,22 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       setRewardActionError(error instanceof Error ? error.message : 'Không thể kết nối Hán Tự Thành.');
     }
   }, []);
-  const runCastleCombat = useCallback(async (operation: 'logs' | 'peace' | 'start' | 'finish', payload: { targetId?: string; combatId?: string; correct?: number } = {}) => {
+  const runCastleCombat = useCallback(async (operation: 'logs' | 'start' | 'raid-start' | 'raid-dig', payload: { targetId?: string; buildingId?: string; raidId?: string; spotIndex?: number } = {}) => {
     const user = firebaseAuth.currentUser;
     if (!user) return;
     setRewardActionError('');
     try {
       const token = await user.getIdToken();
       const response = await fetch('/api/progression', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: 'castle-combat', operation, ...payload }) });
-      const data = await response.json() as { progression?: Progression; combatLogs?: CombatLog[]; combatSession?: { id: string; targetId: string; targetName: string }; combatResult?: CombatLog; error?: string };
+      const data = await response.json() as { progression?: Progression; combatLogs?: CombatLog[]; combatResult?: CombatLog; raidSession?: { id: string; targetId: string; targetName: string; spotCount: number; digsLeft: number }; raidDig?: { spotIndex: number; kind: 'coin' | 'wood' | 'ink' | 'empty'; amount: number; digsLeft: number; done: boolean }; error?: string };
       if (!response.ok) throw new Error(data.error || 'Không thể thực hiện Công Thành.');
       if (data.progression) setProgression(data.progression);
       if (data.combatLogs) setCombatLogs(data.combatLogs);
-      if (data.combatResult) { setCombatResult(data.combatResult); setCombatQuiz(null); }
-      if (data.combatSession) {
-        const questions = [...allVocabulary].sort(() => Math.random() - .5).slice(0, 10);
-        setCombatQuiz({ ...data.combatSession, questions, index: 0, correct: 0 });
+      if (data.combatResult) { setCombatResult(data.combatResult); setCombatQuiz(null); setSlotAction(null); setSlotTarget(null); }
+      if (data.raidSession) { setRaidSession(data.raidSession); setRaidFinds({}); setSlotAction(null); }
+      if (data.raidDig) {
+        setRaidFinds((current) => ({ ...current, [data.raidDig!.spotIndex]: { kind: data.raidDig!.kind, amount: data.raidDig!.amount } }));
+        setRaidSession((current) => current ? { ...current, digsLeft: data.raidDig!.digsLeft } : current);
       }
     } catch (error) { setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện Công Thành.'); }
   }, []);
@@ -2233,13 +2262,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       </div>
     );
   };
-  const answerCombatQuestion = (answer: string) => {
-    if (!combatQuiz) return;
-    const isCorrect = answer === combatQuiz.questions[combatQuiz.index][3];
-    const nextCorrect = combatQuiz.correct + (isCorrect ? 1 : 0);
-    if (combatQuiz.index >= 9) { void runCastleCombat('finish', { combatId: combatQuiz.id, correct: nextCorrect }); return; }
-    setCombatQuiz({ ...combatQuiz, index: combatQuiz.index + 1, correct: nextCorrect });
-  };
   useEffect(() => {
     if (screen === 'castle' && authUser) { void runCastleSocial(); void runCastleCombat('logs'); }
   }, [screen, authUser, runCastleSocial, runCastleCombat]);
@@ -2351,9 +2373,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       void firebaseUser.getIdToken().then((token) => fetch('/api/progression', {
         headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
       })).then(async (response) => response.ok
-        ? await response.json() as { progression?: Progression }
+        ? await response.json() as { progression?: Progression; pendingAction?: 'attack' | 'raid' | null; raidSession?: { id: string; targetId: string; targetName: string; spotCount: number; digsLeft: number } | null }
         : null)
-        .then((data) => setProgression(data?.progression ?? null))
+        .then((data) => { setProgression(data?.progression ?? null); if (data?.raidSession) setRaidSession(data.raidSession); else if (data?.pendingAction) { setSlotAction(data.pendingAction); void runCastleSocial(); } })
         .catch(() => setProgression(null));
       const userRef = doc(firebaseDb, 'users', firebaseUser.uid);
       void getDoc(userRef).then((snapshot) => {
@@ -3177,7 +3199,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     );
 
   if (screen === 'castle') {
-    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: 0, buildings: { main: 1, library: 1, listening: 1 } };
+    const castle = progression?.castle ?? { wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, shieldCount: 0, likes: 0, theme: 'classic', ownedThemes: ['classic'], decorations: { theme: 'classic', weather: null, guardian: null, banner: null }, ownedDecorations: ['classic'], attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0, newbieUntil: Number.MAX_SAFE_INTEGER, newbieProtected: true, buildings: { main: 1, library: 1, listening: 1 } };
     const castleLevel = Math.max(1, Object.values(castle.buildings).reduce((sum, level) => sum + level, 0) - 2);
     const lowestBuildingLevel = Math.min(...Object.values(castle.buildings));
     const environmentStage = Math.min(5, Math.floor(lowestBuildingLevel / 2) + 1);
@@ -3333,7 +3355,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
             <div className="hud-res-pill" title="墨 · Mực học thuật">🖌 <b>{castle.ink.toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill" title="铜钱 · Coin xây dựng">🪙 <b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></div>
             <div className="hud-res-pill hud-res-crystal" title="晶石 · Linh Thạch cao cấp"><img className="inline-crystal-icon" src="/items/crystal.png" alt="" /> <b>{(progression?.dragonCrystals ?? 0).toLocaleString('vi-VN')}</b></div>
-            <div className="hud-res-pill hud-res-energy" title="Năng lượng công thành">⚡ <b>{castle.attackEnergy}/5</b></div>
+            <div className="hud-res-pill hud-res-energy" title="Khiên Thành">🛡 <b>{castle.shieldCount}/3</b></div>
             <div className="hud-res-pill hud-res-buff" title="Phúc lợi Mảnh Ngọc Chủ Thành">玉 <b>+{mainBonusRate}%</b></div>
           </div>
 
@@ -3467,7 +3489,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               burstText={castleBurstText}
               onBurstComplete={() => setCastleBurstBuildingId(null)}
               enableIdleFx={true}
-              shieldActive={Boolean((castle.shieldActiveUntil && castle.shieldActiveUntil > Date.now()) || (castle.peaceUntil && castle.peaceUntil > Date.now()))}
+              shieldActive={castle.shieldCount > 0}
               combatFxTrigger={castleCombatTrigger}
               corePositions={corePositions}
               buildingAnimStates={mainBuildingAnimStates}
@@ -3780,7 +3802,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                           <div>
                             <button onClick={() => void runCastleSocial('visit', entry.uid)}>Ghé thăm</button>
                             <button onClick={() => void runCastleSocial('like', entry.uid)}>Like</button>
-                            <button className="attack" onClick={() => void runCastleCombat('start', { targetId: entry.uid })}>Công thành</button>
                           </div>
                         )}
                         {rival && <mark>RIVAL</mark>}
@@ -3815,20 +3836,14 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 <header>
                   <div>
                     <span>攻城 · CÔNG THÀNH</span>
-                    <h2>Attack Energy</h2>
+                    <h2>Phòng thủ Thành</h2>
                   </div>
-                  <b>⚡ {castle.attackEnergy}/5</b>
-                  <button
-                    className={castle.peaceUntil > Date.now() ? 'on' : ''}
-                    onClick={() => void runCastleCombat('peace')}
-                  >
-                    {castle.peaceUntil > Date.now() ? 'Tắt Peace Mode' : 'Bật Peace Mode 8h'}
-                  </button>
+                  <b>🛡 {castle.shieldCount}/3</b>
                 </header>
-                <p>Hồi 1 năng lượng mỗi 2 giờ · thắng khi đúng ít nhất 7/10 câu · tối đa 3 trận/cặp mỗi ngày.</p>
+                <p>Quay trúng bộ ba Búa hoặc Raid để hành động ngay · không thể tích trữ · tối đa 3 lần với cùng đối thủ mỗi ngày.</p>
                 <div className="combat-protection">
-                  <span>🛡 Hộ Thành Phù: {castle.shieldActiveUntil > Date.now() ? 'Đang bảo vệ' : 'Không hoạt động'}</span>
-                  <span>🌱 Newbie Protection: {castle.newbieUntil > Date.now() ? 'Đang bảo vệ' : 'Đã kết thúc'}</span>
+                  <span>🛡 Khiên Thành: {castle.shieldCount}/3 lớp</span>
+                  <span>🌱 Bảo vệ tân thủ: {castle.newbieProtected ? 'Đang bảo vệ' : 'Đã kết thúc'}</span>
                 </div>
                 <h3>Nhật ký chiến đấu</h3>
                 <div className="combat-log-list">
@@ -3843,9 +3858,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                           </b>
                           <span>
                             <strong>{log.attackerName} → {log.defenderName}</strong>
-                            <small>{log.correct}/10 câu · {new Date(log.createdAt).toLocaleString('vi-VN')}</small>
+                            <small>{log.shielded ? 'Khiên đã vỡ 1 lớp' : 'Công thành trực tiếp'} · {new Date(log.createdAt).toLocaleString('vi-VN')}</small>
                           </span>
-                          {defending && <button onClick={() => void runCastleCombat('start', { targetId: rivalId })}>Trả đũa</button>}
+                          {defending && <button onClick={() => void runCastleSocial('visit', rivalId)}>Xem thành</button>}
                         </article>
                       );
                     })
@@ -4012,8 +4027,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           </div>
         )}
         {castleShopOpen && <div className="castle-shop-backdrop" onClick={() => setCastleShopOpen(false)}><section className="castle-shop-modal" role="dialog" aria-modal="true" aria-label="Cửa hàng Thành" onClick={(event) => event.stopPropagation()}><header><small>建设商店</small><h2>Cửa hàng Thành</h2><button onClick={() => setCastleShopOpen(false)}>×</button></header><div className="castle-shop-list">{buildings.map((building) => { const level = castle.buildings[building.id]; const maxed = level >= 10; const stage = castleVisualStage(level); const nextStage = castleVisualStage(Math.min(10, level + 1)); const currentAsset = building.id === 'main' ? stage : 1; const nextAsset = building.id === 'main' ? nextStage : 1; const cost = castleUpgradeCost(building, level); const enough = castle.wood >= cost.wood && castle.ink >= cost.ink && (progression?.coins ?? 0) >= cost.coin; const supportReady = building.id !== 'main' || Math.min(castle.buildings.library, castle.buildings.listening) >= level; const playerReady = building.id !== 'main' || (progression?.level ?? 1) >= (mainCastleLevelRequirements[level + 1] ?? 100); const mainReady = building.id === 'main' || level < castle.buildings.main; const canBuy = !maxed && enough && supportReady && playerReady && mainReady; return <article key={building.id}><div className="castle-shop-art"><img src={`/castle/buildings/${building.id}/stage-${currentAsset}.webp`} alt=""/>{!maxed && <><i>›</i><img src={`/castle/buildings/${building.id}/stage-${nextAsset}.webp`} alt=""/></>}</div><div className="castle-shop-info"><span>{building.hanzi}</span><h3>{building.name}</h3><div className="castle-shop-stars">{Array.from({length:10},(_,index)=><i key={index} className={index < level ? 'on' : ''}>★</i>)}</div><small>Lv.{level}/10 · 🪵 {cost.wood} · 🖌 {cost.ink}</small></div>{maxed ? <strong>HOÀN TẤT!</strong> : <div className="castle-shop-buy"><b>🪙 {cost.coin.toLocaleString('vi-VN')}</b><button disabled={rewardActionStatus === 'loading' || !canBuy} onClick={() => void runProgressionAction('upgrade-castle', building.id)}>NÂNG CẤP</button></div>}</article>; })}</div></section></div>}
-        {combatQuiz && (() => { const question = combatQuiz.questions[combatQuiz.index]; const options = [question[3], ...allVocabulary.filter((entry) => entry[3] !== question[3]).slice(combatQuiz.index * 3, combatQuiz.index * 3 + 3).map((entry) => entry[3])].sort((a,b)=>a.localeCompare(b)); return <div className="combat-quiz-backdrop"><section className="combat-quiz"><span>攻城挑战 · {combatQuiz.index + 1}/10</span><h2>{combatQuiz.targetName}</h2><div className="combat-quiz-progress"><i style={{width:`${combatQuiz.index * 10}%`}}/></div><strong>{question[0]}</strong><small>{question[1]}</small><div>{options.map((option)=><button key={option} onClick={() => answerCombatQuestion(option)}>{option}</button>)}</div><p>Đúng {combatQuiz.correct} · Cần ít nhất 7 câu</p></section></div>; })()}
-        {combatResult && <div className="combat-result-backdrop" onClick={() => setCombatResult(null)}><section><b>{combatResult.shielded ? '🛡' : combatResult.won ? '🏆' : '⚔️'}</b><span>攻城结果</span><h2>{combatResult.shielded ? 'BỊ HỘ THÀNH PHÙ CHẶN' : combatResult.won ? 'CÔNG THÀNH THẮNG LỢI' : 'CÔNG THÀNH THẤT BẠI'}</h2><p>{combatResult.correct}/10 câu đúng</p>{combatResult.won && <strong>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</strong>}<button onClick={() => setCombatResult(null)}>Đóng</button></section></div>}
+        {combatResult && <div className="combat-result-backdrop" onClick={() => setCombatResult(null)}><section><b>{combatResult.shielded ? '🛡' : combatResult.won ? '🏆' : '⚔️'}</b><span>攻城结果</span><h2>{combatResult.shielded ? 'KHIÊN THÀNH ĐÃ CHẶN ĐÒN' : combatResult.won ? 'CÔNG THÀNH THẮNG LỢI' : 'CÔNG THÀNH THẤT BẠI'}</h2>{combatResult.shielded ? <p>Không nhận phần thưởng · Khiên đối thủ đã vỡ 1 lớp</p> : combatResult.won && <strong>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</strong>}<button onClick={() => setCombatResult(null)}>Đóng</button></section></div>}
         {visitedCastle && (
           <div className="castle-visit-backdrop" onClick={() => setVisitedCastle(null)}>
             <section
@@ -4047,7 +4061,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   extraBuildings={visitedCastle.buildingsLayout ?? []}
                   pendingBuilding={null}
                   onToast={showCastleToast}
-                  shieldActive={Boolean(visitedCastle.shieldActiveUntil && visitedCastle.shieldActiveUntil > Date.now())}
+                  shieldActive={Number(visitedCastle.shieldCount ?? 0) > 0}
                   combatFxTrigger={castleCombatTrigger}
                   corePositions={visitedCastle.corePositions}
                 />
@@ -5380,8 +5394,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       { id: 'daily-seal', type: 'collectible', name: 'Nhật Ấn', hanzi: '每日印章', image: '/items/daily-seal.png', rarity: 'Hiếm', description: 'Dấu chứng nhận hoàn thành ít nhất 3 mục tiêu trong ngày.' },
       { id: 'daily-chest', type: 'chest', name: 'Rương Hằng Ngày', hanzi: '每日宝箱', image: '/items/daily-chest.png', rarity: 'Hiếm', description: 'Mở để nhận 5–8 Mảnh Ngọc, 30 XP và cơ hội nhận cosmetic.' },
       { id: 'streak-guard', type: 'guard', name: 'Hộ Ấn', hanzi: '护印', image: '/items/shop-streak-guard.png', rarity: 'Sử thi', description: 'Tự động cứu streak khi bỏ lỡ đúng một ngày. Hồi 7 ngày.' },
-      { id: 'castle-shield', type: 'collectible', name: 'Khiên Thành', hanzi: '城盾', image: '/items/spin-castle-shield.png', rarity: 'Thường', description: 'Bảo vệ Hán Tự Thành trong một lượt Công Thành. Tối đa 5.' },
-      { id: 'siege-ticket', type: 'collectible', name: 'Vé Công Thành', hanzi: '攻城券', image: '/items/spin-siege-ticket.png', rarity: 'Thường', description: 'Vé tham gia hoạt động Công Thành. Tối đa 20.' },
       { id: 'destiny-fragment', type: 'collectible', name: 'Mảnh Thiên Mệnh', hanzi: '天命碎片', image: '/items/spin-destiny-fragment.png', rarity: 'Cực hiếm', description: 'Mảnh sưu tập cực hiếm nhận từ Thiên Cơ Luân.' },
       { id: 'celestial-jackpot', type: 'collectible', name: 'Thiên Mệnh Jackpot', hanzi: '天命大奖', image: '/items/spin-jackpot.png', rarity: 'Huyền thoại', description: 'Chứng tích Jackpot với tỷ lệ xuất hiện chỉ 0,05%.' },
       { id: 'protect-charm', type: 'timed', name: 'Hộ Thân Phù', hanzi: '护身符', image: '/items/protect-charm.png', rarity: 'Hiếm', description: 'Vật phẩm PvP có hạn 24 giờ · bảo vệ điểm khi thua.' },
@@ -5429,27 +5441,22 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 const owned = isCosmetic ? Boolean(progression?.ownedCosmetics.includes(item.id)) : (progression?.inventory?.[item.id] ?? 0) > 0;
                 const quantity = isCosmetic ? (owned ? 1 : 0) : progression?.inventory?.[item.id] ?? 0;
                 const equipped = isCosmetic && progression?.equipped[item.type] === item.id;
-                const isCastleItem = item.id === 'castle-shield' || item.id === 'siege-ticket';
                 const action = item.type === 'chest'
                   ? () => runProgressionAction('open-chest')
                   : item.type === 'guard'
                     ? () => navigate('shop')
-                    : isCastleItem && owned
-                      ? () => runProgressionAction('use-castle-item', item.id)
                     : isCosmetic && owned
                       ? () => runProgressionAction('equip-item', item.id)
                       : undefined;
                 const label = item.type === 'chest' ? 'Mở rương'
                   : item.type === 'guard' ? 'Mua thêm'
-                    : item.id === 'castle-shield' ? 'Kích hoạt khiên'
-                      : item.id === 'siege-ticket' ? 'Công thành'
                     : isCosmetic ? (equipped ? 'Đang trang bị' : owned ? 'Trang bị' : 'Chưa sở hữu')
                       : 'Vật phẩm sưu tầm';
                 return <article key={item.id} className={!owned ? 'locked' : equipped ? 'equipped' : ''}>
                   <div className="inventory-art item-info-trigger" role="button" tabIndex={0} aria-label={`Xem tác dụng ${item.name}`} onClick={() => setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? `Đang sở hữu: ×${quantity}` : 'Chưa sở hữu' })} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setItemDetail({ name: item.name, hanzi: item.hanzi, image: item.image, rarity: item.rarity, description: item.description, meta: owned ? `Đang sở hữu: ×${quantity}` : 'Chưa sở hữu' }); }}><img src={item.image} alt={item.name} />{quantity > 0 && <b>×{quantity}</b>}<div className="item-hover-info"><strong>{item.name}</strong><span>{item.description}</span><em>Chạm để xem</em></div></div>
                   <span>{item.rarity}</span><h3>{item.name}</h3><small>{item.hanzi}</small><p>{item.description}</p>
                   {item.type === 'timed' && owned && <em className="item-expiry">Hết hạn: {new Date(progression?.inventoryExpiries?.[item.id] ?? Date.now() + 86_400_000).toLocaleString('vi-VN')}</em>}
-                  <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || (item.type === 'collectible' && !isCastleItem)}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
+                  <button onClick={action} disabled={rewardActionStatus === 'loading' || (!owned && item.type !== 'guard') || item.type === 'collectible'}>{rewardActionStatus === 'loading' && action ? 'Đang xử lý…' : label}</button>
                 </article>;
               })}
             </div>
@@ -5772,7 +5779,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   extraBuildings={visitedCastle.buildingsLayout ?? []}
                   pendingBuilding={null}
                   onToast={showCastleToast}
-                  shieldActive={Boolean(visitedCastle.shieldActiveUntil && visitedCastle.shieldActiveUntil > Date.now())}
+                  shieldActive={Number(visitedCastle.shieldCount ?? 0) > 0}
                   combatFxTrigger={castleCombatTrigger}
                   corePositions={visitedCastle.corePositions}
                 />

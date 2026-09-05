@@ -99,6 +99,7 @@ type Progression = {
     ink: number;
     jadeBonusCarry: number;
     shieldActiveUntil: number;
+    shieldCount: number;
     likes: number;
     theme: string;
     ownedThemes: string[];
@@ -113,6 +114,10 @@ type Progression = {
     attackUpdatedAt: number;
     peaceUntil: number;
     newbieUntil: number;
+    newbieProtected: boolean;
+    newbieProtectionEndedAt: number;
+    newbieProtectionReason: 'hammer' | 'shield' | null;
+    damagedBuildings: Record<string, number>;
     buildings: { main: number; library: number; listening: number };
   };
   daily: DailyProgress;
@@ -179,16 +184,14 @@ const normalizeSpins = (progression: Progression, date: string) => {
 };
 
 const slotSymbols = [
-  { id: 'coin', label: 'Coin', weight: 45 },
-  { id: 'spin', label: 'Spin', weight: 35 },
-  { id: 'wood', label: 'Gỗ', weight: 6 },
-  { id: 'ink', label: 'Mực', weight: 5 },
+  { id: 'coin', label: 'Coin', weight: 47 },
+  { id: 'spin', label: 'Spin', weight: 34 },
+  { id: 'wood', label: 'Gỗ', weight: 7 },
+  { id: 'ink', label: 'Mực', weight: 6 },
   { id: 'jade', label: 'Mảnh Ngọc', weight: 3 },
-  { id: 'chest', label: 'Rương', weight: 3 },
-  { id: 'shield', label: 'Khiên Thành', weight: 1.5 },
-  { id: 'ticket', label: 'Vé Công Thành', weight: 1 },
-  { id: 'rare', label: 'Mảnh Thiên Mệnh', weight: .45 },
-  { id: 'jackpot', label: 'Jackpot', weight: .05 },
+  { id: 'chest', label: 'Rương', weight: 2 },
+  { id: 'rare', label: 'Mảnh Thiên Mệnh', weight: .9 },
+  { id: 'jackpot', label: 'Jackpot', weight: .1 },
 ] as const;
 
 const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4_294_967_296;
@@ -196,6 +199,7 @@ const rollSlotSymbol = () => {
   let roll = randomUnit() * 100;
   return slotSymbols.find((entry) => ((roll -= entry.weight) < 0)) ?? slotSymbols[0];
 };
+const specialSlotSymbol = (id: 'ticket' | 'shield' | 'raid') => ({ id, label: id === 'ticket' ? 'Búa Sấm Sét' : id === 'shield' ? 'Khiên Thành' : 'Raid', weight: 0 });
 
 const shopCatalog = {
   'streak-guard': { price: 30, type: 'consumable' },
@@ -284,12 +288,12 @@ const loadProgression = async (uid: string, name: string) => {
     discoveries: [], jadeRelics: [],
     spins: { balance: 24, recoveryUpdatedAt: Date.now(), dailyDate: date, offlineEarned: 0, pvpEarned: 0, dailyClaimed: false },
     castle: {
-      wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0,
+      wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, shieldCount: 0, likes: 0,
       theme: 'classic', ownedThemes: ['classic'],
       decorations: { theme: 'classic', weather: null, guardian: null, banner: null },
       ownedDecorations: ['classic'],
       attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0,
-      newbieUntil: Date.now() + 7 * 86_400_000,
+      newbieUntil: Number.MAX_SAFE_INTEGER, newbieProtected: true, newbieProtectionEndedAt: 0, newbieProtectionReason: null, damagedBuildings: {},
       buildings: { main: 1, library: 1, listening: 1 },
     },
     daily: emptyDaily(date),
@@ -319,12 +323,12 @@ const loadProgression = async (uid: string, name: string) => {
   progression.jadeRelics = progression.jadeRelics ?? [];
   normalizeSpins(progression, date);
   progression.castle = progression.castle ?? {
-    wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, likes: 0,
+    wood: 0, ink: 0, jadeBonusCarry: 0, shieldActiveUntil: 0, shieldCount: 0, likes: 0,
     theme: 'classic', ownedThemes: ['classic'],
     decorations: { theme: 'classic', weather: null, guardian: null, banner: null },
     ownedDecorations: ['classic'],
     attackEnergy: 5, attackUpdatedAt: Date.now(), peaceUntil: 0,
-    newbieUntil: Date.now() + 7 * 86_400_000,
+    newbieUntil: Number.MAX_SAFE_INTEGER, newbieProtected: true, newbieProtectionEndedAt: 0, newbieProtectionReason: null, damagedBuildings: {},
     buildings: { main: 1, library: 1, listening: 1 },
   };
   progression.castle.wood = Number(progression.castle.wood ?? 0);
@@ -332,6 +336,7 @@ const loadProgression = async (uid: string, name: string) => {
   progression.castle.jadeBonusCarry = Number(progression.castle.jadeBonusCarry ?? 0);
   progression.castle.shieldActiveUntil = Number(progression.castle.shieldActiveUntil ?? 0);
   if (progression.castle.shieldActiveUntil <= Date.now()) progression.castle.shieldActiveUntil = 0;
+  progression.castle.shieldCount = Math.max(0, Math.min(3, Math.floor(Number(progression.castle.shieldCount ?? (progression.castle.shieldActiveUntil > Date.now() ? 1 : 0)))));
   progression.castle.likes = Math.max(0, Number(progression.castle.likes ?? 0));
   progression.castle.theme = String(progression.castle.theme ?? 'classic');
   progression.castle.ownedThemes = Array.from(new Set(['classic', ...(progression.castle.ownedThemes ?? [])]));
@@ -355,6 +360,10 @@ const loadProgression = async (uid: string, name: string) => {
   }
   progression.castle.peaceUntil = Number(progression.castle.peaceUntil ?? 0);
   progression.castle.newbieUntil = Number(progression.castle.newbieUntil ?? 0);
+  progression.castle.newbieProtected = Boolean(progression.castle.newbieProtected ?? (progression.castle.newbieUntil > Date.now()));
+  progression.castle.newbieProtectionEndedAt = Number(progression.castle.newbieProtectionEndedAt ?? 0);
+  progression.castle.newbieProtectionReason = progression.castle.newbieProtectionReason ?? null;
+  progression.castle.damagedBuildings = progression.castle.damagedBuildings ?? {};
   progression.battlePass = progression.battlePass?.season === passSeason ? progression.battlePass : { season: passSeason, xp: 0, premium: false, claimed: [] };
   progression.battlePass.xp = Math.max(0, Number(progression.battlePass.xp ?? 0));
   progression.battlePass.premium = Boolean(progression.battlePass.premium);
@@ -415,7 +424,11 @@ export default async function handler(request: any, response: any) {
   }
 
   if (request.method === 'GET') {
-    return response.status(200).json({ progression: publicProgression(progression) });
+    const pendingAttack = await redis.get(`hanzibeat:pending-attack:${user.localId}`);
+    const pendingRaid = await redis.get(`hanzibeat:pending-raid:${user.localId}`);
+    const activeRaidId = await redis.get<string>(`hanzibeat:active-raid:${user.localId}`);
+    const activeRaid = activeRaidId ? await redis.get<any>(`hanzibeat:raid:${activeRaidId}`) : null;
+    return response.status(200).json({ progression: publicProgression(progression), pendingAction: pendingAttack ? 'attack' : pendingRaid ? 'raid' : null, raidSession: activeRaid && activeRaidId ? { id: activeRaidId, targetId: activeRaid.targetId, targetName: activeRaid.targetName, spotCount: 9, digsLeft: Math.max(0, 3 - activeRaid.opened.length) } : null });
   }
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'GET, POST');
@@ -522,48 +535,75 @@ export default async function handler(request: any, response: any) {
   }
   if (action === 'castle-combat') {
     const operation = String(request.body?.operation ?? 'logs');
-    if (operation === 'peace') {
-      progression.castle.peaceUntil = progression.castle.peaceUntil > Date.now() ? 0 : Date.now() + 8 * 3_600_000;
+    if (operation === 'raid-start') {
+      const targetId = String(request.body?.targetId ?? '');
+      if (!targetId || targetId === user.localId) return response.status(400).json({ error: 'Đối thủ không hợp lệ.' });
+      const pendingRaid = await redis.get<any>(`hanzibeat:pending-raid:${user.localId}`);
+      if (!pendingRaid) return response.status(409).json({ error: 'Bạn cần quay trúng 3 biểu tượng Raid trước.' });
+      const target = await redis.get<Progression>(`hanzibeat:progression:${targetId}`);
+      if (!target) return response.status(404).json({ error: 'Không tìm thấy thành đối thủ.' });
+      if (Boolean(target.castle?.newbieProtected ?? (Number(target.castle?.newbieUntil ?? 0) > Date.now()))) return response.status(409).json({ error: 'Đối thủ đang được bảo vệ tân thủ.' });
+      const raidId = crypto.randomUUID();
+      const coinPrize = Math.min(12_000, Math.max(800, Math.floor(Number(target.coins ?? 0) * .006)));
+      const spots = [
+        { kind: 'coin', amount: coinPrize }, { kind: 'coin', amount: Math.floor(coinPrize * .65) }, { kind: 'coin', amount: Math.floor(coinPrize * .4) },
+        { kind: 'wood', amount: 55 }, { kind: 'ink', amount: 25 },
+        { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 },
+      ].sort(() => randomUnit() - .5);
+      await redis.del(`hanzibeat:pending-raid:${user.localId}`);
+      await redis.set(`hanzibeat:raid:${raidId}`, { attackerId: user.localId, targetId, targetName: target.name, spots, opened: [] }, { ex: 600 });
+      await redis.set(`hanzibeat:active-raid:${user.localId}`, raidId, { ex: 600 });
+      return response.status(201).json({ progression: publicProgression(progression), raidSession: { id: raidId, targetId, targetName: target.name, spotCount: 9, digsLeft: 3 } });
+    }
+    if (operation === 'raid-dig') {
+      const raidId = String(request.body?.raidId ?? '');
+      const spotIndex = Math.floor(Number(request.body?.spotIndex ?? -1));
+      const session = await redis.get<any>(`hanzibeat:raid:${raidId}`);
+      if (!session || session.attackerId !== user.localId) return response.status(404).json({ error: 'Phiên Raid đã hết hạn.' });
+      if (spotIndex < 0 || spotIndex >= 9 || session.opened.includes(spotIndex)) return response.status(400).json({ error: 'Điểm đào không hợp lệ.' });
+      if (session.opened.length >= 3) return response.status(409).json({ error: 'Bạn đã dùng đủ 3 lượt đào.' });
+      const target = await redis.get<Progression>(`hanzibeat:progression:${session.targetId}`);
+      if (!target) return response.status(404).json({ error: 'Thành đối thủ không còn tồn tại.' });
+      const found = session.spots[spotIndex] as { kind: 'coin' | 'wood' | 'ink' | 'empty'; amount: number };
+      if (found.kind === 'coin') {
+        const taken = Math.min(Number(target.coins ?? 0), found.amount);
+        found.amount = taken; target.coins = Math.max(0, Number(target.coins ?? 0) - taken); progression.coins += taken;
+      } else if (found.kind === 'wood') progression.castle.wood += found.amount;
+      else if (found.kind === 'ink') progression.castle.ink += found.amount;
+      session.opened.push(spotIndex);
+      const done = session.opened.length >= 3;
+      if (done) { await redis.del(`hanzibeat:raid:${raidId}`); await redis.del(`hanzibeat:active-raid:${user.localId}`); } else await redis.set(`hanzibeat:raid:${raidId}`, session, { ex: 600 });
       await redis.set(`hanzibeat:progression:${user.localId}`, progression);
-      return response.status(200).json({ progression: publicProgression(progression), combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
+      await redis.set(`hanzibeat:progression:${session.targetId}`, target);
+      return response.status(200).json({ progression: publicProgression(progression), raidDig: { spotIndex, ...found, digsLeft: 3 - session.opened.length, done } });
     }
     if (operation === 'start') {
       const targetId = String(request.body?.targetId ?? '');
+      const buildingId = String(request.body?.buildingId ?? 'main');
       if (!targetId || targetId === user.localId) return response.status(400).json({ error: 'Đối thủ không hợp lệ.' });
-      if (progression.castle.attackEnergy < 1) return response.status(409).json({ error: 'Bạn đã hết Attack Energy.' });
-      if (progression.castle.peaceUntil > Date.now()) return response.status(409).json({ error: 'Hãy tắt Peace Mode trước khi Công Thành.' });
+      if (!['main', 'library', 'listening'].includes(buildingId)) return response.status(400).json({ error: 'Công trình không hợp lệ.' });
+      const pendingAttack = await redis.get<any>(`hanzibeat:pending-attack:${user.localId}`);
+      if (!pendingAttack) return response.status(409).json({ error: 'Bạn cần quay trúng 3 Búa Sấm Sét trước.' });
       const target = await redis.get<Progression>(`hanzibeat:progression:${targetId}`);
       if (!target) return response.status(404).json({ error: 'Không tìm thấy thành đối thủ.' });
-      if (Number(target.castle?.newbieUntil ?? 0) > Date.now()) return response.status(409).json({ error: 'Đối thủ đang được Newbie Protection.' });
-      if (Number(target.castle?.peaceUntil ?? 0) > Date.now()) return response.status(409).json({ error: 'Đối thủ đang bật Peace Mode.' });
+      if (Boolean(target.castle?.newbieProtected ?? (Number(target.castle?.newbieUntil ?? 0) > Date.now()))) return response.status(409).json({ error: 'Đối thủ đang được bảo vệ tân thủ.' });
       const pairKey = `hanzibeat:castle-pair:${bangkokDate()}:${[user.localId,targetId].sort().join(':')}`;
       const pairCount = Number(await redis.get(pairKey) ?? 0);
       if (pairCount >= 3) return response.status(429).json({ error: 'Đã đạt giới hạn 3 trận với đối thủ này hôm nay.' });
-      progression.castle.attackEnergy -= 1;
-      progression.castle.attackUpdatedAt = Date.now();
       const combatId = crypto.randomUUID();
-      await redis.set(`hanzibeat:castle-combat:${combatId}`, { attackerId: user.localId, targetId, pairKey, startedAt: Date.now() }, { ex: 600 });
-      await redis.set(`hanzibeat:progression:${user.localId}`, progression);
-      return response.status(201).json({ progression: publicProgression(progression), combatSession: { id: combatId, targetId, targetName: target.name } });
-    }
-    if (operation === 'finish') {
-      const combatId = String(request.body?.combatId ?? '');
-      const session = await redis.get<any>(`hanzibeat:castle-combat:${combatId}`);
-      if (!session || session.attackerId !== user.localId) return response.status(404).json({ error: 'Trận Công Thành đã hết hạn.' });
-      await redis.del(`hanzibeat:castle-combat:${combatId}`);
-      const correct = Math.max(0, Math.min(10, Number(request.body?.correct ?? 0)));
-      const target = await redis.get<Progression>(`hanzibeat:progression:${session.targetId}`);
-      if (!target) return response.status(404).json({ error: 'Thành đối thủ không còn tồn tại.' });
-      const shielded = Number(target.castle.shieldActiveUntil ?? 0) > Date.now();
-      const won = correct >= 7 && !shielded;
+      await redis.del(`hanzibeat:pending-attack:${user.localId}`);
+      const shieldCount = Math.max(0, Math.min(3, Number(target.castle?.shieldCount ?? 0)));
+      const shielded = shieldCount > 0;
+      const won = !shielded;
       const reward = won ? { coins: Math.min(10_000, Math.max(1_000, Math.floor(target.coins * .01))), wood: 80, ink: 35 } : { coins: 0, wood: 0, ink: 0 };
       if (won) { progression.coins += reward.coins; progression.castle.wood += reward.wood; progression.castle.ink += reward.ink; }
-      if (shielded) target.castle.shieldActiveUntil = 0;
-      const log = { id: combatId, attackerId: user.localId, attackerName: progression.name, defenderId: session.targetId, defenderName: target.name, correct, won, shielded, reward, createdAt: Date.now() };
-      await redis.incr(session.pairKey); await redis.expire(session.pairKey, 172_800);
+      if (won) target.castle.damagedBuildings = { ...(target.castle.damagedBuildings ?? {}), [buildingId]: Date.now() };
+      if (shielded) target.castle.shieldCount = shieldCount - 1;
+      const log = { id: combatId, attackerId: user.localId, attackerName: progression.name, defenderId: targetId, defenderName: target.name, attackedBuilding: buildingId, correct: 0, won, shielded, reward, createdAt: Date.now() };
+      await redis.incr(pairKey); await redis.expire(pairKey, 172_800);
       await redis.lpush(`hanzibeat:castle-combat-log:${user.localId}`, log); await redis.ltrim(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19);
-      await redis.lpush(`hanzibeat:castle-combat-log:${session.targetId}`, log); await redis.ltrim(`hanzibeat:castle-combat-log:${session.targetId}`, 0, 19);
-      await redis.set(`hanzibeat:progression:${user.localId}`, progression); await redis.set(`hanzibeat:progression:${session.targetId}`, target);
+      await redis.lpush(`hanzibeat:castle-combat-log:${targetId}`, log); await redis.ltrim(`hanzibeat:castle-combat-log:${targetId}`, 0, 19);
+      await redis.set(`hanzibeat:progression:${user.localId}`, progression); await redis.set(`hanzibeat:progression:${targetId}`, target);
       return response.status(200).json({ progression: publicProgression(progression), combatResult: log, combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
     }
     return response.status(200).json({ progression: publicProgression(progression), combatLogs: await redis.lrange<any>(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19) });
@@ -580,6 +620,9 @@ export default async function handler(request: any, response: any) {
       uid: user.localId, name: progression.name, level: progression.level, score,
       likes: progression.castle.likes, theme: progression.castle.theme,
       shieldActiveUntil: progression.castle.shieldActiveUntil,
+      shieldCount: progression.castle.shieldCount,
+      newbieProtected: progression.castle.newbieProtected,
+      damagedBuildings: progression.castle.damagedBuildings,
       buildings: progression.castle.buildings,
       buildingsLayout,
       updatedAt: Date.now(),
@@ -717,7 +760,10 @@ export default async function handler(request: any, response: any) {
     const spinLock = await redis.set(spinLockKey, '1', { nx: true, ex: 5 });
     if (!spinLock) return response.status(429).json({ error: 'Vòng quay đang xử lý lượt trước.' });
     progression.spins.balance -= 1;
-    const reels = [rollSlotSymbol(), rollSlotSymbol(), rollSlotSymbol()];
+    const eventRoll = randomUnit();
+    const slotEvent: 'attack' | 'shield' | 'raid' | null = eventRoll < .10 ? 'attack' : eventRoll < .20 ? 'shield' : eventRoll < .30 ? 'raid' : null;
+    const forcedSymbol = slotEvent === 'attack' ? specialSlotSymbol('ticket') : slotEvent === 'shield' ? specialSlotSymbol('shield') : slotEvent === 'raid' ? specialSlotSymbol('raid') : null;
+    const reels = forcedSymbol ? [forcedSymbol, forcedSymbol, forcedSymbol] : [rollSlotSymbol(), rollSlotSymbol(), rollSlotSymbol()];
     const triple = reels.every((symbol) => symbol.id === reels[0].id);
     const rewards = { coins: 0, spins: 0, wood: 0, ink: 0, jade: 0, chests: 0, shields: 0, tickets: 0, fragments: 0, jackpots: 0 };
     const coinCount = reels.filter((symbol) => symbol.id === 'coin').length;
@@ -733,10 +779,26 @@ export default async function handler(request: any, response: any) {
       else if (id === 'ink') rewards.ink = 80;
       else if (id === 'jade') rewards.jade = 12;
       else if (id === 'chest') rewards.chests = 3;
-      else if (id === 'shield') rewards.shields = 3;
-      else if (id === 'ticket') rewards.tickets = 4;
       else if (id === 'rare') rewards.fragments = 6;
       else if (id === 'jackpot') { rewards.coins = 2_500; rewards.jade = 25; rewards.jackpots = 1; }
+    }
+    if (slotEvent === 'attack') {
+      progression.castle.newbieProtected = false;
+      progression.castle.newbieUntil = 0;
+      progression.castle.newbieProtectionEndedAt = Date.now();
+      progression.castle.newbieProtectionReason = 'hammer';
+      await redis.set(`hanzibeat:pending-attack:${user.localId}`, { createdAt: Date.now() }, { ex: 600 });
+    } else if (slotEvent === 'raid') {
+      await redis.set(`hanzibeat:pending-raid:${user.localId}`, { createdAt: Date.now() }, { ex: 600 });
+    } else if (slotEvent === 'shield') {
+      progression.castle.newbieProtected = false;
+      progression.castle.newbieUntil = 0;
+      progression.castle.newbieProtectionEndedAt = Date.now();
+      progression.castle.newbieProtectionReason = 'shield';
+      if (progression.castle.shieldCount < 3) {
+        progression.castle.shieldCount += 1;
+        rewards.shields = 1;
+      }
     }
     progression.coins += rewards.coins;
     progression.spins.balance = Math.min(200, progression.spins.balance + rewards.spins);
@@ -744,13 +806,11 @@ export default async function handler(request: any, response: any) {
     progression.castle.ink += rewards.ink;
     progression.jade += rewards.jade;
     progression.inventory['daily-chest'] = Number(progression.inventory['daily-chest'] ?? 0) + rewards.chests;
-    progression.inventory['castle-shield'] = Math.min(5, Number(progression.inventory['castle-shield'] ?? 0) + rewards.shields);
-    progression.inventory['siege-ticket'] = Math.min(20, Number(progression.inventory['siege-ticket'] ?? 0) + rewards.tickets);
     progression.inventory['destiny-fragment'] = Number(progression.inventory['destiny-fragment'] ?? 0) + rewards.fragments;
     progression.inventory['celestial-jackpot'] = Number(progression.inventory['celestial-jackpot'] ?? 0) + rewards.jackpots;
     await redis.set(`hanzibeat:progression:${user.localId}`, progression);
     await redis.del(spinLockKey);
-    return response.status(200).json({ progression: publicProgression(progression), slotResult: { reels: reels.map((symbol) => symbol.id), rewards, triple } });
+    return response.status(200).json({ progression: publicProgression(progression), slotResult: { reels: reels.map((symbol) => symbol.id), rewards, triple, event: slotEvent, shieldFull: slotEvent === 'shield' && progression.castle.shieldCount >= 3 && rewards.shields === 0 } });
   }
 
   if (action === 'upgrade-castle') {
