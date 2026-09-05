@@ -1,0 +1,10 @@
+# Robots.txt for Hanzi Beat (https://hanzibeat.online)
+User-agent: *
+Allow: /
+Allow: /castle
+Disallow: /api/
+Disallow: /castle-test
+
+# Host & Sitemap
+Host: https://hanzibeat.online
+Sitemap: https://hanzibeat.online/sitemap.xml

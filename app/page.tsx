@@ -11,6 +11,7 @@ import CastleIsoCanvas, {
   BuildingAnimState,
 } from './components/CastleIsoCanvas';
 import CastleHomeWidget from './components/castle/CastleHomeWidget';
+import PlayerAvatar from './components/PlayerAvatar';
 import {
   FootprintCell,
   rectFootprint,
@@ -40,29 +41,23 @@ import {
   FolderOpen,
   LogIn,
   LogOut,
+  Lock,
   Map as MapIcon,
   Music2,
   Package,
   Play,
   ShoppingBag,
   Sparkles,
-  Trash2,
   Trophy,
-  Upload,
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import {
-  deleteAudioTrack,
-  getAudioTracks,
-  saveAudioFiles,
-  type AudioTrack,
-} from '@/lib/audio-library';
 import {
   hsk2Vocabulary,
   type VocabularyEntry,
 } from '@/lib/hsk2-vocabulary';
 import { defaultAudioTracks } from '@/lib/default-audio';
+import { DEFAULT_LOBBY_TRACK_ID, FREE_LOBBY_TRACK_IDS, lobbyAudioTracks } from '@/lib/lobby-audio';
 import { hsk1Vocabulary } from '@/lib/hsk1-vocabulary';
 import { hsk3Vocabulary } from '@/lib/hsk3-vocabulary';
 import { hsk4Vocabulary } from '@/lib/hsk4-vocabulary';
@@ -108,6 +103,7 @@ type Screen =
   | 'inventory'
   | 'shop'
   | 'battle-pass'
+  | 'music'
   | 'codex'
   | 'castle'
   | 'castle-test'
@@ -115,7 +111,7 @@ type Screen =
 const screenPaths: Record<Screen, string> = {
   home: '/', songs: '/lessons', game: '/play', result: '/result',
   dictionary: '/dictionary', leaderboard: '/leaderboard', pvp: '/pvp',
-  inventory: '/inventory', shop: '/shop', 'battle-pass': '/battle-pass', codex: '/profile/codex', castle: '/castle',
+  inventory: '/inventory', shop: '/shop', 'battle-pass': '/battle-pass', music: '/music', codex: '/profile/codex', castle: '/castle',
   'castle-test': '/castle-test', auth: '/profile',
 };
 const screenFromPath = (pathname: string): Screen => {
@@ -123,7 +119,7 @@ const screenFromPath = (pathname: string): Screen => {
   if (normalized === '/profile/castle') return 'castle';
   return (Object.entries(screenPaths).find(([, path]) => path === normalized)?.[0] as Screen | undefined) ?? 'home';
 };
-type AuthUser = { id: string; name: string; email: string };
+type AuthUser = { id: string; name: string; email: string; photoURL?: string | null };
 type LeaderboardEntry = {
   id: string;
   name: string;
@@ -131,9 +127,10 @@ type LeaderboardEntry = {
   correct: number;
   createdAt: string;
 };
-type PvpPlayer = { id: string; name: string; score: number | null; correct: number | null; liveScore?: number; liveCorrect?: number; submittedAt?: number | null; mmr?: number; rank?: string };
+type PvpPlayer = { id: string; name: string; level?: number; frame?: string | null; score: number | null; correct: number | null; liveScore?: number; liveCorrect?: number; submittedAt?: number | null; mmr?: number; rank?: string };
 type PvpRoom = { code: string; seed: number; mode: 'audition' | 'typing'; status: 'waiting' | 'playing' | 'finished'; host: PvpPlayer; guest: PvpPlayer | null; startedAt?: number | null; completedAt?: number | null; integrity?: { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean } | null; rankChanges?: Record<string, number> | null };
 type PvpRank = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
+type PvpMatchIntro = { room: PvpRoom; progress: number };
 const PVP_RANK_BADGES: Record<string, string> = {
   'Đồng': '/ranks/rank-bronze.png',
   'Bạc': '/ranks/rank-silver.png',
@@ -855,6 +852,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [pvpError, setPvpError] = useState('');
   const [pvpGameMode, setPvpGameMode] = useState<'audition' | 'typing'>('audition');
   const [pvpRank, setPvpRank] = useState<PvpRank | null>(null);
+  const [pvpMatchIntro, setPvpMatchIntro] = useState<PvpMatchIntro | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -882,6 +880,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [invasionTarget, setInvasionTarget] = useState<PublicCastle | null>(null);
   const [invasionKind, setInvasionKind] = useState<'attack' | 'raid' | null>(null);
   const [invasionPhase, setInvasionPhase] = useState<'idle' | 'travel' | 'action' | 'result' | 'return'>('idle');
+  const invasionAttackBusy = useRef(false);
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -960,6 +959,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const spinBusyRef = useRef(false);
   const pvpPlayerId = useRef('');
   const pvpStarted = useRef(false);
+  const pvpIntroRunRef = useRef(0);
   const pvpScoreSent = useRef(false);
   const pvpHistorySaved = useRef(false);
   const cloudMatchSaved = useRef(false);
@@ -1591,6 +1591,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     void spinOnce();
   };
   const beginCastleInvasion = (target: PublicCastle, kind: 'attack' | 'raid') => {
+    invasionAttackBusy.current = false;
+    setSelectedCastleBuilding(null);
     setSlotTarget(null);
     setSlotAction(null);
     setInvasionTarget(target);
@@ -1602,6 +1604,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     }, 950);
   };
   const returnFromInvasion = () => {
+    invasionAttackBusy.current = false;
+    setSelectedCastleBuilding(null);
     setInvasionPhase('return');
     window.setTimeout(() => {
       setInvasionPhase('idle');
@@ -1643,9 +1647,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           )}
         </button>
       )}
-      <button className="spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>
+      {screen === 'castle' && <button className="spin-fab castle-spin-fab" onClick={() => authUser ? setSpinOpen(true) : navigate('auth')} aria-label="Mở Thiên Cơ Luân"><img src="/items/celestial-wheel-icon.png" alt=""/><span><b>{progression?.spins.balance ?? 0}</b><small>SPIN</small></span></button>}
+      {screen !== 'castle' && screen !== 'castle-test' && <button className="lobby-music-fab" onClick={() => authUser ? setAudioOpen(true) : navigate('auth')} aria-label="Mở nhạc sảnh" title="Nhạc sảnh"><img src="/items/lobby-music-icon.webp" alt=""/><span><b>NHẠC</b><small>SẢNH</small></span></button>}
       <button className="battle-pass-fab" onClick={() => authUser ? navigate('battle-pass') : navigate('auth')} aria-label="Mở Hành Trình Long Mạch"><img src="/items/battle-pass-icon.png" alt=""/><span><b>PASS</b><small>MÙA 1</small></span></button>
-      {spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
+      {screen === 'castle' && spinOpen && <div className="spin-modal-backdrop" onClick={() => { stopAutoSpin(); setSpinOpen(false); }}><section className="spin-modal jackpot-layout" role="dialog" aria-modal="true" aria-label="Thiên Cơ Jackpot" onClick={(event) => event.stopPropagation()}>
         <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <div className="jackpot-topbar"><span><img src="/items/coin.png" alt="Coin"/><b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span><strong>天机 JACKPOT</strong><span><img src="/items/spin-refund.png" alt="Spin"/><b>{progression?.spins.balance ?? 0}</b></span></div>
         <div className={`jackpot-machine ${slotResult?.triple ? 'jackpot-win' : ''}`}><div className="jackpot-marquee">天机宝库</div><div className="jackpot-payline"/><div className="jackpot-reels">{[0,1,2].map((reelIndex) => <div className="jackpot-reel" key={`${reelRun}-${reelIndex}`}><div className="jackpot-strip" style={{ transform: `translateY(-${reelOffsets[reelIndex]}px)`, transition: `transform ${.7 + reelIndex * .15}s cubic-bezier(.12,.78,.16,1)` }}>{slotStrip.map((symbol, symbolIndex) => <div className="jackpot-symbol" key={`${reelIndex}-${symbolIndex}`}><img src={symbol.image} alt={symbol.label}/></div>)}</div></div>)}</div></div>
@@ -1654,12 +1659,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''} ${autoSpin ? 'auto-spinning' : ''}`} disabled={!authUser || (!autoSpin && (progression?.spins.balance ?? 0) < 1)} onClick={toggleAutoSpin}>{autoSpin ? 'DỪNG' : (progression?.spins.balance ?? 0) > 0 ? 'QUAY' : 'HẾT LƯỢT'}<small>{autoSpin ? 'Đang tự động quay' : 'Nhấn để tự động quay'}</small></button>
       </section></div>}
       {slotAction && <div className="slot-action-backdrop"><section className="slot-action-modal" role="dialog" aria-modal="true"><header><img src={slotAction === 'attack' ? '/items/spin-siege-ticket.png' : '/items/treasure-basin.png'} alt=""/><div><small>{slotAction === 'attack' ? '雷锤 · BÚA SẤM SÉT' : '夺宝 · RAID'}</small><h2>{slotAction === 'attack' ? 'Chọn thành để Công Thành' : 'Chọn thành để Raid'}</h2><p>Chọn mục tiêu để dịch chuyển sang map của họ.</p></div></header><div className="slot-target-list">{castleSocial?.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).length ? castleSocial.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).map((entry) => <button key={entry.uid} onClick={() => beginCastleInvasion(entry,slotAction)}><i>{entry.name.slice(0,1).toUpperCase()}</i><span><b>{entry.name}</b><small>Chủ Thành Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><strong>DỊCH CHUYỂN</strong></button>) : <p>Đang tìm thành có thể tấn công…</p>}</div></section></div>}
-      {invasionTarget && invasionKind && invasionPhase !== 'idle' && <div className={`invasion-stage phase-${invasionPhase}`}><div className="invasion-map"><CastleIsoCanvas castle={{theme:invasionTarget.theme,buildings:invasionTarget.buildings}} environmentStage={Math.min(5,Math.ceil(invasionTarget.level/2))} selectedBuildingId={null} onSelectBuilding={()=>{}} showGrid={false} extraBuildings={invasionTarget.buildingsLayout ?? []} pendingBuilding={null} onToast={showCastleToast} shieldActive={Number(invasionTarget.shieldCount ?? 0)>0} combatFxTrigger={castleCombatTrigger} corePositions={invasionTarget.corePositions}/></div>{(invasionPhase === 'travel'||invasionPhase === 'return') && <div className="invasion-travel"><div className="travel-dragon">🐉</div><span>{invasionPhase === 'travel' ? 'ĐANG ĐẾN THÀNH ĐỐI THỦ' : 'ĐANG TRỞ VỀ HÁN TỰ THÀNH'}</span><h2>{invasionTarget.name}</h2><i/></div>}{invasionPhase === 'action' && <div className="invasion-hud"><header><span>{invasionKind === 'attack' ? '雷锤 · CÔNG THÀNH' : '夺宝 · RAID'}</span><h2>Thành của {invasionTarget.name}</h2><small>主城 Lv.{invasionTarget.buildings.main} · 🛡 {invasionTarget.shieldCount ?? 0}/3</small></header>{invasionKind === 'attack' ? <div className="invasion-building-actions">{([['main','Chủ Thành'],['library','Tàng Thư Các'],['listening','Thính Âm Các']] as const).map(([id,name])=><button key={id} onClick={()=>{setCastleCombatTrigger({type:Number(invasionTarget.shieldCount??0)>0?'shield_hit':'cannon',targetBuildingId:id,id:Date.now()});window.setTimeout(()=>void runCastleCombat('start',{targetId:invasionTarget.uid,buildingId:id}),700)}}><img src={`/castle/buildings/${id}/stage-${id==='main'?Math.max(1,Math.ceil(invasionTarget.buildings[id]/2)):1}.webp`} alt=""/><span><b>{name}</b><small>Lv.{invasionTarget.buildings[id]}</small></span><strong>ĐẬP</strong></button>)}</div> : raidSession ? <div className="raid-spots invasion-raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{const found=raidFinds[index];return <button key={index} className={found?`opened ${found.kind}`:''} disabled={Boolean(found)||raidSession.digsLeft<1} onClick={()=>void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found?<><span>{found.kind==='coin'?'🪙':found.kind==='wood'?'🪵':found.kind==='ink'?'🖌':'💨'}</span><b>{found.kind==='empty'?'Trống':`×${found.amount}`}</b></>:<><span>⛏</span><b>Đào · {raidSession.digsLeft}</b></>}</button>})}</div> : <div className="raid-loading">Đang xác định các điểm kho báu…</div>}</div>}{invasionPhase === 'result' && <div className="invasion-summary"><span>{invasionKind==='attack'?'攻城结果':'夺宝结果'}</span><h2>{invasionKind==='attack'?(combatResult?.shielded?'KHIÊN ĐÃ CHẶN ĐÒN':'CÔNG THÀNH THÀNH CÔNG'):'RAID HOÀN TẤT'}</h2>{invasionKind==='attack'&&combatResult?.won&&<p>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</p>}{invasionKind==='raid'&&<p>🪙 ×{Object.values(raidFinds).filter((item)=>item.kind==='coin').reduce((sum,item)=>sum+item.amount,0)} · 🪵 ×{Object.values(raidFinds).filter((item)=>item.kind==='wood').reduce((sum,item)=>sum+item.amount,0)} · 🖌 ×{Object.values(raidFinds).filter((item)=>item.kind==='ink').reduce((sum,item)=>sum+item.amount,0)}</p>}<button onClick={returnFromInvasion}>Trở về Thành</button></div>}</div>}
+      {invasionTarget && invasionKind && invasionPhase !== 'idle' && <div className={`invasion-stage phase-${invasionPhase}`}><div className="invasion-map"><CastleIsoCanvas castle={{theme:invasionTarget.theme,buildings:invasionTarget.buildings}} environmentStage={Math.min(5,Math.ceil(invasionTarget.level/2))} selectedBuildingId={selectedCastleBuilding} onSelectBuilding={(id)=>{if(invasionKind!=='attack'||!id||invasionAttackBusy.current)return;invasionAttackBusy.current=true;setSelectedCastleBuilding(id);setCastleCombatTrigger({type:Number(invasionTarget.shieldCount??0)>0?'shield_hit':'cannon',targetBuildingId:id,id:Date.now()});window.setTimeout(()=>{void runCastleCombat('start',{targetId:invasionTarget.uid,buildingId:id}).finally(()=>{invasionAttackBusy.current=false;});},700);}} showGrid={false} extraBuildings={invasionTarget.buildingsLayout ?? []} pendingBuilding={null} onToast={showCastleToast} shieldActive={Number(invasionTarget.shieldCount ?? 0)>0} combatFxTrigger={castleCombatTrigger} corePositions={invasionTarget.corePositions} targetingMode={invasionKind==='attack'&&invasionPhase==='action'} damagedBuildingIds={Object.keys(invasionTarget.damagedBuildings??{})}/></div>{(invasionPhase === 'travel'||invasionPhase === 'return') && <div className="invasion-travel"><div className="travel-dragon">🐉</div><span>{invasionPhase === 'travel' ? 'ĐANG ĐẾN THÀNH ĐỐI THỦ' : 'ĐANG TRỞ VỀ HÁN TỰ THÀNH'}</span><h2>{invasionTarget.name}</h2><i/></div>}{invasionPhase === 'action' && <div className="invasion-hud"><header><span>{invasionKind === 'attack' ? '雷锤 · CÔNG THÀNH' : '夺宝 · RAID'}</span><h2>{invasionKind === 'attack' ? 'Chọn một công trình để khai hỏa' : `Kho báu của ${invasionTarget.name}`}</h2><small>{invasionKind === 'attack' ? `Chạm trực tiếp vào tâm ngắm · 🛡 ${invasionTarget.shieldCount ?? 0}/3` : `Còn ${raidSession?.digsLeft ?? 0} lượt đào`}</small></header>{invasionKind === 'attack' ? <div className="invasion-target-hint"><i>⌖</i><span><b>CHỌN MỤC TIÊU</b><small>Công trình hư hỏng sẽ không thể chọn lại</small></span></div> : raidSession ? <div className="raid-spots invasion-raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{const found=raidFinds[index];return <button key={index} className={found?`opened ${found.kind}`:''} disabled={Boolean(found)||raidSession.digsLeft<1} onClick={()=>void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found?<><span>{found.kind==='coin'?'🪙':found.kind==='wood'?'🪵':found.kind==='ink'?'🖌':'💨'}</span><b>{found.kind==='empty'?'Trống':`×${found.amount}`}</b></>:<><span>⛏</span><b>Đào · {raidSession.digsLeft}</b></>}</button>})}</div> : <div className="raid-loading">Đang xác định các điểm kho báu…</div>}</div>}{invasionPhase === 'result' && <div className="invasion-summary"><span>{invasionKind==='attack'?'攻城结果':'夺宝结果'}</span><h2>{invasionKind==='attack'?(combatResult?.shielded?'KHIÊN ĐÃ CHẶN ĐÒN':'CÔNG THÀNH THÀNH CÔNG'):'RAID HOÀN TẤT'}</h2>{invasionKind==='attack'&&combatResult?.won&&<p>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</p>}{invasionKind==='raid'&&<p>🪙 ×{Object.values(raidFinds).filter((item)=>item.kind==='coin').reduce((sum,item)=>sum+item.amount,0)} · 🪵 ×{Object.values(raidFinds).filter((item)=>item.kind==='wood').reduce((sum,item)=>sum+item.amount,0)} · 🖌 ×{Object.values(raidFinds).filter((item)=>item.kind==='ink').reduce((sum,item)=>sum+item.amount,0)}</p>}<button onClick={returnFromInvasion}>Trở về Thành</button></div>}</div>}
       {raidSession && !invasionTarget && <div className="slot-action-backdrop"><section className="raid-modal" role="dialog" aria-modal="true"><header><small>夺宝 · RAID</small><h2>Kho báu của {raidSession.targetName}</h2><p>Chọn 3 điểm để đào · Còn <b>{raidSession.digsLeft}</b> lượt</p></header><div className="raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{ const found=raidFinds[index]; return <button key={index} className={found ? `opened ${found.kind}` : ''} disabled={Boolean(found) || raidSession.digsLeft < 1} onClick={() => void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found ? <><span>{found.kind === 'coin' ? '🪙' : found.kind === 'wood' ? '🪵' : found.kind === 'ink' ? '🖌' : '💨'}</span><b>{found.kind === 'empty' ? 'Trống' : `×${found.amount}`}</b></> : <><span>⛏</span><b>Đào</b></>}</button>})}</div>{raidSession.digsLeft < 1 && <button className="raid-done" onClick={() => setRaidSession(null)}>Nhận và quay tiếp</button>}</section></div>}
       {newbieNotice && <div className="newbie-unlock-backdrop"><section><span>城战解锁</span><h2>ĐÃ MỞ KHÓA CÔNG THÀNH</h2><p>Từ bây giờ, thành của bạn có thể bị người chơi khác tấn công hoặc Raid.</p><button onClick={()=>setNewbieNotice(false)}>Đã hiểu</button></section></div>}
     </>
   );
-  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
     () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
   );
@@ -1671,12 +1675,15 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     ),
   );
   const [volume, setVolume] = useState(0.65);
+  const [lobbyTrackId, setLobbyTrackId] = useState(DEFAULT_LOBBY_TRACK_ID);
+  const [unlockedLobbyTracks, setUnlockedLobbyTracks] = useState<string[]>(FREE_LOBBY_TRACK_IDS);
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
   const [audioStatus, setAudioStatus] = useState<
     'idle' | 'loading' | 'playing' | 'paused' | 'blocked' | 'error'
   >('idle');
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
-  const audioUrl = useRef<string | null>(null);
+  const audioMode = useRef<'lobby' | 'game' | null>(null);
+  const activeLobbyTrackId = useRef<string | null>(null);
   const typingInputRef = useRef<HTMLInputElement | null>(null);
   const vocab = matchVocabulary;
   const directionSplit = pvpRoom ? 12 : 10;
@@ -1727,10 +1734,6 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       trackIndex ?? Math.floor(Math.random() * defaultAudioTracks.length);
     const track = defaultAudioTracks[index % defaultAudioTracks.length];
     audioPlayer.current?.pause();
-    if (audioUrl.current) {
-      URL.revokeObjectURL(audioUrl.current);
-      audioUrl.current = null;
-    }
     const nextVolume = volume <= 0.01 ? 0.65 : volume;
     if (volume <= 0.01) setVolume(nextVolume);
     const player = new Audio();
@@ -1742,6 +1745,27 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     player.addEventListener('pause', () => setAudioStatus('paused'));
     player.addEventListener('error', () => setAudioStatus('error'));
     audioPlayer.current = player;
+    audioMode.current = 'game';
+    setCurrentTrackName(track.name);
+    setAudioStatus('loading');
+    player.load();
+    void player.play().catch(() => setAudioStatus('blocked'));
+  };
+  const playLobbyTrack = (trackId = lobbyTrackId) => {
+    const allowedTrackId = unlockedLobbyTracks.includes(trackId) ? trackId : DEFAULT_LOBBY_TRACK_ID;
+    const track = lobbyAudioTracks.find((item) => item.id === allowedTrackId) ?? lobbyAudioTracks[0];
+    audioPlayer.current?.pause();
+    const player = new Audio();
+    player.preload = 'auto';
+    player.loop = true;
+    player.volume = volume;
+    player.src = track.src;
+    player.addEventListener('playing', () => setAudioStatus('playing'));
+    player.addEventListener('pause', () => setAudioStatus('paused'));
+    player.addEventListener('error', () => setAudioStatus('error'));
+    audioPlayer.current = player;
+    audioMode.current = 'lobby';
+    activeLobbyTrackId.current = track.id;
     setCurrentTrackName(track.name);
     setAudioStatus('loading');
     player.load();
@@ -1750,7 +1774,8 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const toggleAudio = () => {
     const player = audioPlayer.current;
     if (!player) {
-      playDefaultTrack(0);
+      if (screen === 'game') playDefaultTrack(0);
+      else playLobbyTrack();
       return;
     }
     if (player.paused) {
@@ -1891,15 +1916,54 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     pvpScoreSent.current = false;
     pvpHistorySaved.current = false;
     setPvpRoom(room);
+    setPvpWaiting(false);
     setMode(room.mode ?? 'typing');
-    const firstWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, 8);
-    const firstPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 11).slice(0, 2);
-    const firstSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 23).slice(0, 2);
-    const secondWords = shuffleVocabulary(allVocabulary, room.seed + 37).slice(8, 16);
-    const secondPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 51).slice(0, 3);
-    const secondSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 67).slice(0, 2);
-    const sharedWords = [...firstWords, ...firstPhrases, ...firstSentences, ...secondWords, ...secondPhrases, ...secondSentences].slice(0, PVP_QUESTIONS);
-    start(1, sharedWords);
+    const introRunId = ++pvpIntroRunRef.current;
+    const introStartedAt = performance.now();
+    const minimumIntroDuration = 4_000;
+    setPvpMatchIntro({ room, progress: 0 });
+    const prepareMatch = async () => {
+      const progressTimer = window.setInterval(() => {
+        if (pvpIntroRunRef.current !== introRunId) {
+          window.clearInterval(progressTimer);
+          return;
+        }
+        const elapsed = performance.now() - introStartedAt;
+        const nextProgress = Math.min(95, Math.floor((elapsed / minimumIntroDuration) * 95));
+        setPvpMatchIntro((current) => current?.room.code === room.code ? { ...current, progress: nextProgress } : current);
+      }, 80);
+      try {
+        // Let the VS layer render first, then prepare the deterministic shared test.
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        const firstWords = shuffleVocabulary(allVocabulary, room.seed).slice(0, 8);
+        const firstPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 11).slice(0, 2);
+        const firstSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 23).slice(0, 2);
+        const secondWords = shuffleVocabulary(allVocabulary, room.seed + 37).slice(8, 16);
+        const secondPhrases = shuffleVocabulary(collocationsVocabulary, room.seed + 51).slice(0, 3);
+        const secondSentences = shuffleVocabulary(contextSentencesVocabulary, room.seed + 67).slice(0, 2);
+        const sharedWords = [...firstWords, ...firstPhrases, ...firstSentences, ...secondWords, ...secondPhrases, ...secondSentences].slice(0, PVP_QUESTIONS);
+        if (sharedWords.length !== PVP_QUESTIONS) throw new Error('question_pool_incomplete');
+        const remainingTime = Math.max(0, minimumIntroDuration - (performance.now() - introStartedAt));
+        if (remainingTime > 0) await new Promise((resolve) => window.setTimeout(resolve, remainingTime));
+        if (pvpIntroRunRef.current !== introRunId) {
+          window.clearInterval(progressTimer);
+          return;
+        }
+        window.clearInterval(progressTimer);
+        setPvpMatchIntro((current) => current?.room.code === room.code ? { ...current, progress: 100 } : current);
+        await new Promise((resolve) => window.setTimeout(resolve, 180));
+        if (pvpIntroRunRef.current !== introRunId) return;
+        setPvpMatchIntro(null);
+        start(1, sharedWords);
+      } catch {
+        window.clearInterval(progressTimer);
+        if (pvpIntroRunRef.current !== introRunId) return;
+        pvpStarted.current = false;
+        setPvpMatchIntro(null);
+        setPvpError('Không thể chuẩn bị đủ đề thi. Hãy ghép trận lại.');
+      }
+    };
+    void prepareMatch();
   }, []);
   const pvpAction = async (action: 'match' | 'create' | 'join') => {
     if (!firebaseAuth.currentUser) {
@@ -2312,8 +2376,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     if (target) { setInvasionTarget(target); setInvasionKind('raid'); setInvasionPhase('action'); }
   }, [raidSession, invasionTarget, castleSocial]);
   const openPvp = () => {
+    pvpIntroRunRef.current += 1;
     setPvpRoom(null);
     setPvpWaiting(false);
+    setPvpMatchIntro(null);
     setPvpError('');
     pvpStarted.current = false;
     navigate('pvp');
@@ -2410,10 +2476,12 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (!firebaseUser) {
         setAuthUser(null);
         setProgression(null);
+        setUnlockedLobbyTracks(FREE_LOBBY_TRACK_IDS);
+        setLobbyTrackId(DEFAULT_LOBBY_TRACK_ID);
         return;
       }
       const name = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Người chơi';
-      setAuthUser({ id: firebaseUser.uid, name, email: firebaseUser.email || '' });
+      setAuthUser({ id: firebaseUser.uid, name, email: firebaseUser.email || '', photoURL: firebaseUser.photoURL });
       setPlayerName(name);
       setPvpName(name);
       void firebaseUser.getIdToken().then((token) => fetch('/api/progression', {
@@ -2427,6 +2495,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       void getDoc(userRef).then((snapshot) => {
         const data = snapshot.data();
         if (typeof data?.volume === 'number') setVolume(data.volume);
+        if (typeof data?.lobbyTrackId === 'string' && lobbyAudioTracks.some((track) => track.id === data.lobbyTrackId)) {
+          setLobbyTrackId(data.lobbyTrackId);
+        } else {
+          setLobbyTrackId(DEFAULT_LOBBY_TRACK_ID);
+        }
         if (data?.preferredMode === 'audition' || data?.preferredMode === 'typing') {
           setMode(data.preferredMode);
         }
@@ -2445,11 +2518,18 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       void setDoc(doc(firebaseDb, 'users', authUser.id), {
         volume,
         preferredMode: mode,
+        lobbyTrackId,
         updatedAt: serverTimestamp(),
       }, { merge: true }).catch(() => undefined);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [authUser?.id, volume, mode]);
+  }, [authUser?.id, volume, mode, lobbyTrackId]);
+  useEffect(() => {
+    const owned = progression?.ownedCosmetics ?? [];
+    const unlocked = Array.from(new Set([...FREE_LOBBY_TRACK_IDS, ...owned.filter((id) => lobbyAudioTracks.some((track) => track.id === id))]));
+    setUnlockedLobbyTracks(unlocked);
+    if (!unlocked.includes(lobbyTrackId)) setLobbyTrackId(DEFAULT_LOBBY_TRACK_ID);
+  }, [progression?.ownedCosmetics, lobbyTrackId]);
   useEffect(() => {
     if (screen !== 'result' || !authUser || cloudMatchSaved.current) return;
     cloudMatchSaved.current = true;
@@ -2793,51 +2873,22 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     });
     return () => cancelAnimationFrame(frame);
   }, [screen, mode, word, typingLocked]);
-  const refreshAudioTracks = useCallback(async () => {
-    try {
-      setAudioTracks(await getAudioTracks());
-    } catch {
-      setAudioTracks([]);
-    }
-  }, []);
   useEffect(() => {
-    void refreshAudioTracks();
     const savedVolume = Number(localStorage.getItem('hanzi-beat-volume'));
     if (Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1)
       setVolume(savedVolume);
     return () => {
       audioPlayer.current?.pause();
-      if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
     };
-  }, [refreshAudioTracks]);
+  }, []);
   useEffect(() => {
     if (audioPlayer.current) audioPlayer.current.volume = volume;
     localStorage.setItem('hanzi-beat-volume', String(volume));
   }, [volume]);
   useEffect(() => {
-    if (screen !== 'game') audioPlayer.current?.pause();
-  }, [screen]);
-  const uploadAudio = async (files: FileList | null) => {
-    if (!files?.length) return;
-    await saveAudioFiles(
-      Array.from(files).filter((file) => file.type.startsWith('audio/')),
-    );
-    await refreshAudioTracks();
-  };
-  const removeAudio = async (id: string) => {
-    await deleteAudioTrack(id);
-    await refreshAudioTracks();
-  };
-  const previewAudio = (track: AudioTrack) => {
-    audioPlayer.current?.pause();
-    if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
-    audioUrl.current = URL.createObjectURL(track.blob);
-    const player = new Audio(audioUrl.current);
-    player.volume = volume;
-    audioPlayer.current = player;
-    setCurrentTrackName(track.name);
-    void player.play().catch(() => undefined);
-  };
+    if (screen === 'game') return;
+    if (audioMode.current !== 'lobby' || activeLobbyTrackId.current !== lobbyTrackId) playLobbyTrack(lobbyTrackId);
+  }, [screen, lobbyTrackId, unlockedLobbyTracks]);
   useEffect(() => {
     const controller = new AbortController();
     const context = (
@@ -3196,7 +3247,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           {authUser ? (
             <div className="auth-profile">
               <section className="profile-identity">
-                <div className={`profile-avatar ${progression?.equipped.frame ?? ''}`}>{authUser.name.slice(0, 1).toUpperCase()}</div>
+                <PlayerAvatar className="profile-avatar" name={authUser.name} src={authUser.photoURL} frame={progression?.equipped.frame} size={88} animated />
                 <div className="profile-identity-copy"><span>个人主页 · HỒ SƠ NGƯỜI CHƠI</span><h1>{authUser.name}</h1><p>{authUser.email}</p>{progression?.equipped.seal && <strong className="equipped-seal">学者印 · HỌC GIẢ</strong>}</div>
               </section>
               {progression && <div className="profile-progression">
@@ -3209,7 +3260,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 <button className="auth-codex" onClick={() => navigate('codex')}><BookOpen /> <span>Hán Tự Đồ Giám<small>{progression ? `${progression.discoveries.length} từ đã khám phá` : 'Bộ sưu tập HSK'}</small></span></button>
                 <button className="auth-castle" onClick={() => navigate('castle')}><MapIcon /> <span>Hán Tự Thành<small>{progression ? `Thành cấp ${Object.values(progression.castle.buildings).reduce((sum, level) => sum + level, 0)}` : 'Xây thành từ việc học'}</small></span></button>
                 <button className="auth-shop" onClick={() => navigate('shop')}><ShoppingBag /> <span>Cửa hàng<small>Khung và hiệu ứng</small></span></button>
-                <button className="auth-music" onClick={() => { setAudioOpen(true); navigate('home'); }}><Music2 /> <span>Thư viện nhạc<small>{audioTracks.length} bài đã lưu</small></span></button>
+                <button className="auth-music" onClick={() => navigate('music')}><Music2 /> <span>Kho nhạc<small>{unlockedLobbyTracks.length}/{lobbyAudioTracks.length} bài đã mở khóa</small></span></button>
               </div>
               <div className="profile-footer-actions"><button className="auth-home" onClick={() => navigate('home')}>Về trang chủ</button><button className="profile-logout" onClick={logout}><LogOut /> Đăng xuất</button></div>
             </div>
@@ -3373,9 +3424,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <span>Trang chủ</span>
             </button>
             <div className="castle-hud-player">
-              <div className={`header-avatar ${progression?.equipped.frame ?? ''}`}>
-                {authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}
-              </div>
+              <PlayerAvatar className="header-avatar" name={authUser?.name ?? 'Hán Tự'} src={authUser?.photoURL} frame={progression?.equipped.frame} size={36} />
               <div>
                 <b>{authUser?.name ?? 'Người chơi'}</b>
                 <small>繁荣度 {prosperity.toLocaleString('vi-VN')} · Lv.{castleLevel}</small>
@@ -3505,9 +3554,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               onSelectBuilding={(id) => {
                 setSelectedCastleBuilding(id);
               }}
-              showGrid={castleShowGrid}
+              showGrid={false}
               calibration={islandCalibration}
-              showDebugGrid={showDebugGrid}
+              showDebugGrid={false}
               extraBuildings={extraBuildings}
               onPlacedBuilding={handlePlaceBuilding}
               onRemoveBuilding={handleRemoveExtraBuilding}
@@ -3528,217 +3577,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               buildingAnimStates={mainBuildingAnimStates}
             />
 
-            {/* Bilinear Quad Calibration Panel */}
-            {calibrationModalOpen && (
-              <div
-                className="castle-calibration-panel"
-                style={{
-                  position: 'absolute',
-                  top: '72px',
-                  right: '16px',
-                  width: '320px',
-                  background: 'rgba(20, 14, 12, 0.95)',
-                  border: '1px solid #ffd43b',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  zIndex: 100,
-                  color: '#fff',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
-                  fontSize: '13px',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px', color: '#ffd43b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>🎯</span> Hiệu Chuẩn Lưới Đảo
-                  </h3>
-                  <button
-                    onClick={() => {
-                      setCalibrationModalOpen(false);
-                      setShowDebugGrid(false);
-                    }}
-                    style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '16px' }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '6px' }}>
-                    <input
-                      type="checkbox"
-                      checked={showDebugGrid}
-                      onChange={(e) => setShowDebugGrid(e.target.checked)}
-                    />
-                    <b style={{ color: '#69db7c' }}>Hiện Lưới Điểm Đỏ Debug</b>
-                  </label>
-                  <div style={{ fontSize: '11px', color: '#bbb', lineHeight: '1.4' }}>
-                    Bilinear Quad nội suy 144 ô lưới theo đúng 4 đỉnh mặt cỏ: TOP, RIGHT, BOTTOM, LEFT.
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#ffd43b', marginBottom: '4px' }}>
-                    Preset Địa Hình:
-                  </label>
-                  <select
-                    value={islandCalibration.id}
-                    onChange={(e) => {
-                      if (e.target.value === 'rim-12x12') {
-                        setIslandCalibration(RIM_ISLAND_CALIBRATION);
-                      } else if (e.target.value === 'natural-12x12') {
-                        setIslandCalibration(NATURAL_ISLAND_CALIBRATION);
-                      } else if (e.target.value === 'natural-grid-v2-12x12') {
-                        setIslandCalibration(NATURAL_GRID_V2_CALIBRATION);
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      background: '#2b1b17',
-                      color: '#fff',
-                      border: '1px solid #5a3c30',
-                      borderRadius: '6px',
-                      padding: '6px 8px',
-                      fontSize: '12px',
-                    }}
-                  >
-                    <option value="rim-12x12">Đảo Thành Cổ Viền Đá (1024×1024)</option>
-                    <option value="natural-12x12">Đảo Tiên Tự Nhiên (1024×1024)</option>
-                    <option value="natural-grid-v2-12x12">Đảo Vách Đá Tự Nhiên V2 (1024×1024)</option>
-                  </select>
-                </div>
-
-                {/* 4 Corners Live Adjustment */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                  {(['top', 'right', 'bottom', 'left'] as const).map((cornerKey) => {
-                    const c = islandCalibration.plateauCorners[cornerKey];
-                    const colors: Record<string, string> = {
-                      top: '#ffd43b',
-                      right: '#69db7c',
-                      bottom: '#4dabf7',
-                      left: '#da77f2',
-                    };
-                    return (
-                      <div
-                        key={cornerKey}
-                        style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          padding: '6px 8px',
-                          borderRadius: '6px',
-                          borderLeft: `3px solid ${colors[cornerKey]}`,
-                        }}
-                      >
-                        <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11px', color: colors[cornerKey] }}>
-                          {cornerKey}
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', color: '#888' }}>X:</span>
-                          <input
-                            type="number"
-                            value={c.x}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 0;
-                              setIslandCalibration((prev) => ({
-                                ...prev,
-                                plateauCorners: {
-                                  ...prev.plateauCorners,
-                                  [cornerKey]: { ...prev.plateauCorners[cornerKey], x: val },
-                                },
-                              }));
-                            }}
-                            style={{ width: '48px', background: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}
-                          />
-                          <span style={{ fontSize: '11px', color: '#888' }}>Y:</span>
-                          <input
-                            type="number"
-                            value={c.y}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 0;
-                              setIslandCalibration((prev) => ({
-                                ...prev,
-                                plateauCorners: {
-                                  ...prev.plateauCorners,
-                                  [cornerKey]: { ...prev.plateauCorners[cornerKey], y: val },
-                                },
-                              }));
-                            }}
-                            style={{ width: '48px', background: '#111', border: '1px solid #444', color: '#fff', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard?.writeText(JSON.stringify(islandCalibration, null, 2));
-                      showCastleToast('Đã copy cấu hình Calibration JSON!', 'ok');
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '6px 10px',
-                      background: '#e0a94d',
-                      color: '#1a0e08',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                    }}
-                  >
-                    📋 Copy JSON
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIslandCalibration(RIM_ISLAND_CALIBRATION);
-                      showCastleToast('Đã đặt lại về chuẩn mặc định', 'ok');
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      background: 'rgba(255,255,255,0.1)',
-                      color: '#ccc',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                    }}
-                  >
-                    ↺ Đặt lại
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Bottom Floating Action Dock */}
             <footer className="castle-bottom-dock">
               <div className="dock-group dock-tools">
-                <button
-                  className={`dock-item tool-item ${castleShowGrid ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !castleShowGrid;
-                    setCastleShowGrid(next);
-                    showCastleToast(next ? 'Đã bật lưới toạ độ (col, row)' : 'Đã tắt lưới toạ độ');
-                  }}
-                  title="Hiện Lưới Toạ Độ (Algorithm 1)"
-                >
-                  <i>📐</i>
-                  <span>Lưới</span>
-                </button>
-                <button
-                  className={`dock-item tool-item ${calibrationModalOpen ? 'active' : ''}`}
-                  onClick={() => {
-                    const next = !calibrationModalOpen;
-                    setCalibrationModalOpen(next);
-                    setShowDebugGrid(next);
-                    showCastleToast(next ? 'Đã mở bảng Hiệu Chuẩn Lưới Đảo' : 'Đã đóng bảng Hiệu Chuẩn');
-                  }}
-                  title="Hiệu Chuẩn Lưới Mặt Cỏ (Bilinear Quad Calibration)"
-                >
-                  <i>🎯</i>
-                  <span>Hiệu chuẩn</span>
-                </button>
                 <button
                   className={`dock-item tool-item highlight-gold ${castleBuildCatalogOpen ? 'active' : ''}`}
                   onClick={() => setCastleBuildCatalogOpen(true)}
@@ -3867,18 +3708,17 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <button className="modal-close-btn" onClick={() => setCastleCombatOpen(false)}>×</button>
               <section className="castle-combat-panel">
                 <header>
-                  <div>
-                    <span>攻城 · CÔNG THÀNH</span>
-                    <h2>Phòng thủ Thành</h2>
-                  </div>
+                  <div className="combat-title-mark">⚔</div>
+                  <div><span>攻城 · CHIẾN SỰ</span><h2>Trung Tâm Công Thành</h2><small>Tấn công được kích hoạt trực tiếp khi Jackpot ra bộ ba Búa hoặc Raid.</small></div>
                   <b>🛡 {castle.shieldCount}/3</b>
                 </header>
-                <p>Quay trúng bộ ba Búa hoặc Raid để hành động ngay · không thể tích trữ · tối đa 3 lần với cùng đối thủ mỗi ngày.</p>
-                <div className="combat-protection">
-                  <span>🛡 Khiên Thành: {castle.shieldCount}/3 lớp</span>
-                  <span>🌱 Bảo vệ tân thủ: {castle.newbieProtected ? 'Đang bảo vệ' : 'Đã kết thúc'}</span>
+                <div className="combat-status-grid">
+                  <article><i>🛡</i><span><small>KHIÊN THÀNH</small><b>{castle.shieldCount}/3 lớp</b></span></article>
+                  <article><i>🌱</i><span><small>TÂN THỦ</small><b>{castle.newbieProtected ? 'Đang bảo vệ' : 'Đã kết thúc'}</b></span></article>
+                  <article><i>🎰</i><span><small>KÍCH HOẠT</small><b>Jackpot Thành</b></span></article>
                 </div>
-                <h3>Nhật ký chiến đấu</h3>
+                <div className="combat-guide"><b>Cách chiến đấu</b><span>Trúng bộ ba → chọn đối thủ → chạm tâm ngắm trên công trình → khai hỏa.</span></div>
+                <h3><span>Nhật ký chiến đấu</span><small>{combatLogs.length} hoạt động gần nhất</small></h3>
                 <div className="combat-log-list">
                   {combatLogs.length ? (
                     combatLogs.map((log) => {
@@ -3911,19 +3751,19 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <div className="castle-modal-backdrop" onClick={() => setCastleCommerceOpen(false)}>
             <div className="castle-modal-dialog castle-modal-wide" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close-btn" onClick={() => setCastleCommerceOpen(false)}>×</button>
-              <section className="castle-commerce-panel">
+              <section className="castle-commerce-panel commerce-v2">
                 <header>
-                  <div>
-                    <span>龙晶商会 · THƯƠNG MẠI HÁN TỰ THÀNH</span>
-                    <h2>Linh Thạch Các</h2>
+                  <div className="commerce-title-v2">
+                    <i>晶</i>
+                    <div><span>龙晶商会</span><h2>Thương Hội Linh Thạch</h2><small>Trang trí thành trì bằng những vật phẩm không tăng sức mạnh</small></div>
                   </div>
                   <div className="commerce-balance">
-                    <b>🔮 {progression?.dragonCrystals ?? 0} Linh Thạch</b>
+                    <b><img src="/items/crystal.png" alt=""/><span><small>SỐ DƯ</small>{progression?.dragonCrystals ?? 0}</span></b>
                     <button className="topup-trigger-btn" onClick={() => setTopupOpen(true)}>+ Nạp Linh Thạch</button>
                   </div>
                 </header>
                 <div className="commerce-policy-banner">
-                  🛡 <b>Nguyên tắc Thương mại Công bằng:</b> Chỉ phát hành giao diện thẩm mỹ & trang trí kiến trúc. Tuyệt đối KHÔNG bán Coin, Gỗ, Mực, Năng lượng hay vật phẩm phòng thủ.
+                  <span>THẨM MỸ</span><b>Không tăng sức mạnh</b><small>Không bán Coin, nguyên liệu xây dựng hay phòng thủ.</small>
                 </div>
                 <div className="commerce-tabs">
                   <button className={commerceTab === 'themes' ? 'on' : ''} onClick={() => setCommerceTab('themes')}>🏯 Theme Pack</button>
@@ -3933,18 +3773,19 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                 {commerceTab === 'themes' && (
                   <div className="commerce-grid">
                     {[
-                      { id: 'theme-classic', theme: 'classic', name: 'Theme · Cổ Điển', price: 0, preview: 'classic', desc: 'Kiến trúc phong cách cổ phong kinh điển, khởi đầu cho giang sơn.' },
-                      { id: 'theme-jade', theme: 'jade', name: 'Theme Pack · Bích Ngọc Cung', price: 120, preview: 'jade', desc: 'Thành trì ngọc bích thanh tao, mái ngói lục bích tỏa ánh minh châu rực rỡ.' },
-                      { id: 'theme-lantern', theme: 'lantern', name: 'Theme Pack · Đèn Lồng Phố Đêm', price: 180, preview: 'lantern', desc: 'Đêm hoa đăng ấm áp lung linh, lầu son sáng rực ngập tràn đèn trời bay cao.' },
-                      { id: 'theme-frost', theme: 'frost', name: 'Theme Pack · Băng Thiên Tuyết Sơn', price: 220, preview: 'frost', desc: 'Đỉnh tuyết ngàn năm kỳ vĩ, phong thái băng thanh ngọc khiết bất diệt.' },
-                      { id: 'theme-crimson', theme: 'crimson', name: 'Theme Pack · Đan Hà Thu Cảnh', price: 150, preview: 'crimson', desc: 'Ráng chiều hoàng hôn rực rỡ, sắc thu vàng son bên thành cổ tráng lệ.' },
+                      { id: 'theme-classic', theme: 'classic', name: 'Cổ Điển', price: 0, preview: 'classic', map: '/castle/empty-island-natural-grid-v2.webp', desc: 'Địa hình khởi đầu của mọi Hán Tự Thành.' },
+                      { id: 'theme-meadow', theme: 'meadow', name: 'Thảo Nguyên Thạch Vi', price: 95, preview: 'meadow', map: '/castle/empty-island-meadow-fence-v2.webp', desc: 'Thảm cỏ, hoa dại và rào đá bao quanh đảo nổi.' },
+                      { id: 'theme-jade', theme: 'jade', name: 'Bích Ngọc Cung', price: 120, preview: 'jade', map: '/castle/empty-island-meadow-fence-v2.webp', desc: 'Sắc ngọc bích thanh tao phủ khắp thành trì.' },
+                      { id: 'theme-lantern', theme: 'lantern', name: 'Đèn Lồng Phố Đêm', price: 180, preview: 'lantern', map: '/castle/empty-island-meadow-fence-v2.webp', desc: 'Đêm hoa đăng ấm áp với ánh đèn rực rỡ.' },
+                      { id: 'theme-frost', theme: 'frost', name: 'Băng Thiên Tuyết Sơn', price: 220, preview: 'frost', map: '/castle/empty-island-meadow-fence-v2.webp', desc: 'Đảo nổi phủ sắc băng tuyết ngàn năm.' },
+                      { id: 'theme-crimson', theme: 'crimson', name: 'Đan Hà Thu Cảnh', price: 150, preview: 'crimson', map: '/castle/empty-island-meadow-fence-v2.webp', desc: 'Ráng chiều và sắc thu vàng son tráng lệ.' },
                     ].map((item) => {
                       const owned = item.price === 0 || (castle.ownedThemes ?? []).includes(item.theme) || (castle.ownedDecorations ?? []).includes(item.theme) || (castle.ownedDecorations ?? []).includes(item.id);
                       const isEquipped = castle.theme === item.theme;
                       const canAfford = (progression?.dragonCrystals ?? 0) >= item.price;
                       return (
                         <article key={item.id} className={`commerce-card preview-${item.preview}`}>
-                          <div className="commerce-card-icon">城</div>
+                          <div className="commerce-card-icon commerce-map-preview"><img src={item.map} alt={`Map ${item.name}`}/></div>
                           <h3>{item.name}</h3>
                           <p>{item.desc}</p>
                           <footer>
@@ -5516,7 +5357,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <div className="reward-header-actions"><button className="shop-topup-btn" onClick={() => setTopupOpen(true)}><img className="inline-crystal-icon" src="/items/crystal.png" alt=""/> <span>Nạp Linh Thạch</span></button><button className="shop-inventory-link" onClick={() => navigate('inventory')} aria-label="Mở Kho đồ"><Package /> <span>Kho đồ</span></button><button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button></div>
         </header>
         <section className="shop-panel">
-          <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><div className={`shop-preview-avatar ${progression?.equipped.frame ?? ''}`}>{authUser?.name.slice(0, 1).toUpperCase() ?? '汉'}</div><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
+          <div className="shop-hero"><div><span className="eyebrow"><ShoppingBag /> 珍宝阁 · TRÂN BẢO CÁC</span><h1>Cửa hàng cosmetic</h1><p>Dùng Mảnh Ngọc kiếm từ Daily, Offline và PvP để tạo phong cách riêng.</p></div><div className="shop-account-preview"><PlayerAvatar className="shop-preview-avatar" name={authUser?.name ?? 'Hán Tự'} src={authUser?.photoURL} frame={progression?.equipped.frame} size={64} animated /><span><small>KHUNG ĐANG DÙNG</small><b>{progression?.equipped.frame ? shopItems.find((item) => item.id === progression.equipped.frame)?.name : 'Khung mặc định'}</b></span></div><div className="shop-balance"><img src="/items/jade-fragment.png" alt="Mảnh Ngọc" /><span><small>SỐ DƯ</small><b>{progression?.jade ?? 0} 玉片</b></span></div></div>
           <nav className="shop-tabs" aria-label="Danh mục cửa hàng">
             <button className={shopTab === 'special' ? 'on' : ''} onClick={() => setShopTab('special')}>✦ Đặc Biệt</button>
             <button className={shopTab === 'cosmetics' ? 'on' : ''} onClick={() => setShopTab('cosmetics')}>🎨 Ngoại Trang</button>
@@ -5655,7 +5496,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           <button className="leaderboard-back" onClick={() => navigate('home')}>Về trang chủ</button>
         </header>
         <section className="pvp-panel">
-          <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng chế độ, cùng 20 từ · Điểm cao hơn chiến thắng</p></div>
+          <div className="title"><span className="eyebrow"><Trophy /> ĐẤU TRƯỜNG TRỰC TUYẾN</span><h1>PvP Online</h1><p>Hai người cùng chế độ, cùng 25 câu · Điểm cao hơn chiến thắng</p></div>
           {authUser && pvpRank && <div className="pvp-rank-card">
             <div className="pvp-rank-identity">
               {PVP_RANK_BADGES[pvpRank.rank] && <img src={PVP_RANK_BADGES[pvpRank.rank]} alt={`Huy hiệu rank ${pvpRank.rank}`} />}
@@ -5667,17 +5508,43 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           {!authUser ? <div className="pvp-login-required"><Trophy /><h2>Đăng nhập để đấu Rank</h2><p>Rank, lịch sử và kiểm tra công bằng được gắn với tài khoản Firebase.</p><button onClick={() => navigate('auth')}>Đăng nhập</button></div> : !pvpRoom && !pvpWaiting ? <>
             <label className="pvp-name">Tên thi đấu<input value={authUser.name} disabled /></label>
             <div className="pvp-mode-picker">
-              <button className={pvpGameMode === 'audition' ? 'on' : ''} onClick={() => setPvpGameMode('audition')}><b>Rhythm Quiz</b><small>Chọn nghĩa tiếng Việt hoặc chữ Hán</small></button>
-              <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><b>Typing Battle</b><small>Gõ nghĩa tiếng Việt hoặc chữ Hán</small></button>
+              <button className={pvpGameMode === 'audition' ? 'on' : ''} onClick={() => setPvpGameMode('audition')}><img src="/lesson-rhythm-quiz.webp" alt="Minh họa Rhythm Quiz" /><span><b>Rhythm Quiz</b><small>Chọn nghĩa tiếng Việt hoặc chữ Hán</small></span></button>
+              <button className={pvpGameMode === 'typing' ? 'on' : ''} onClick={() => setPvpGameMode('typing')}><img src="/lesson-typing-battle.webp" alt="Minh họa Typing Battle" /><span><b>Typing Battle</b><small>Gõ nghĩa tiếng Việt hoặc chữ Hán</small></span></button>
             </div>
             <div className="pvp-choices">
-              <article><span>⚔</span><h2>Ghép trận</h2><p>Tìm một đối thủ đang chờ trên toàn hệ thống.</p><button onClick={() => pvpAction('match')}>Tìm đối thủ</button></article>
-              <article><span>🏮</span><h2>Tạo phòng</h2><p>Tạo mã riêng và gửi cho bạn bè cùng tham gia.</p><button onClick={() => pvpAction('create')}>Tạo phòng mới</button></article>
+              <article><img className="pvp-choice-art" src="/pvp-matchmaking.webp" alt="Hai đối thủ đang được ghép trận" /><h2>Ghép trận</h2><p>Tìm một đối thủ đang chờ trên toàn hệ thống.</p><button onClick={() => pvpAction('match')}>Tìm đối thủ</button></article>
+              <article><img className="pvp-choice-art" src="/pvp-create-room.webp" alt="Cổng phòng PvP riêng" /><h2>Tạo phòng</h2><p>Tạo mã riêng và gửi cho bạn bè cùng tham gia.</p><button onClick={() => pvpAction('create')}>Tạo phòng mới</button></article>
             </div>
             <div className="join-room"><input value={pvpCode} maxLength={6} onChange={(event) => setPvpCode(event.target.value.toUpperCase())} placeholder="NHẬP MÃ PHÒNG" /><button onClick={() => pvpAction('join')}>Vào phòng</button></div>
           </> : <div className="pvp-waiting"><div className="pvp-spinner">汉</div><span>{pvpRoom ? `MÃ PHÒNG: ${pvpRoom.code}` : 'ĐANG GHÉP TRẬN'}</span><h2>{pvpRoom?.guest ? 'Đã tìm thấy đối thủ!' : 'Đang chờ đối thủ...'}</h2><p className="pvp-waiting-mode">{(pvpRoom?.mode ?? pvpGameMode) === 'audition' ? 'Rhythm Quiz' : 'Typing Battle'}</p>{pvpRoom && <><p>Gửi mã này cho bạn bè:</p><button className="room-code" onClick={() => navigator.clipboard.writeText(pvpRoom.code)}>{pvpRoom.code}</button></>}<small>Trận đấu sẽ tự bắt đầu khi đủ 2 người.</small></div>}
           {pvpError && <p className="pvp-error">{pvpError}</p>}
         </section>
+        {pvpMatchIntro && (() => {
+          const self = pvpMatchIntro.room.host.id === authUser?.id ? pvpMatchIntro.room.host : pvpMatchIntro.room.guest;
+          const rival = pvpMatchIntro.room.host.id === authUser?.id ? pvpMatchIntro.room.guest : pvpMatchIntro.room.host;
+          const renderFighter = (player: PvpPlayer | null | undefined, isSelf: boolean) => {
+            const rank = player?.rank ?? 'Đồng';
+            return <article className="pvp-vs-fighter">
+              <PlayerAvatar className="pvp-vs-avatar" name={player?.name ?? 'Đối thủ'} src={isSelf ? authUser?.photoURL : null} frame={player?.frame ?? (isSelf ? progression?.equipped.frame : null)} size={88} animated />
+              <h2 title={player?.name}>{player?.name ?? 'Đối thủ'}</h2>
+              <small>Lv.{Math.max(1, Number(player?.level ?? (isSelf ? progression?.level : 1)))}</small>
+              <span>{PVP_RANK_BADGES[rank] && <img src={PVP_RANK_BADGES[rank]} alt="" aria-hidden="true" />}<b>{rank}</b></span>
+            </article>;
+          };
+          return <div className="pvp-vs-backdrop" role="dialog" aria-modal="true" aria-label="Đang chuẩn bị trận PvP">
+            <section className="pvp-vs-card">
+              <div className="pvp-vs-duel">
+                {renderFighter(self, true)}
+                <strong>VS</strong>
+                {renderFighter(rival, false)}
+              </div>
+              <div className="pvp-vs-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pvpMatchIntro.progress}>
+                <i><em style={{ transform: `scaleX(${pvpMatchIntro.progress / 100})` }} /></i>
+                <b>{pvpMatchIntro.progress}%</b>
+              </div>
+            </section>
+          </div>;
+        })()}
       </main>
     );
   if (screen === 'leaderboard')
@@ -5862,9 +5729,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           className="user account-button"
           onClick={() => navigate('auth')}
         >
-          <span className={`header-avatar ${progression?.equipped.frame ?? ''}`}>
-            {authUser ? authUser.name.slice(0, 1).toUpperCase() : <LogIn />}
-          </span>
+          <PlayerAvatar className="header-avatar" name={authUser?.name ?? 'Đăng nhập'} src={authUser?.photoURL} frame={progression?.equipped.frame} size={38} fallback={authUser ? undefined : <LogIn />} />
           <b>
             {authUser ? authUser.name : 'Đăng nhập'}
             {!authUser && <small>Đăng ký tài khoản</small>}
@@ -6079,48 +5944,40 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
           >
             <div className="audio-modal-head">
               <div>
-                <span className="eyebrow">GAME AUDIO</span>
-              <h2>Thư viện âm thanh</h2>
-                <p>Game tự chọn một trong 7 bài nhạc chính khi bắt đầu trận.</p>
+                <span className="eyebrow">乐阁 · NHẠC SẢNH</span>
+                <h2>Kho nhạc của bạn</h2>
+                <p>{unlockedLobbyTracks.length}/{lobbyAudioTracks.length} bài đã mở khóa · Chọn một bài làm nhạc sảnh.</p>
               </div>
               <button onClick={() => setAudioOpen(false)} aria-label="Đóng">
                 ×
               </button>
             </div>
-            <div className="default-audio-list">
-              <span className="eyebrow">NHẠC CHÍNH · {defaultAudioTracks.length} BÀI</span>
-              {defaultAudioTracks.map((track) => (
-                <button
-                  key={track.src}
+            <div className="lobby-audio-list">
+              {lobbyAudioTracks.map((track) => {
+                const unlocked = unlockedLobbyTracks.includes(track.id);
+                return <button
+                  key={track.id}
+                  className={`${lobbyTrackId === track.id ? 'selected' : ''} ${unlocked ? 'unlocked' : 'locked'}`}
+                  disabled={!unlocked}
                   onClick={() => {
-                    audioPlayer.current?.pause();
-                    const player = new Audio(track.src);
-                    player.volume = volume;
-                    audioPlayer.current = player;
-                    setCurrentTrackName(track.name);
-                    void player.play().catch(() => undefined);
+                    if (!unlocked) return;
+                    setLobbyTrackId(track.id);
+                    if (lobbyTrackId === track.id && audioMode.current === 'lobby' && !audioPlayer.current?.paused) {
+                      audioPlayer.current?.pause();
+                    } else {
+                      playLobbyTrack(track.id);
+                    }
                   }}
                 >
-                  <Play /> {track.name}
-                </button>
-              ))}
+                  <span className="lobby-track-art"><Music2 />{!unlocked && <em><Lock /></em>}</span>
+                  <span><b>{track.hanzi}</b><strong>{track.name}</strong><small>{track.artist} · {track.unlockLabel}</small></span>
+                  <i>{unlocked ? (lobbyTrackId === track.id && audioStatus === 'playing' ? <Volume2 /> : <Play />) : <Lock />}</i>
+                </button>;
+              })}
             </div>
-            <label className="audio-upload">
-              <Upload />
-              <span>
-                <b>Thêm nhạc cá nhân để nghe thử</b>
-                <small>MP3, WAV, OGG hoặc M4A · Có thể chọn nhiều file</small>
-              </span>
-              <input
-                type="file"
-                accept="audio/*"
-                multiple
-                onChange={(event) => void uploadAudio(event.target.files)}
-              />
-            </label>
             <div className="volume-setting">
               <Volume2 />
-              <span>Âm lượng trong trận</span>
+              <span>Âm lượng nhạc sảnh</span>
               <input
                 type="range"
                 min="0"
@@ -6131,46 +5988,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               />
               <b>{Math.round(volume * 100)}%</b>
             </div>
-            <div className="audio-list">
-              {audioTracks.length ? (
-                audioTracks.map((track) => (
-                  <article key={track.id}>
-                    <button
-                      className="track-play"
-                      onClick={() => previewAudio(track)}
-                    >
-                      <Play />
-                    </button>
-                    <div>
-                      <b>{track.name}</b>
-                      <small>
-                        {(track.blob.size / 1024 / 1024).toFixed(1)} MB
-                      </small>
-                    </div>
-                    <button
-                      className="track-delete"
-                      onClick={() => void removeAudio(track.id)}
-                      aria-label={`Xóa ${track.name}`}
-                    >
-                      <Trash2 />
-                    </button>
-                  </article>
-                ))
-              ) : (
-                <div className="audio-empty">
-                  <Music2 />
-                  <b>Chưa có bài nhạc nào</b>
-                  <span>
-                    Tải nhạc lên để game phát ngẫu nhiên khi vào trận.
-                  </span>
-                </div>
-              )}
-            </div>
             <div className="audio-note">
               <span>♪</span>
               <p>
-                File nhạc được lưu riêng trên trình duyệt của thiết bị này,
-                không tải lên máy chủ.
+                Lựa chọn được đồng bộ với tài khoản. Bài đang dùng: <b>{currentTrackName}</b>
               </p>
             </div>
           </section>

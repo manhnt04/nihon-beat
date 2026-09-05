@@ -376,7 +376,7 @@
 .audio-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 300;
   background: #16102499;
   backdrop-filter: blur(7px);
   display: grid;
@@ -460,6 +460,78 @@
   width: 14px;
   flex: 0 0 auto;
 }
+.lobby-audio-list {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 14px;
+}
+.lobby-audio-list > button {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid #d7c18e;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #fffdf6, #f4ead2);
+  color: #4d3025;
+  text-align: left;
+}
+.lobby-audio-list > button.selected {
+  border-color: #b4262e;
+  box-shadow: inset 0 0 0 1px #b4262e, 0 8px 20px #5d271526;
+}
+.lobby-track-art {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffe69b;
+  background: radial-gradient(circle at 35% 30%, #61b89b, #17604f 65%, #103b34);
+  border: 3px solid #d6af50;
+}
+.lobby-track-art em {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #170f0dc7;
+  color: #f3d47a;
+}
+.lobby-track-art em svg { width: 21px; }
+.lobby-track-art svg { width: 25px; }
+.lobby-audio-list button > span:nth-child(2) { min-width: 0; }
+.lobby-audio-list b,.lobby-audio-list strong,.lobby-audio-list small { display: block; }
+.lobby-audio-list b { color: #a3292f; font: 700 17px "Songti SC","SimSun",serif; }
+.lobby-audio-list strong { margin-top: 2px; font-size: 12px; }
+.lobby-audio-list small { margin-top: 4px; color: #826f5c; font-size: 9px; }
+.lobby-audio-list i {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #9f282d;
+  color: white;
+}
+.lobby-audio-list i svg { width: 15px; }
+.lobby-audio-list > button.locked {
+  border-color: #b8aa96;
+  background: linear-gradient(135deg, #eee9df, #d9d1c3);
+  color: #746c62;
+  cursor: not-allowed;
+  filter: saturate(.45);
+  opacity: .78;
+}
+.lobby-audio-list > button.locked .lobby-track-art {
+  border-color: #9c9180;
+  background: radial-gradient(circle at 35% 30%, #8d988f, #555c58 65%, #373c39);
+}
+.lobby-audio-list > button.locked b { color: #756c61; }
+.lobby-audio-list > button.locked i { background: #5f5952; }
 .audio-upload:hover {
   border-color: #ff6b9c;
   background: #fff7fa;

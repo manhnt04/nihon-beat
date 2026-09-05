@@ -24,7 +24,7 @@ const levelFromXp = (xp: number) => { let level = 1; let remaining = xp; while (
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 type RankProfile = { season: string; mmr: number; wins: number; losses: number; draws: number; matches: number; rank: string };
-type Player = { id: string; name: string; score: number | null; correct: number | null; liveScore: number; liveCorrect: number; submittedAt: number | null; mmr: number; rank: string; botTargetCorrect?: number; botTargetScore?: number };
+type Player = { id: string; name: string; level: number; frame: string | null; score: number | null; correct: number | null; liveScore: number; liveCorrect: number; submittedAt: number | null; mmr: number; rank: string; botTargetCorrect?: number; botTargetScore?: number };
 type GameMode = 'audition' | 'typing';
 type Integrity = { valid: boolean; reason: string | null; pairMatchesToday: number; rewardEligible: boolean; rankedEligible: boolean };
 type Room = { code: string; seed: number; mode: GameMode; status: 'waiting' | 'playing' | 'finished'; host: Player; guest: Player | null; createdAt: string; startedAt: number | null; completedAt: number | null; integrity: Integrity | null; rankChanges: Record<string, number> | null; botMatch?: boolean };
@@ -35,7 +35,7 @@ const makeBot = (mmr: number, seed: number): Player => {
   const variance = ((seed % 17) - 8) / 100;
   const correct = Math.max(6, Math.min(24, Math.round(25 * (difficulty + variance))));
   const score = correct * (1150 + seed % 451);
-  return { id: `sim-${seed}`, name: botNames[seed % botNames.length], score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr, rank: rankName(mmr), botTargetCorrect: correct, botTargetScore: score };
+  return { id: `sim-${seed}`, name: botNames[seed % botNames.length], level: Math.max(1, Math.min(100, Math.round((mmr - 800) / 35))), frame: null, score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr, rank: rankName(mmr), botTargetCorrect: correct, botTargetScore: score };
 };
 const updateBotTimeline = (room: Room) => {
   if (!room.botMatch || !room.guest || !room.startedAt || room.status !== 'playing') return;
@@ -59,7 +59,13 @@ const loadRank = async (uid: string): Promise<RankProfile> => {
   return { season: seasonId(), mmr, wins: Number(stored?.wins ?? 0), losses: Number(stored?.losses ?? 0), draws: Number(stored?.draws ?? 0), matches: Number(stored?.matches ?? 0), rank: rankName(mmr) };
 };
 const saveRoom = async (room: Room) => redis.set(roomKey(room.code), room, { ex: ROOM_TTL });
-const makePlayer = async (id: string, name: string): Promise<Player> => { const profile = await loadRank(id); return { id, name, score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr: profile.mmr, rank: profile.rank }; };
+const makePlayer = async (id: string, name: string): Promise<Player> => {
+  const [profile, progression] = await Promise.all([
+    loadRank(id),
+    redis.get<any>(`hanzibeat:progression:${id}`),
+  ]);
+  return { id, name, level: Math.max(1, Number(progression?.level ?? 1)), frame: progression?.equipped?.frame ?? null, score: null, correct: null, liveScore: 0, liveCorrect: 0, submittedAt: null, mmr: profile.mmr, rank: profile.rank };
+};
 const createRoom = async (player: Player, mode: GameMode) => {
   let code = '';
   for (let attempt = 0; attempt < 6; attempt += 1) { code = Math.random().toString(36).slice(2, 8).toUpperCase(); if (!(await redis.exists(roomKey(code)))) break; }
