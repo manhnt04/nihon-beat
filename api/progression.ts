@@ -551,7 +551,7 @@ export default async function handler(request: any, response: any) {
         { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 }, { kind: 'empty', amount: 0 },
       ].sort(() => randomUnit() - .5);
       await redis.del(`hanzibeat:pending-raid:${user.localId}`);
-      await redis.set(`hanzibeat:raid:${raidId}`, { attackerId: user.localId, targetId, targetName: target.name, spots, opened: [] }, { ex: 600 });
+      await redis.set(`hanzibeat:raid:${raidId}`, { attackerId: user.localId, attackerName: progression.name, targetId, targetName: target.name, spots, opened: [], loot: { coins: 0, wood: 0, ink: 0 } }, { ex: 600 });
       await redis.set(`hanzibeat:active-raid:${user.localId}`, raidId, { ex: 600 });
       return response.status(201).json({ progression: publicProgression(progression), raidSession: { id: raidId, targetId, targetName: target.name, spotCount: 9, digsLeft: 3 } });
     }
@@ -570,9 +570,18 @@ export default async function handler(request: any, response: any) {
         found.amount = taken; target.coins = Math.max(0, Number(target.coins ?? 0) - taken); progression.coins += taken;
       } else if (found.kind === 'wood') progression.castle.wood += found.amount;
       else if (found.kind === 'ink') progression.castle.ink += found.amount;
+      session.loot = session.loot ?? { coins: 0, wood: 0, ink: 0 };
+      if (found.kind === 'coin') session.loot.coins += found.amount;
+      else if (found.kind === 'wood') session.loot.wood += found.amount;
+      else if (found.kind === 'ink') session.loot.ink += found.amount;
       session.opened.push(spotIndex);
       const done = session.opened.length >= 3;
-      if (done) { await redis.del(`hanzibeat:raid:${raidId}`); await redis.del(`hanzibeat:active-raid:${user.localId}`); } else await redis.set(`hanzibeat:raid:${raidId}`, session, { ex: 600 });
+      if (done) {
+        await redis.del(`hanzibeat:raid:${raidId}`); await redis.del(`hanzibeat:active-raid:${user.localId}`);
+        const raidLog = { id: raidId, kind: 'raid', attackerId: user.localId, attackerName: session.attackerName, defenderId: session.targetId, defenderName: session.targetName, correct: 0, won: true, shielded: false, reward: session.loot, createdAt: Date.now() };
+        await redis.lpush(`hanzibeat:castle-combat-log:${user.localId}`, raidLog); await redis.ltrim(`hanzibeat:castle-combat-log:${user.localId}`, 0, 19);
+        await redis.lpush(`hanzibeat:castle-combat-log:${session.targetId}`, raidLog); await redis.ltrim(`hanzibeat:castle-combat-log:${session.targetId}`, 0, 19);
+      } else await redis.set(`hanzibeat:raid:${raidId}`, session, { ex: 600 });
       await redis.set(`hanzibeat:progression:${user.localId}`, progression);
       await redis.set(`hanzibeat:progression:${session.targetId}`, target);
       return response.status(200).json({ progression: publicProgression(progression), raidDig: { spotIndex, ...found, digsLeft: 3 - session.opened.length, done } });

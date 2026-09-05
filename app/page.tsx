@@ -310,7 +310,7 @@ type SlotRewards = { coins: number; spins: number; wood: number; ink: number; ja
 type SlotResult = { reels: string[]; rewards: SlotRewards; triple: boolean; event?: 'attack' | 'shield' | 'raid' | null; shieldFull?: boolean };
 type PublicCastle = { uid: string; name: string; level: number; score: number; likes: number; theme: string; shieldActiveUntil: number; shieldCount?: number; newbieProtected?: boolean; damagedBuildings?: Record<string, number>; buildings: { main: number; library: number; listening: number }; buildingsLayout?: IsoBuildingData[]; corePositions?: CoreBuildingPositions };
 type CastleVisitor = { uid: string; name: string; visitedAt: number };
-type CombatLog = { id: string; attackerId: string; attackerName: string; defenderId: string; defenderName: string; attackedBuilding?: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
+type CombatLog = { id: string; kind?: 'attack' | 'raid'; attackerId: string; attackerName: string; defenderId: string; defenderName: string; attackedBuilding?: string; correct: number; won: boolean; shielded: boolean; reward: { coins: number; wood: number; ink: number }; createdAt: number };
 const slotSymbols = [
   { id: 'coin', label: 'Coin', image: '/items/coin.png' },
   { id: 'spin', label: 'Spin', image: '/items/spin-refund.png' },
@@ -874,6 +874,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [newbieNotice, setNewbieNotice] = useState(false);
   const [raidSession, setRaidSession] = useState<{ id: string; targetId: string; targetName: string; spotCount: number; digsLeft: number } | null>(null);
   const [raidFinds, setRaidFinds] = useState<Record<number, { kind: 'coin' | 'wood' | 'ink' | 'empty'; amount: number }>>({});
+  const [invasionTarget, setInvasionTarget] = useState<PublicCastle | null>(null);
+  const [invasionKind, setInvasionKind] = useState<'attack' | 'raid' | null>(null);
+  const [invasionPhase, setInvasionPhase] = useState<'idle' | 'travel' | 'action' | 'result' | 'return'>('idle');
   const [cosmeticEffect, setCosmeticEffect] = useState<string | null>(null);
   const [codexTab, setCodexTab] = useState<'atlas' | 'collections' | 'journey'>('atlas');
   const [codexQuery, setCodexQuery] = useState('');
@@ -1582,6 +1585,28 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setAutoSpin(true);
     void spinOnce();
   };
+  const beginCastleInvasion = (target: PublicCastle, kind: 'attack' | 'raid') => {
+    setSlotTarget(null);
+    setSlotAction(null);
+    setInvasionTarget(target);
+    setInvasionKind(kind);
+    setInvasionPhase('travel');
+    window.setTimeout(() => {
+      setInvasionPhase('action');
+      if (kind === 'raid') void runCastleCombat('raid-start', { targetId: target.uid });
+    }, 950);
+  };
+  const returnFromInvasion = () => {
+    setInvasionPhase('return');
+    window.setTimeout(() => {
+      setInvasionPhase('idle');
+      setInvasionTarget(null);
+      setInvasionKind(null);
+      setRaidSession(null);
+      setRaidFinds({});
+      setCombatResult(null);
+    }, 750);
+  };
   const floatingCastleLevel = progression?.castle.buildings
     ? Math.max(1, Object.values(progression.castle.buildings).reduce((sum, lvl) => sum + lvl, 0) - 2)
     : 1;
@@ -1619,12 +1644,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         <button className="spin-modal-close" onClick={() => { stopAutoSpin(); setSpinOpen(false); }} aria-label="Đóng">×</button>
         <div className="jackpot-topbar"><span><img src="/items/coin.png" alt="Coin"/><b>{(progression?.coins ?? 0).toLocaleString('vi-VN')}</b></span><strong>天机 JACKPOT</strong><span><img src="/items/spin-refund.png" alt="Spin"/><b>{progression?.spins.balance ?? 0}</b></span></div>
         <div className={`jackpot-machine ${slotResult?.triple ? 'jackpot-win' : ''}`}><div className="jackpot-marquee">天机宝库</div><div className="jackpot-payline"/><div className="jackpot-reels">{[0,1,2].map((reelIndex) => <div className="jackpot-reel" key={`${reelRun}-${reelIndex}`}><div className="jackpot-strip" style={{ transform: `translateY(-${reelOffsets[reelIndex]}px)`, transition: `transform ${.7 + reelIndex * .15}s cubic-bezier(.12,.78,.16,1)` }}>{slotStrip.map((symbol, symbolIndex) => <div className="jackpot-symbol" key={`${reelIndex}-${symbolIndex}`}><img src={symbol.image} alt={symbol.label}/></div>)}</div></div>)}</div></div>
-        <div className={`slot-result ${slotResult ? 'show' : ''}`}><small>{slotResult?.triple ? '🎉 BỘ BA' : 'PHẦN THƯỞNG'}</small><div>{slotResult && Object.entries(slotResult.rewards).filter(([,amount]) => amount > 0).map(([kind,amount]) => { const rewardAssets: Record<string,string> = { coins:'/items/coin.png',spins:'/items/spin-refund.png',wood:'/items/spin-wood.png',ink:'/items/spin-ink.png',jade:'/items/jade-fragment.png',chests:'/items/daily-chest.png',shields:'/items/spin-castle-shield.png',tickets:'/items/spin-siege-ticket.png',fragments:'/items/spin-destiny-fragment.png',jackpots:'/items/spin-jackpot.png' }; return <span key={kind}><img src={rewardAssets[kind]} alt=""/><b>×{amount}</b></span>; })}{slotResult && Object.values(slotResult.rewards).every((amount) => amount === 0) && <b>CHƯA TRÚNG</b>}</div>{!slotResult && <p>QUAY ĐỂ NHẬN THƯỞNG</p>}</div>
+        <div className={`slot-result ${slotResult ? 'show' : ''}`}><small>{slotResult?.triple ? '🎉 BỘ BA' : 'PHẦN THƯỞNG'}</small><div>{slotResult && Object.entries(slotResult.rewards).filter(([,amount]) => amount > 0).map(([kind,amount]) => { const rewardAssets: Record<string,string> = { coins:'/items/coin.png',spins:'/items/spin-refund.png',wood:'/items/spin-wood.png',ink:'/items/spin-ink.png',jade:'/items/jade-fragment.png',chests:'/items/daily-chest.png',shields:'/items/spin-castle-shield.png',tickets:'/items/spin-siege-ticket.png',fragments:'/items/spin-destiny-fragment.png',jackpots:'/items/spin-jackpot.png' }; return <span key={kind}><img src={rewardAssets[kind]} alt=""/><b>×{amount}</b></span>; })}{slotResult && Object.values(slotResult.rewards).every((amount) => amount === 0) && <b>{slotResult.shieldFull ? 'KHIÊN ĐÃ ĐẦY 3/3' : 'CHƯA TRÚNG'}</b>}</div>{!slotResult && <p>QUAY ĐỂ NHẬN THƯỞNG</p>}</div>
         {spinError && <p className="spin-error">{spinError}</p>}
         <button className={`spin-hold-button ${spinBusy ? 'spinning' : ''} ${autoSpin ? 'auto-spinning' : ''}`} disabled={!authUser || (!autoSpin && (progression?.spins.balance ?? 0) < 1)} onClick={toggleAutoSpin}>{autoSpin ? 'DỪNG' : (progression?.spins.balance ?? 0) > 0 ? 'QUAY' : 'HẾT LƯỢT'}<small>{autoSpin ? 'Đang tự động quay' : 'Nhấn để tự động quay'}</small></button>
       </section></div>}
-      {slotAction && <div className="slot-action-backdrop"><section className="slot-action-modal" role="dialog" aria-modal="true"><header><img src={slotAction === 'attack' ? '/items/spin-siege-ticket.png' : '/items/treasure-basin.png'} alt=""/><div><small>{slotAction === 'attack' ? '雷锤 · BÚA SẤM SÉT' : '夺宝 · RAID'}</small><h2>{slotAction === 'attack' && slotTarget ? `Chọn công trình của ${slotTarget.name}` : slotAction === 'attack' ? 'Chọn thành để Công Thành' : 'Chọn thành để Raid'}</h2><p>Kết quả này không thể tích trữ và sẽ hết hạn sau 10 phút.</p></div></header>{slotAction === 'attack' && slotTarget ? <div className="attack-building-list">{([['main','Chủ Thành'],['library','Tàng Thư Các'],['listening','Thính Âm Các']] as const).map(([id,name])=><button key={id} onClick={() => void runCastleCombat('start',{targetId:slotTarget.uid,buildingId:id})}><img src={`/castle/buildings/${id}/stage-${id === 'main' ? Math.max(1,Math.ceil(slotTarget.buildings[id]/2)) : 1}.webp`} alt=""/><span><b>{name}</b><small>Lv.{slotTarget.buildings[id]}</small></span><strong>PHÁ</strong></button>)}<button className="attack-target-back" onClick={()=>setSlotTarget(null)}>← Chọn thành khác</button></div> : <div className="slot-target-list">{castleSocial?.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).length ? castleSocial.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).map((entry) => <button key={entry.uid} onClick={() => slotAction === 'attack' ? setSlotTarget(entry) : void runCastleCombat('raid-start', { targetId: entry.uid })}><i>{entry.name.slice(0,1).toUpperCase()}</i><span><b>{entry.name}</b><small>Chủ Thành Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><strong>{slotAction === 'attack' ? 'CHỌN' : 'RAID'}</strong></button>) : <p>Đang tìm thành có thể tấn công…</p>}</div>}</section></div>}
-      {raidSession && <div className="slot-action-backdrop"><section className="raid-modal" role="dialog" aria-modal="true"><header><small>夺宝 · RAID</small><h2>Kho báu của {raidSession.targetName}</h2><p>Chọn 3 điểm để đào · Còn <b>{raidSession.digsLeft}</b> lượt</p></header><div className="raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{ const found=raidFinds[index]; return <button key={index} className={found ? `opened ${found.kind}` : ''} disabled={Boolean(found) || raidSession.digsLeft < 1} onClick={() => void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found ? <><span>{found.kind === 'coin' ? '🪙' : found.kind === 'wood' ? '🪵' : found.kind === 'ink' ? '🖌' : '💨'}</span><b>{found.kind === 'empty' ? 'Trống' : `×${found.amount}`}</b></> : <><span>⛏</span><b>Đào</b></>}</button>})}</div>{raidSession.digsLeft < 1 && <button className="raid-done" onClick={() => setRaidSession(null)}>Nhận và quay tiếp</button>}</section></div>}
+      {slotAction && <div className="slot-action-backdrop"><section className="slot-action-modal" role="dialog" aria-modal="true"><header><img src={slotAction === 'attack' ? '/items/spin-siege-ticket.png' : '/items/treasure-basin.png'} alt=""/><div><small>{slotAction === 'attack' ? '雷锤 · BÚA SẤM SÉT' : '夺宝 · RAID'}</small><h2>{slotAction === 'attack' ? 'Chọn thành để Công Thành' : 'Chọn thành để Raid'}</h2><p>Chọn mục tiêu để dịch chuyển sang map của họ.</p></div></header><div className="slot-target-list">{castleSocial?.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).length ? castleSocial.castles.filter((entry) => entry.uid !== authUser?.id && !entry.newbieProtected).map((entry) => <button key={entry.uid} onClick={() => beginCastleInvasion(entry,slotAction)}><i>{entry.name.slice(0,1).toUpperCase()}</i><span><b>{entry.name}</b><small>Chủ Thành Lv.{entry.buildings.main} · {entry.score.toLocaleString('vi-VN')} điểm</small></span><strong>DỊCH CHUYỂN</strong></button>) : <p>Đang tìm thành có thể tấn công…</p>}</div></section></div>}
+      {invasionTarget && invasionKind && invasionPhase !== 'idle' && <div className={`invasion-stage phase-${invasionPhase}`}><div className="invasion-map"><CastleIsoCanvas castle={{theme:invasionTarget.theme,buildings:invasionTarget.buildings}} environmentStage={Math.min(5,Math.ceil(invasionTarget.level/2))} selectedBuildingId={null} onSelectBuilding={()=>{}} showGrid={false} extraBuildings={invasionTarget.buildingsLayout ?? []} pendingBuilding={null} onToast={showCastleToast} shieldActive={Number(invasionTarget.shieldCount ?? 0)>0} combatFxTrigger={castleCombatTrigger} corePositions={invasionTarget.corePositions}/></div>{(invasionPhase === 'travel'||invasionPhase === 'return') && <div className="invasion-travel"><div className="travel-dragon">🐉</div><span>{invasionPhase === 'travel' ? 'ĐANG ĐẾN THÀNH ĐỐI THỦ' : 'ĐANG TRỞ VỀ HÁN TỰ THÀNH'}</span><h2>{invasionTarget.name}</h2><i/></div>}{invasionPhase === 'action' && <div className="invasion-hud"><header><span>{invasionKind === 'attack' ? '雷锤 · CÔNG THÀNH' : '夺宝 · RAID'}</span><h2>Thành của {invasionTarget.name}</h2><small>主城 Lv.{invasionTarget.buildings.main} · 🛡 {invasionTarget.shieldCount ?? 0}/3</small></header>{invasionKind === 'attack' ? <div className="invasion-building-actions">{([['main','Chủ Thành'],['library','Tàng Thư Các'],['listening','Thính Âm Các']] as const).map(([id,name])=><button key={id} onClick={()=>{setCastleCombatTrigger({type:Number(invasionTarget.shieldCount??0)>0?'shield_hit':'cannon',targetBuildingId:id,id:Date.now()});window.setTimeout(()=>void runCastleCombat('start',{targetId:invasionTarget.uid,buildingId:id}),700)}}><img src={`/castle/buildings/${id}/stage-${id==='main'?Math.max(1,Math.ceil(invasionTarget.buildings[id]/2)):1}.webp`} alt=""/><span><b>{name}</b><small>Lv.{invasionTarget.buildings[id]}</small></span><strong>ĐẬP</strong></button>)}</div> : raidSession ? <div className="raid-spots invasion-raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{const found=raidFinds[index];return <button key={index} className={found?`opened ${found.kind}`:''} disabled={Boolean(found)||raidSession.digsLeft<1} onClick={()=>void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found?<><span>{found.kind==='coin'?'🪙':found.kind==='wood'?'🪵':found.kind==='ink'?'🖌':'💨'}</span><b>{found.kind==='empty'?'Trống':`×${found.amount}`}</b></>:<><span>⛏</span><b>Đào · {raidSession.digsLeft}</b></>}</button>})}</div> : <div className="raid-loading">Đang xác định các điểm kho báu…</div>}</div>}{invasionPhase === 'result' && <div className="invasion-summary"><span>{invasionKind==='attack'?'攻城结果':'夺宝结果'}</span><h2>{invasionKind==='attack'?(combatResult?.shielded?'KHIÊN ĐÃ CHẶN ĐÒN':'CÔNG THÀNH THÀNH CÔNG'):'RAID HOÀN TẤT'}</h2>{invasionKind==='attack'&&combatResult?.won&&<p>🪙 ×{combatResult.reward.coins} · 🪵 ×{combatResult.reward.wood} · 🖌 ×{combatResult.reward.ink}</p>}{invasionKind==='raid'&&<p>🪙 ×{Object.values(raidFinds).filter((item)=>item.kind==='coin').reduce((sum,item)=>sum+item.amount,0)} · 🪵 ×{Object.values(raidFinds).filter((item)=>item.kind==='wood').reduce((sum,item)=>sum+item.amount,0)} · 🖌 ×{Object.values(raidFinds).filter((item)=>item.kind==='ink').reduce((sum,item)=>sum+item.amount,0)}</p>}<button onClick={returnFromInvasion}>Trở về Thành</button></div>}</div>}
+      {raidSession && !invasionTarget && <div className="slot-action-backdrop"><section className="raid-modal" role="dialog" aria-modal="true"><header><small>夺宝 · RAID</small><h2>Kho báu của {raidSession.targetName}</h2><p>Chọn 3 điểm để đào · Còn <b>{raidSession.digsLeft}</b> lượt</p></header><div className="raid-spots">{Array.from({length:raidSession.spotCount},(_,index)=>{ const found=raidFinds[index]; return <button key={index} className={found ? `opened ${found.kind}` : ''} disabled={Boolean(found) || raidSession.digsLeft < 1} onClick={() => void runCastleCombat('raid-dig',{raidId:raidSession.id,spotIndex:index})}>{found ? <><span>{found.kind === 'coin' ? '🪙' : found.kind === 'wood' ? '🪵' : found.kind === 'ink' ? '🖌' : '💨'}</span><b>{found.kind === 'empty' ? 'Trống' : `×${found.amount}`}</b></> : <><span>⛏</span><b>Đào</b></>}</button>})}</div>{raidSession.digsLeft < 1 && <button className="raid-done" onClick={() => setRaidSession(null)}>Nhận và quay tiếp</button>}</section></div>}
       {newbieNotice && <div className="newbie-unlock-backdrop"><section><span>城战解锁</span><h2>ĐÃ MỞ KHÓA CÔNG THÀNH</h2><p>Từ bây giờ, thành của bạn có thể bị người chơi khác tấn công hoặc Raid.</p><button onClick={()=>setNewbieNotice(false)}>Đã hiểu</button></section></div>}
     </>
   );
@@ -2006,11 +2032,12 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       if (!response.ok) throw new Error(data.error || 'Không thể thực hiện Công Thành.');
       if (data.progression) setProgression(data.progression);
       if (data.combatLogs) setCombatLogs(data.combatLogs);
-      if (data.combatResult) { setCombatResult(data.combatResult); setCombatQuiz(null); setSlotAction(null); setSlotTarget(null); }
+      if (data.combatResult) { setCombatResult(data.combatResult); setCombatQuiz(null); setSlotAction(null); setSlotTarget(null); setInvasionPhase('result'); }
       if (data.raidSession) { setRaidSession(data.raidSession); setRaidFinds({}); setSlotAction(null); }
       if (data.raidDig) {
         setRaidFinds((current) => ({ ...current, [data.raidDig!.spotIndex]: { kind: data.raidDig!.kind, amount: data.raidDig!.amount } }));
         setRaidSession((current) => current ? { ...current, digsLeft: data.raidDig!.digsLeft } : current);
+        if (data.raidDig.done) setInvasionPhase('result');
       }
     } catch (error) { setRewardActionError(error instanceof Error ? error.message : 'Không thể thực hiện Công Thành.'); }
   }, []);
@@ -2265,6 +2292,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   useEffect(() => {
     if (screen === 'castle' && authUser) { void runCastleSocial(); void runCastleCombat('logs'); }
   }, [screen, authUser, runCastleSocial, runCastleCombat]);
+  useEffect(() => {
+    if (!raidSession || invasionTarget || !castleSocial) return;
+    const target = castleSocial.castles.find((entry) => entry.uid === raidSession.targetId);
+    if (target) { setInvasionTarget(target); setInvasionKind('raid'); setInvasionPhase('action'); }
+  }, [raidSession, invasionTarget, castleSocial]);
   const openPvp = () => {
     setPvpRoom(null);
     setPvpWaiting(false);
@@ -2375,7 +2407,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       })).then(async (response) => response.ok
         ? await response.json() as { progression?: Progression; pendingAction?: 'attack' | 'raid' | null; raidSession?: { id: string; targetId: string; targetName: string; spotCount: number; digsLeft: number } | null }
         : null)
-        .then((data) => { setProgression(data?.progression ?? null); if (data?.raidSession) setRaidSession(data.raidSession); else if (data?.pendingAction) { setSlotAction(data.pendingAction); void runCastleSocial(); } })
+        .then((data) => { setProgression(data?.progression ?? null); if (data?.raidSession) { setRaidSession(data.raidSession); void runCastleSocial(); } else if (data?.pendingAction) { setSlotAction(data.pendingAction); void runCastleSocial(); } })
         .catch(() => setProgression(null));
       const userRef = doc(firebaseDb, 'users', firebaseUser.uid);
       void getDoc(userRef).then((snapshot) => {
@@ -3854,11 +3886,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       return (
                         <article key={log.id}>
                           <b className={log.won ? 'win' : 'lose'}>
-                            {log.shielded ? 'ĐÃ CHẶN' : log.won ? 'THẮNG' : 'THUA'}
+                            {log.kind === 'raid' ? 'RAID' : log.shielded ? 'ĐÃ CHẶN' : log.won ? 'THẮNG' : 'THUA'}
                           </b>
                           <span>
                             <strong>{log.attackerName} → {log.defenderName}</strong>
-                            <small>{log.shielded ? 'Khiên đã vỡ 1 lớp' : 'Công thành trực tiếp'} · {new Date(log.createdAt).toLocaleString('vi-VN')}</small>
+                            <small>{log.kind === 'raid' ? `Đã cướp ${log.reward.coins.toLocaleString('vi-VN')} Coin` : log.shielded ? 'Khiên đã vỡ 1 lớp' : `Đã đánh ${log.attackedBuilding ?? 'công trình'}`} · {new Date(log.createdAt).toLocaleString('vi-VN')}</small>
                           </span>
                           {defending && <button onClick={() => void runCastleSocial('visit', rivalId)}>Xem thành</button>}
                         </article>
