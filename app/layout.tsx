@@ -88,9 +88,16 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: '/icon.png',
-    shortcut: '/icon.png',
-    apple: '/icon.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-48x48.png', type: 'image/png', sizes: '48x48' },
+      { url: '/icon.png', type: 'image/png', sizes: '192x192' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   openGraph: {
     title: 'Hanzi Beat — Game học Hán tự nhịp điệu, xây đảo & đấu PvP',
@@ -165,6 +172,16 @@ const jsonLd = {
       inLanguage: ['vi', 'zh-CN'],
     },
     {
+      '@type': 'WebSite',
+      '@id': 'https://hanzibeat.online/#website',
+      url: 'https://hanzibeat.online',
+      name: 'Hanzi Beat',
+      description: 'Game nhịp điệu học tiếng Trung sơ cấp & luyện gõ Pinyin',
+      publisher: {
+        '@id': 'https://hanzibeat.online/#organization',
+      },
+    },
+    {
       '@type': 'EducationalOrganization',
       '@id': 'https://hanzibeat.online/#organization',
       name: 'Hanzi Beat',
@@ -172,7 +189,10 @@ const jsonLd = {
       logo: {
         '@type': 'ImageObject',
         url: 'https://hanzibeat.online/brand/hanzi-beat-logo.png',
+        width: '512',
+        height: '512',
       },
+      image: 'https://hanzibeat.online/icon-512.png',
       sameAs: ['https://github.com/manhnt04/nihon-beat'],
     },
     generateFaqSchema(),
@@ -187,6 +207,11 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

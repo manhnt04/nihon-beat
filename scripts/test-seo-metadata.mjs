@@ -45,4 +45,28 @@ for (let i = 0; i < schema.mainEntity.length; i++) {
 }
 console.log(`  ✓ Schema FAQPage sinh ra hoàn toàn hợp lệ và khớp 100% với nội dung UI`);
 
-console.log('\n>>> TẤT CẢ CÁC BÀI TEST SEO METADATA & SCHEMA ĐÃ ĐẠT 100% PASS! <<<\n');
+console.log('\n5. Kiểm tra bộ Icon và Favicon chuẩn Google Search:');
+import fs from 'node:fs';
+import path from 'node:path';
+const requiredIcons = [
+  { file: 'public/favicon.ico', minSize: 1000, desc: 'Favicon đa kích thước' },
+  { file: 'public/favicon-48x48.png', minSize: 500, desc: 'Favicon 48x48 chuẩn Googlebot' },
+  { file: 'public/apple-touch-icon.png', minSize: 5000, desc: 'Apple Touch Icon 180x180' },
+  { file: 'public/icon.png', minSize: 5000, desc: 'Web App Icon 192x192' },
+  { file: 'public/icon-512.png', minSize: 10000, desc: 'PWA Icon 512x512' },
+  { file: 'public/favicon.svg', minSize: 300, desc: 'Vector SVG Favicon' },
+];
+
+for (const icon of requiredIcons) {
+  const fullPath = path.join(process.cwd(), icon.file);
+  assert(fs.existsSync(fullPath), `Tệp ${icon.file} (${icon.desc}) phải tồn tại`);
+  const stat = fs.statSync(fullPath);
+  assert(stat.size >= icon.minSize, `Tệp ${icon.file} dung lượng ${stat.size}B phải >= ${icon.minSize}B`);
+  assert(stat.size < 500000, `Tệp ${icon.file} không được quá nặng (< 500KB)`);
+}
+
+const svgContent = fs.readFileSync(path.join(process.cwd(), 'public/favicon.svg'), 'utf8');
+assert(svgContent.includes('汉'), 'favicon.svg phải chứa Hán tự đại diện cho Hanzi Beat');
+console.log(`  ✓ Toàn bộ ${requiredIcons.length} tệp Icon & Favicon chuẩn Google Search đã được xác minh`);
+
+console.log('\n>>> TẤT CẢ CÁC BÀI TEST SEO METADATA, ICONS & SCHEMA ĐÃ ĐẠT 100% PASS! <<<\n');
