@@ -1,19 +1,20 @@
 import React from 'react';
-import { SEO_FEATURES, FAQ_ITEMS, SEO_LEARNING_METHOD } from '@/lib/seo-data';
+import { SEO_FEATURES, FAQ_ITEMS, SEO_LEARNING_METHOD, SEO_TAG_GROUPS } from '@/lib/seo-data';
 
 export default function SemanticSeoFooter() {
   return (
-    <section className="seo-landing-content" aria-label="Giới thiệu Hanzi Beat">
+    <section className="seo-landing-content" aria-label="Giới thiệu nền tảng học tiếng Trung Hanzi Beat">
       <div className="seo-container">
         <header className="seo-header">
-          <span className="seo-badge">NỀN TẢNG GAMIFICATION HỌC TIẾNG TRUNG</span>
+          <span className="seo-badge">NỀN TẢNG GAMIFICATION HỌC TIẾNG TRUNG SƠ CẤP &amp; HSK</span>
           <h1 className="seo-main-title">
             Hanzi Beat — Game Nhịp Điệu Luyện Gõ Hán Tự &amp; Thi Đấu Tiếng Trung Online
           </h1>
           <p className="seo-lead">
             <strong>Hanzi Beat</strong> là nền tảng học tiếng Trung gamification đột phá,
             kết hợp giữa trò chơi nhịp điệu (Rhythm Game) và phương pháp ghi nhớ mặt chữ
-            lặp lại ngắt quãng (Spaced Repetition).
+            lặp lại ngắt quãng (Spaced Repetition). Giúp người học làm chủ cách học tiếng Trung nhanh,
+            thuộc từ vựng Hán tự HSK 1-4 sâu sắc và rèn luyện kỹ năng gõ Pinyin chuẩn xác.
           </p>
         </header>
 
@@ -42,7 +43,7 @@ export default function SemanticSeoFooter() {
         <section className="seo-faq-section">
           <h2 className="seo-section-heading">Câu Hỏi Thường Gặp (FAQ)</h2>
           <p className="seo-faq-intro">
-            Giải đáp những thắc mắc thường gặp về phương pháp luyện gõ bính âm, kho từ vựng HSK và cách chơi Hanzi Beat.
+            Giải đáp những thắc mắc thường gặp về khóa học tiếng Trung sơ cấp, phương pháp học từ vựng tiếng Trung nhớ lâu và cách luyện gõ bính âm trên Hanzi Beat.
           </p>
           <div className="seo-faq-list">
             {FAQ_ITEMS.map((item, idx) => (
@@ -62,13 +63,19 @@ export default function SemanticSeoFooter() {
         <footer className="seo-bottom-bar">
           <div className="seo-brand-info">
             <span className="seo-brand-mark">漢韵 · HANZI BEAT</span>
-            <small>© 2026 Hanzi Beat. Nền tảng học Hán tự qua âm nhạc &amp; Tiên Đảo 2.5D. All rights reserved.</small>
+            <small>© 2026 Hanzi Beat. Nền tảng tự học tiếng Trung, luyện gõ Pinyin &amp; xây Tiên Đảo 2.5D miễn phí.</small>
           </div>
-          <div className="seo-tags-list">
-            <span className="seo-tag">#GameHocTiengTrung</span>
-            <span className="seo-tag">#LuyenGoPinyin</span>
-            <span className="seo-tag">#HSK1_4</span>
-            <span className="seo-tag">#PvpTiengTrung</span>
+          <div className="seo-tag-groups-container">
+            {SEO_TAG_GROUPS.map((group, gIdx) => (
+              <div key={gIdx} className="seo-tag-group-row">
+                <span className="seo-tag-group-label">{group.category}:</span>
+                <div className="seo-tags-list">
+                  {group.tags.map((tag, tIdx) => (
+                    <span key={tIdx} className="seo-tag">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </footer>
       </div>
