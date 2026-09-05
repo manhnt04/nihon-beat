@@ -12,7 +12,10 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "test": "node scripts/test-castle.mjs",
-    "test:castle": "node scripts/test-castle.mjs"
+    "test:castle": "node scripts/test-castle.mjs",
+    "test:quiz": "node scripts/test-quiz-generator.mjs",
+    "test:difficulty": "node scripts/test-difficulty.mjs",
+    "test:all": "node scripts/test-quiz-generator.mjs && node scripts/test-difficulty.mjs && node scripts/test-castle.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

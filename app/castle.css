@@ -290,6 +290,19 @@
 .commerce-card footer button.active-equipped{background:#217a61;color:#effff4;cursor:default}
 .commerce-card footer button.unequip-btn{background:#773535;color:#ffdada}
 .commerce-card footer button:disabled{background:#584a6b;color:#a292b5;cursor:not-allowed}
+
+/* Long Tinh Guild — compact storefront */
+.castle-modal-dialog:has(.commerce-v2){width:min(1080px,96vw);max-height:92vh;overflow:hidden;padding:8px;border:2px solid #bb8a3d;background:#291716;box-shadow:0 28px 90px #090303cc}
+.commerce-v2{display:flex;max-height:calc(92vh - 16px);margin:0;padding:16px;overflow:hidden;flex-direction:column;border:1px solid #f0ca75;border-radius:10px;background:radial-gradient(circle at 10% 0,#7b262944,transparent 32%),linear-gradient(150deg,#211217,#38202d 58%,#20131d);box-shadow:inset 0 0 45px #05020388}
+.commerce-v2>header{flex:none;padding:0 40px 13px 0;border-bottom:1px solid #e4bd6352}
+.commerce-title-v2{display:flex;align-items:center;gap:11px}.commerce-title-v2>i{display:grid;width:55px;height:55px;place-items:center;flex:0 0 auto;border:2px solid #e4bd63;border-radius:13px;background:linear-gradient(145deg,#b33435,#68191e);color:#ffe6a0;font:900 29px "Songti SC","SimSun",serif;font-style:normal;box-shadow:inset 0 0 0 2px #541319,0 6px 16px #0005}.commerce-v2 .commerce-title-v2 span{color:#e9c663;font-size:11px;letter-spacing:.14em}.commerce-v2 .commerce-title-v2 h2{margin:2px 0 0;font-size:24px}.commerce-title-v2 small{display:block;margin-top:2px;color:#bfaebc;font-size:12px}
+.commerce-v2 .commerce-balance{flex-wrap:nowrap}.commerce-v2 .commerce-balance>b{display:flex;align-items:center;gap:8px;min-width:126px;padding:7px 12px;border-color:#e4bd636b;background:#120a10;color:#fff}.commerce-v2 .commerce-balance>b img{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 0 7px #c95cff88)}.commerce-v2 .commerce-balance>b span{display:flex;flex-direction:column;font-size:18px;line-height:1}.commerce-v2 .commerce-balance>b small{margin-bottom:4px;color:#a996aa;font-size:8px;letter-spacing:.1em}.commerce-v2 .topup-trigger-btn{min-height:42px;padding:8px 14px;border-color:#ffe297;background:linear-gradient(#f2cb64,#b27624);font-size:11px;box-shadow:0 3px 0 #64400f,0 0 15px #eebf4c33}
+.commerce-v2 .commerce-policy-banner{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:8px;margin:10px 0;padding:7px 10px;border-color:#59b48b42;background:#15382d80;color:#e9fff4}.commerce-v2 .commerce-policy-banner>span{padding:3px 6px;border-radius:4px;background:#287b5e;color:#dfffee;font-size:9px;font-weight:900}.commerce-v2 .commerce-policy-banner>b{font-size:11px}.commerce-v2 .commerce-policy-banner>small{color:#b9d6c9;font-size:10px}
+.commerce-v2 .commerce-tabs{flex:none;margin:0 0 10px;padding:3px;border:1px solid #ffffff17;border-radius:9px;background:#10090eb3;overflow:visible}.commerce-v2 .commerce-tabs button{display:flex;align-items:center;justify-content:center;gap:7px;flex:1;padding:8px;border:0;background:transparent;color:#bbaaba}.commerce-v2 .commerce-tabs button i{font-size:17px;font-style:normal}.commerce-v2 .commerce-tabs button span{font-size:11px}.commerce-v2 .commerce-tabs button.on{background:linear-gradient(145deg,#8e303f,#5e243d);box-shadow:inset 0 0 0 1px #e7bf65,0 3px 9px #0005;color:#fff4da}
+.commerce-v2>.commerce-grid,.commerce-v2>.commerce-cosmetics-section{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}.commerce-v2>.commerce-grid::-webkit-scrollbar,.commerce-v2>.commerce-cosmetics-section::-webkit-scrollbar{display:none}.commerce-v2 .commerce-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:2px}.commerce-v2 .commerce-card{min-height:210px;padding:11px;border-color:#e1bd6440;background:linear-gradient(155deg,#ffffff10,#00000016);backdrop-filter:none;contain:layout paint style;content-visibility:auto;contain-intrinsic-size:210px;transition:border-color .12s ease}.commerce-v2 .commerce-card:hover{border-color:#e1bd64;transform:none}.commerce-v2 .commerce-card-icon{width:62px;height:62px;margin-bottom:8px;border-color:#e4bd63;background:radial-gradient(circle at 40% 30%,#4b9a82,#175343);box-shadow:inset 0 0 15px #ffffff1c,0 5px 14px #0005}.commerce-v2 .commerce-card h3{font-size:15px}.commerce-v2 .commerce-card p{min-height:40px;margin:5px 0 9px;color:#c6b8c5;font-size:10px}.commerce-v2 .commerce-card footer button{min-height:34px;background:linear-gradient(#9e4054,#6d253d);box-shadow:0 2px 0 #3b1120}.commerce-v2 .commerce-card footer button.active-equipped{background:linear-gradient(#3e9b74,#21674d);box-shadow:0 2px 0 #123e2e}.commerce-v2 .commerce-cosmetics-section>h3{margin:3px 2px 8px!important;color:#edca72;font:800 14px "Songti SC","SimSun",serif}
+.commerce-v2 .commerce-map-preview{width:100%;height:92px;border-radius:8px;overflow:hidden;background:radial-gradient(circle,#7ec3dc44,#111827)}.commerce-v2 .commerce-map-preview img{width:100%;height:100%;object-fit:contain;filter:none}.commerce-v2 .preview-jade .commerce-map-preview img{filter:hue-rotate(65deg) saturate(1.2)}.commerce-v2 .preview-lantern .commerce-map-preview img{filter:hue-rotate(320deg) saturate(1.3)}.commerce-v2 .preview-frost .commerce-map-preview img{filter:hue-rotate(185deg) saturate(1.15) brightness(1.12)}.commerce-v2 .preview-crimson .commerce-map-preview img{filter:hue-rotate(350deg) saturate(1.35)}
+@media(max-width:760px){.castle-modal-dialog:has(.commerce-v2){width:97vw;max-height:94vh}.commerce-v2{max-height:calc(94vh - 16px);padding:11px}.commerce-v2>header{align-items:flex-start;padding-right:34px}.commerce-title-v2>i{width:43px;height:43px;font-size:23px}.commerce-v2 .commerce-title-v2 h2{font-size:18px}.commerce-title-v2 small{display:none}.commerce-v2 .commerce-balance{width:100%;justify-content:space-between}.commerce-v2 .commerce-balance>b{min-width:105px}.commerce-v2 .commerce-balance>b img{width:28px;height:28px}.commerce-v2 .commerce-policy-banner{grid-template-columns:auto 1fr}.commerce-v2 .commerce-policy-banner>small{grid-column:1/-1}.commerce-v2 .commerce-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.commerce-v2 .commerce-card{min-height:195px;padding:8px}.commerce-v2 .commerce-card-icon{width:49px;height:49px;font-size:22px}.commerce-v2 .commerce-card h3{font-size:13px}.commerce-v2 .commerce-card p{font-size:9px}.commerce-v2 .commerce-tabs button{padding:7px 4px}}
+@media(max-width:420px){.commerce-v2 .commerce-grid{grid-template-columns:1fr}.commerce-v2 .commerce-card{display:grid;grid-template-columns:58px 1fr;gap:3px 8px;min-height:130px}.commerce-v2 .commerce-card-icon{grid-row:1/4;margin:0}.commerce-v2 .commerce-card h3,.commerce-v2 .commerce-card p{text-align:left}.commerce-v2 .commerce-card p{min-height:0;margin:2px 0}.commerce-v2 .commerce-card footer{grid-column:2}.commerce-v2 .commerce-policy-banner>small{display:none}}
 .castle-pass-v2{padding:16px;border:1px solid #b79047;border-radius:10px;background:#20112e}
 .castle-pass-header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
 .castle-pass-header h3{margin:0;font:700 20px "Songti SC","SimSun",serif;color:#ffd97e}
@@ -1481,21 +1494,13 @@
   gap: 10px;
   max-height: none;
   padding: 2px 5px 12px 2px;
-  scrollbar-color: #a86c35 #e8cea0;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
 }
 
 .architecture-workshop .build-catalog-grid::-webkit-scrollbar {
-  display: block;
-  width: 6px;
-}
-.architecture-workshop .build-catalog-grid::-webkit-scrollbar-track {
-  background: rgba(217, 183, 125, 0.25);
-  border-radius: 3px;
-}
-.architecture-workshop .build-catalog-grid::-webkit-scrollbar-thumb {
-  background: #a86c35;
-  border-radius: 3px;
+  display: none;
+  width: 0;
 }
 .architecture-workshop .build-catalog-tabs::-webkit-scrollbar { display: none; }
 .architecture-workshop .build-catalog-tabs { scrollbar-width: none; }
@@ -1508,12 +1513,14 @@
   border-radius: 9px;
   background: #fff8e9;
   box-shadow: 0 4px 10px #6b35131c;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 190px;
 }
 
 .architecture-workshop .build-catalog-card:hover {
   border-color: #a62d2d;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px #6b35132b;
+  box-shadow: 0 5px 12px #6b351326;
 }
 
 .architecture-workshop .build-card-preview {
@@ -1525,6 +1532,7 @@
 }
 
 .architecture-workshop .build-card-preview img { width: 96px; height: 110px; }
+.architecture-workshop .build-card-preview img { transform: translateZ(0); }
 .architecture-workshop .build-card-footprint { color: #ffe8aa; background: #55241ddd; }
 
 .build-card-owned {
@@ -1623,6 +1631,8 @@
 .quick-building-buttons .move { background: linear-gradient(#378fcf, #17619e); }
 .quick-building-buttons .upgrade { background: linear-gradient(#55ad47, #24752b); }
 .quick-building-buttons button:active { transform: translateY(2px); box-shadow: 0 1px 0 #61251b; }
+.castle-building-quick-actions,
+.architecture-workshop-dialog { will-change: auto; }
 
 @keyframes castle-quick-actions-in {
   from { opacity: 0; transform: translate(-50%, 12px) scale(.96); }
@@ -2273,4 +2283,17 @@
 .leaderboard-castle-visit-btn:hover {
   background: #f5e4bd;
   transform: translateY(-1px);
+}
+
+/* Wide map artwork in the castle commerce cards. */
+.commerce-v2 .commerce-card-icon.commerce-map-preview {
+  width: 100%;
+  height: 92px;
+}
+
+@media (max-width: 420px) {
+  .commerce-v2 .commerce-card-icon.commerce-map-preview {
+    width: 58px;
+    height: 58px;
+  }
 }

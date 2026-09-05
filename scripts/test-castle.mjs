@@ -147,6 +147,7 @@ assert(pointInPolygon({ x: 20, y: 20 }, testBox) === false, 'Điểm bên ngoài
 console.log('\n5. Kiểm tra Tính Toàn Vẹn Của Asset Ảnh (.webp):');
 
 const requiredAssets = [
+  'public/castle/empty-island-meadow-fence-v2.webp',
   'public/castle/empty-island-rim-12x12.webp',
   'public/castle/empty-island-12x12.webp',
   'public/castle/empty-island-rim-12x12.png',
@@ -1215,6 +1216,40 @@ const sampleCastles = [
 const sortedRank = [...sampleCastles].sort((a, b) => b.score - a.score);
 assert(sortedRank[0].uid === 'u2' && sortedRank[0].score === 3500, 'Bảng Xếp Hạng: Xếp đúng Hạng 1 theo Điểm Phồn Vinh (3500).');
 assert(sortedRank[2].uid === 'u3' && sortedRank[2].score === 950, 'Bảng Xếp Hạng: Xếp đúng Hạng 3 theo Điểm Phồn Vinh (950).');
+
+// =========================================================
+// 17. Kiểm thử Phiên Công Thành Nhanh & Chống Xử Lý Trùng
+// =========================================================
+console.log('\n17. Kiểm thử Phiên Công Thành Nhanh & Chống Xử Lý Trùng:');
+
+function createAttackLedger(sessionId) {
+  const results = new Map();
+  let pending = true;
+  let damageCount = 0;
+  return {
+    execute({ attackId, attackSessionId }) {
+      if (results.has(attackId)) return { ...results.get(attackId), recovered: true };
+      if (!pending || attackSessionId !== sessionId) return { error: 'expired' };
+      damageCount += 1;
+      const result = { attackId, damageCount, recovered: false };
+      results.set(attackId, result);
+      pending = false;
+      return result;
+    },
+    damageCount: () => damageCount,
+  };
+}
+
+const attackLedger = createAttackLedger('session-123456789');
+const firstAttack = attackLedger.execute({ attackId: 'attack-123456789', attackSessionId: 'session-123456789' });
+const recoveredAttack = attackLedger.execute({ attackId: 'attack-123456789', attackSessionId: 'session-123456789' });
+assert(firstAttack.damageCount === 1, 'Công Thành nhanh: đòn hợp lệ gây hư hại đúng một lần.');
+assert(recoveredAttack.recovered === true && attackLedger.damageCount() === 1, 'Idempotency: gửi lại cùng attackId chỉ trả kết quả cũ, không phá công trình lần hai.');
+const reusedSession = attackLedger.execute({ attackId: 'attack-987654321', attackSessionId: 'session-123456789' });
+assert(reusedSession.error === 'expired', 'Phiên Công Thành: một phiên Búa không thể tạo thêm đòn đánh mới sau khi đã dùng.');
+const wrongSessionLedger = createAttackLedger('session-valid-123');
+const wrongSession = wrongSessionLedger.execute({ attackId: 'attack-valid-123', attackSessionId: 'session-wrong-123' });
+assert(wrongSession.error === 'expired' && wrongSessionLedger.damageCount() === 0, 'Phiên Công Thành: từ chối attackSessionId sai mà không làm thay đổi thành đối thủ.');
 
 console.log('\n========================================');
 console.log(`📊 TỔNG KẾT: ${passed} ĐẠT, ${failed} LỖI`);

@@ -24,6 +24,8 @@ import { getFootprintOutline, Pt } from '../utils/footprintOutline';
 import {
   IslandCalibration,
   DEFAULT_ISLAND_CALIBRATION,
+  RIM_ISLAND_CALIBRATION,
+  bilinearQuad,
   gridToScreenCalibrated,
   screenToGridCalibrated,
   footprintCornersCalibrated,
@@ -170,6 +172,11 @@ interface CastleIsoCanvasProps {
     blocked: boolean,
   ) => void;
   corePositions?: CoreBuildingPositions;
+  targetingMode?: boolean;
+  damagedBuildingIds?: string[];
+  hiddenBuildingIds?: string[];
+  smokeBuildingIds?: string[];
+  raidTargetingMode?: boolean;
 }
 
 const GRID = 12;
@@ -178,6 +185,34 @@ const BASE_TILE_H = 32;
 
 // Shared In-Memory Image Cache for instant 60fps sprite rendering
 const imageCache = new Map<string, HTMLImageElement>();
+const insetCalibrationCache = new WeakMap<IslandCalibration, IslandCalibration>();
+
+/** Keep one original tile of safe space between every building and the island edge. */
+function getPlayableCalibration(
+  theme: string,
+  calibration?: IslandCalibration,
+): IslandCalibration {
+  const base = theme === 'meadow'
+    ? RIM_ISLAND_CALIBRATION
+    : calibration ?? DEFAULT_ISLAND_CALIBRATION;
+  const cached = insetCalibrationCache.get(base);
+  if (cached) return cached;
+
+  const insetU = 1 / base.gridCols;
+  const insetV = 1 / base.gridRows;
+  const inset: IslandCalibration = {
+    ...base,
+    id: `${base.id}-safe-inset`,
+    plateauCorners: {
+      top: bilinearQuad(insetU, insetV, base.plateauCorners),
+      right: bilinearQuad(1 - insetU, insetV, base.plateauCorners),
+      bottom: bilinearQuad(1 - insetU, 1 - insetV, base.plateauCorners),
+      left: bilinearQuad(insetU, 1 - insetV, base.plateauCorners),
+    },
+  };
+  insetCalibrationCache.set(base, inset);
+  return inset;
+}
 
 function getCanvasDpr(): number {
   if (typeof window === 'undefined') return 1;
@@ -286,6 +321,11 @@ export default function CastleIsoCanvas({
   combatFxTrigger = null,
   onImpactBuilding,
   corePositions,
+  targetingMode = false,
+  damagedBuildingIds = [],
+  hiddenBuildingIds = [],
+  smokeBuildingIds = [],
+  raidTargetingMode = false,
 }: CastleIsoCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -304,6 +344,19 @@ export default function CastleIsoCanvas({
 
   // Hover grid cell for placement preview
   const hoverGridRef = useRef<{ col: number; row: number } | null>(null);
+  const damagedBuildingSetRef = useRef(new Set(damagedBuildingIds));
+  const hiddenBuildingSetRef = useRef(new Set(hiddenBuildingIds));
+  const smokeBuildingSetRef = useRef(new Set(smokeBuildingIds));
+
+  useEffect(() => {
+    damagedBuildingSetRef.current = new Set(damagedBuildingIds);
+  }, [damagedBuildingIds]);
+  useEffect(() => {
+    hiddenBuildingSetRef.current = new Set(hiddenBuildingIds);
+  }, [hiddenBuildingIds]);
+  useEffect(() => {
+    smokeBuildingSetRef.current = new Set(smokeBuildingIds);
+  }, [smokeBuildingIds]);
 
   // Animation Engine Refs (State Machine & Particle Systems)
   const activeBurstsRef = useRef<
@@ -377,8 +430,10 @@ export default function CastleIsoCanvas({
         shieldStateRef.current.activationProgress = 0;
       } else if (shieldStateRef.current.active) {
         const { width, height } = rectRef.current;
-        const calib =
-          propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
+        const calib = getPlayableCalibration(
+          propsRef.current.castle.theme,
+          propsRef.current.calibration,
+        );
         const { scaleFactor, plateauCenter } = getCalibrationGeometry(
           width,
           height,
@@ -418,7 +473,10 @@ export default function CastleIsoCanvas({
     prevCombatFxTriggerIdRef.current = combatFxTrigger.id;
 
     const { width, height } = rectRef.current;
-    const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
+    const calib = getPlayableCalibration(
+      propsRef.current.castle.theme,
+      propsRef.current.calibration,
+    );
     const { scaleFactor, renderScale, drawOrigin, plateauCenter } =
       getCalibrationGeometry(
         width,
@@ -565,6 +623,7 @@ export default function CastleIsoCanvas({
   // Preload official building assets and 12x12 empty island backdrop on mount
   useEffect(() => {
     const assets = [
+      '/castle/empty-island-meadow-fence-v2.webp',
       '/castle/empty-island-rim-12x12.webp',
       '/castle/empty-island-rim-12x12.png',
       '/castle/empty-island-12x12.webp',
@@ -741,6 +800,11 @@ export default function CastleIsoCanvas({
     combatFxTrigger,
     onImpactBuilding,
     corePositions,
+    targetingMode,
+    damagedBuildingIds,
+    hiddenBuildingIds,
+    smokeBuildingIds,
+    raidTargetingMode,
   });
   propsRef.current = {
     castle,
@@ -765,6 +829,11 @@ export default function CastleIsoCanvas({
     combatFxTrigger,
     onImpactBuilding,
     corePositions,
+    targetingMode,
+    damagedBuildingIds,
+    hiddenBuildingIds,
+    smokeBuildingIds,
+    raidTargetingMode,
   };
 
   // Keyboard shortcut listener: Press 'R' / 'r' to toggle flip orientation
@@ -1019,12 +1088,19 @@ export default function CastleIsoCanvas({
       movingBuilding: mBuild,
       calibration: customCalib,
       showDebugGrid: sDebugGrid,
+      targetingMode: isTargeting,
+      raidTargetingMode: isRaidTargeting,
     } = propsRef.current;
     const curBuildings = allBuildingsRef.current;
+    // Sets are rebuilt only when their props change, not on every animation frame.
+    const damagedSet = damagedBuildingSetRef.current;
+    const hiddenSet = hiddenBuildingSetRef.current;
+    const smokeSet = smokeBuildingSetRef.current;
 
     const isIdleEnabled = propsRef.current.enableIdleFx !== false;
 
-    const calib = customCalib ?? DEFAULT_ISLAND_CALIBRATION;
+    // Cosmetic maps may carry their own calibrated placement surface.
+    const calib = getPlayableCalibration(cProp.theme, customCalib);
 
     const now = performance.now();
 
@@ -1201,6 +1277,7 @@ export default function CastleIsoCanvas({
     // --- 1. Draw 12x12 Empty Island Backdrop or Procedural Cliff ---
     const islandImg =
       getLoadedImage(calib.imageSrc) ||
+      getLoadedImage('/castle/empty-island-meadow-fence-v2.webp') ||
       getLoadedImage('/castle/empty-island-rim-12x12.webp') ||
       getLoadedImage('/castle/empty-island-rim-12x12.png') ||
       getLoadedImage('/castle/empty-island-12x12.webp') ||
@@ -1499,14 +1576,20 @@ export default function CastleIsoCanvas({
       );
       const h = b.height * scaleFactor;
       const isSelected = b.id === selId;
+      const isPersistentlyDamaged = damagedSet.has(b.id);
+      const isHiddenRaidTarget = hiddenSet.has(b.id);
+      const isAttackableArchitecture =
+        b.id === 'main' || b.id === 'library' || b.id === 'listening' || b.isRemovable === true;
       const footCenterX = c.center.x;
       const contactY = c.center.y;
+      ctx.save();
+      if (isHiddenRaidTarget) ctx.globalAlpha = 0;
 
-      // --- SECTION 2.1 & 2.3: TWO-TIER REALISTIC SHADOW SYSTEM ---
-      // Layer 1: Ambient Contact Shadow (AO) - Sharp & Dark right at base
+      // Two static ellipses give every building depth without CSS filters,
+      // animated blur or per-frame gradient allocation.
       const contactRadX = (b.w * tileW) / 2.35;
       const contactRadY = (b.h * tileH) / 2.4;
-      ctx.fillStyle = 'rgba(10, 5, 5, 0.42)';
+      ctx.fillStyle = 'rgba(19, 14, 9, 0.34)';
       ctx.beginPath();
       ctx.ellipse(
         footCenterX,
@@ -1519,7 +1602,7 @@ export default function CastleIsoCanvas({
       );
       ctx.fill();
 
-      // Layer 2: Main Directional Shadow - Cast along light angle (top-left -> bottom-right)
+      // A broader, lighter cast shadow follows the scene light direction.
       const dirOffsetX = 8 * scaleFactor;
       const dirOffsetY = 5 * scaleFactor;
       const dirRadX =
@@ -1527,18 +1610,7 @@ export default function CastleIsoCanvas({
       const dirRadY = (b.h * tileH) / 1.95;
       const dirCenterX = footCenterX + dirOffsetX;
       const dirCenterY = contactY + dirOffsetY;
-      const bGrad = ctx.createRadialGradient(
-        dirCenterX,
-        dirCenterY,
-        dirRadX * 0.15,
-        dirCenterX,
-        dirCenterY,
-        dirRadX,
-      );
-      bGrad.addColorStop(0, 'rgba(12, 6, 6, 0.34)');
-      bGrad.addColorStop(0.65, 'rgba(12, 6, 6, 0.12)');
-      bGrad.addColorStop(1, 'rgba(12, 6, 6, 0)');
-      ctx.fillStyle = bGrad;
+      ctx.fillStyle = 'rgba(19, 14, 9, 0.12)';
       ctx.beginPath();
       ctx.ellipse(dirCenterX, dirCenterY, dirRadX, dirRadY, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -1666,6 +1738,8 @@ export default function CastleIsoCanvas({
         if (isDamageFlashing) {
           ctx.filter =
             'drop-shadow(0 0 16px #ff3b30) brightness(1.7) sepia(0.6) saturate(3)';
+        } else if (isPersistentlyDamaged) {
+          ctx.filter = 'grayscale(.72) brightness(.68) sepia(.38)';
         } else if (isFlashing) {
           ctx.filter = 'brightness(3.2) contrast(1.4)';
         } else if (isSelected) {
@@ -1858,6 +1932,66 @@ export default function CastleIsoCanvas({
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(labelText, footCenterX, pillY + pillH / 2 + 1);
+      ctx.restore();
+
+      if (isPersistentlyDamaged) {
+        ctx.save();
+        ctx.fillStyle = '#7d1719';
+        ctx.strokeStyle = '#ffd1a1';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(footCenterX - 34 * scaleFactor, pillY - 20 * scaleFactor, 68 * scaleFactor, 17 * scaleFactor, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff1d2';
+        ctx.font = `900 ${Math.round(9 * scaleFactor)}px "Nunito", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('HƯ HẠI', footCenterX, pillY - 11.5 * scaleFactor);
+        ctx.restore();
+      }
+
+      // Attack mode: every visible architecture receives a responsive target reticle.
+      if ((isTargeting || (isRaidTargeting && isHiddenRaidTarget)) && isAttackableArchitecture && !isPersistentlyDamaged && !smokeSet.has(b.id)) {
+        const pulse = 1 + Math.sin(now * 0.006 + b.col) * 0.08;
+        const radius = Math.max(20, Math.min(36, (b.w + b.h) * 8)) * scaleFactor * pulse;
+        const aimY = c.S.y - Math.max(24, b.height * scaleFactor * 0.48);
+        ctx.save();
+        ctx.translate(footCenterX, aimY);
+        ctx.strokeStyle = isRaidTargeting ? '#ffd43b' : isSelected ? '#ffd43b' : '#ff2d35';
+        ctx.fillStyle = isRaidTargeting ? 'rgba(255,212,59,.14)' : 'rgba(255,35,45,.13)';
+        ctx.lineWidth = Math.max(2, 3 * scaleFactor);
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-radius - 10, 0); ctx.lineTo(-radius * .45, 0);
+        ctx.moveTo(radius * .45, 0); ctx.lineTo(radius + 10, 0);
+        ctx.moveTo(0, -radius - 10); ctx.lineTo(0, -radius * .45);
+        ctx.moveTo(0, radius * .45); ctx.lineTo(0, radius + 10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(3, radius * .12), 0, Math.PI * 2);
+        ctx.fillStyle = isRaidTargeting ? '#ffd43b' : '#ff2d35';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (smokeSet.has(b.id)) {
+        ctx.save();
+        const smokeY = c.S.y - Math.max(18, b.height * scaleFactor * .35);
+        for (let puff = 0; puff < 8; puff++) {
+          const angle = puff * Math.PI * .25 + now * .002;
+          const drift = 17 + (puff % 3) * 8;
+          ctx.globalAlpha = .5 + (puff % 2) * .14;
+          ctx.fillStyle = puff % 2 ? '#ded7ca' : '#fff8e8';
+          ctx.beginPath();
+          ctx.arc(footCenterX + Math.cos(angle) * drift, smokeY + Math.sin(angle) * drift * .55, (18 + puff % 3 * 5) * scaleFactor, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
 
       // Algorithm 2 & 5: Highlight Selected Footprint
       if (isSelected) {
@@ -2156,7 +2290,10 @@ export default function CastleIsoCanvas({
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
+      const calib = getPlayableCalibration(
+        propsRef.current.castle.theme,
+        propsRef.current.calibration,
+      );
       const { renderScale, drawOrigin } = getCalibrationGeometry(
         rect.width,
         rect.height,
@@ -2202,7 +2339,10 @@ export default function CastleIsoCanvas({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
+    const calib = getPlayableCalibration(
+      propsRef.current.castle.theme,
+      propsRef.current.calibration,
+    );
     const { renderScale, drawOrigin, scaleFactor, tileW, tileH } =
       getCalibrationGeometry(
         rect.width,
@@ -2381,9 +2521,20 @@ export default function CastleIsoCanvas({
       }
     }
 
+    if (hit && (propsRef.current.targetingMode || propsRef.current.raidTargetingMode) && !(
+      hit.id === 'main' || hit.id === 'library' || hit.id === 'listening' || hit.isRemovable === true
+    )) {
+      toastCb('Đây không phải kiến trúc có thể Công Thành.', 'bad');
+      return;
+    }
+
+    if (hit && propsRef.current.targetingMode && damagedBuildingSetRef.current.has(hit.id)) {
+      toastCb('Công trình này đang hư hỏng và chờ chủ thành sửa chữa.', 'bad');
+      return;
+    }
+
     if (hit) {
       selCb(hit.id);
-      toastCb(`Đã chọn [${hit.name}] · ${hit.w}×${hit.h} ô`, 'ok');
     } else {
       selCb(null);
     }
@@ -2416,7 +2567,7 @@ export default function CastleIsoCanvas({
           display: 'block',
           width: '100%',
           height: '100%',
-          cursor: pendingBuilding || movingBuilding ? 'crosshair' : 'grab',
+          cursor: pendingBuilding || movingBuilding || targetingMode || raidTargetingMode ? 'crosshair' : 'grab',
           pointerEvents: 'none',
         }}
       />

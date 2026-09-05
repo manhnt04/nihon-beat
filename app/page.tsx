@@ -74,6 +74,11 @@ import {
   collocationsVocabulary,
   contextSentencesVocabulary,
 } from '@/lib/difficulty-vocabulary';
+import {
+  type MatchQuestion,
+  generateMatchQuestions,
+  verifyAnswer,
+} from '@/lib/quiz-generator';
 import { firebaseAuth, firebaseDb } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
@@ -1658,6 +1663,13 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const [matchVocabulary, setMatchVocabulary] = useState<VocabularyEntry[]>(
     () => shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
   );
+  const [matchQuestions, setMatchQuestions] = useState<MatchQuestion[]>(() =>
+    generateMatchQuestions(
+      shuffleVocabulary(allVocabulary).slice(0, WORDS_PER_MATCH),
+      WORDS_PER_MATCH,
+      10,
+    ),
+  );
   const [volume, setVolume] = useState(0.65);
   const [currentTrackName, setCurrentTrackName] = useState('Chưa có nhạc');
   const [audioStatus, setAudioStatus] = useState<
@@ -1678,25 +1690,12 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
       entry.some((value) => normalizeAnswer(value).includes(query)),
     );
   }, [dictionaryQuery, selectedHskFolder]);
-  const options = useMemo(() => {
-    if (!vocab.length || !vocab[word]) return [];
-    const column = round <= directionSplit ? 3 : 0;
-    const correct = vocab[word][column];
-    const uniqueDistractors: string[] = [];
-    for (let offset = 1; offset < vocab.length; offset++) {
-      const candidate = vocab[(word + offset) % vocab.length][column];
-      if (candidate !== correct && !uniqueDistractors.includes(candidate)) {
-        uniqueDistractors.push(candidate);
-        if (uniqueDistractors.length === 3) break;
-      }
-    }
-    const opts = [correct, ...uniqueDistractors];
-    for (let i = opts.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [opts[i], opts[j]] = [opts[j], opts[i]];
-    }
-    return opts;
-  }, [word, round, vocab, directionSplit]);
+  const currentQuestion: MatchQuestion | undefined =
+    matchQuestions[word] ||
+    (vocab[word]
+      ? generateMatchQuestions([vocab[word]], 1, round <= directionSplit ? 1 : 0)[0]
+      : undefined);
+  const options = currentQuestion?.options || [];
   const makeRound = useCallback(() => {
     if (round >= vocab.length) {
       setProgress(100);
@@ -1823,6 +1822,21 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     setDailyChallenge(isDailyChallenge);
     setSelected(nextSong);
     setMatchVocabulary(nextVocabulary);
+    const pvpSeed = pvpRoom?.code
+      ? Math.abs(
+          pvpRoom.code
+            .split('')
+            .reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0),
+        )
+      : undefined;
+    const preGeneratedQuestions = generateMatchQuestions(
+      nextVocabulary,
+      nextVocabulary.length,
+      directionSplit,
+      pvpSeed,
+      allVocabulary,
+    );
+    setMatchQuestions(preGeneratedQuestions);
     setScore(0);
     setCombo(0);
     setProgress(0);
@@ -2622,23 +2636,10 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
     event.preventDefault();
     if (typingLocked || !typingInput.trim()) return;
     setTypingLocked(true);
-    const typingToHanzi = round > directionSplit;
-    const target = vocab[word][typingToHanzi ? 0 : 3];
-    const normalizedInput = normalizeAnswer(typingInput);
-    const acceptedAnswers = typingToHanzi
-      ? [
-          normalizeAnswer(target),
-          normalizeAnswer(vocab[word][1]),
-          normalizeAnswer(vocab[word][2]),
-        ].filter(Boolean)
-      : target
-          .replace(/\([^)]*\)/g, '')
-          .split(/[,;/]/)
-          .map(normalizeAnswer)
-          .filter(Boolean);
-    const isCorrect =
-      normalizedInput === normalizeAnswer(target) ||
-      acceptedAnswers.includes(normalizedInput);
+    const target = currentQuestion?.correctAnswer || vocab[word][round > directionSplit ? 0 : 3];
+    const isCorrect = currentQuestion
+      ? verifyAnswer(typingInput, currentQuestion)
+      : normalizeAnswer(typingInput) === normalizeAnswer(target);
     if (isCorrect) {
       playAnswerSound('correct');
       triggerCosmeticEffect();
@@ -2661,7 +2662,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
   const chooseAnswer = useCallback(
     (answer: string) => {
       if (phase !== 'answer') return;
-      const target = vocab[word][round <= directionSplit ? 3 : 0];
+      const target = currentQuestion?.correctAnswer || vocab[word][round <= directionSplit ? 3 : 0];
       if (answer === target) {
         playAnswerSound('correct');
         triggerCosmeticEffect();
@@ -2680,7 +2681,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         setTimeout(makeRound, 850);
       }
     },
-    [phase, word, round, combo, roundTime, makeRound, triggerCosmeticEffect],
+    [phase, currentQuestion, vocab, word, round, combo, roundTime, makeRound, triggerCosmeticEffect, directionSplit],
   );
   const pressArrow = useCallback(
     (lane: number) => {

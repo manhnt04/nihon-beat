@@ -299,13 +299,13 @@ export function drawDebugGrid(
 }
 
 /**
- * Preset: 12x12 Island with Carved Stone Rim (/castle/empty-island-rim-12x12.jpg)
+ * Preset: 12x12 meadow island with a low protective stone fence.
  * Source dimensions: 1024x1024. Calibrated to inner stone rim boundary.
  */
 export const RIM_ISLAND_CALIBRATION: IslandCalibration = {
   id: 'rim-12x12',
-  name: 'Đảo Thành Cổ Viền Đá (12×12)',
-  imageSrc: '/castle/empty-island-rim-12x12.webp',
+  name: 'Đảo Thảo Nguyên Viền Đá (12×12)',
+  imageSrc: '/castle/empty-island-meadow-fence-v2.webp',
   sourceImageSize: { w: 1024, h: 1024 },
   plateauCorners: {
     top: { x: 512, y: 156 },
