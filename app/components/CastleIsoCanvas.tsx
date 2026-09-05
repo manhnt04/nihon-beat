@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
 import {
   FootprintCell,
   rectFootprint,
@@ -9,7 +15,11 @@ import {
   flipFootprintCells,
   getEffectiveFootprint,
 } from '../utils/castleGrid';
-import { computeSpriteBounds, getVisualConfig, VISUAL_CATALOG } from '../utils/spriteBounds';
+import {
+  computeSpriteBounds,
+  getVisualConfig,
+  VISUAL_CATALOG,
+} from '../utils/spriteBounds';
 import { getFootprintOutline, Pt } from '../utils/footprintOutline';
 import {
   IslandCalibration,
@@ -30,7 +40,11 @@ import {
   drawCombatEffects,
 } from '../utils/castleCombatFx';
 
-export type BuildingAnimState = 'idle' | 'working' | 'upgrading' | 'level_up_burst';
+export type BuildingAnimState =
+  | 'idle'
+  | 'working'
+  | 'upgrading'
+  | 'level_up_burst';
 
 export interface CombatFxTrigger {
   type: 'cannon' | 'shield_toggle' | 'shield_hit' | 'shatter';
@@ -38,6 +52,15 @@ export interface CombatFxTrigger {
   targetRow?: number;
   targetBuildingId?: string;
   id: number;
+}
+
+interface PendingCannonLaunch {
+  launchAt: number;
+  targetX: number;
+  targetY: number;
+  viewWidth: number;
+  viewHeight: number;
+  options: NonNullable<Parameters<typeof createCannonball>[4]>;
 }
 
 export interface IsoBuildingData {
@@ -123,16 +146,29 @@ interface CastleIsoCanvasProps {
   burstText?: string;
   onBurstComplete?: () => void;
   enableIdleFx?: boolean;
-  buildingAnimStates?: Record<string, { state: BuildingAnimState; progress?: number }>;
+  buildingAnimStates?: Record<
+    string,
+    { state: BuildingAnimState; progress?: number }
+  >;
   movingBuilding?: IsoBuildingData | null;
-  onConfirmMove?: (buildingId: string, newCol: number, newRow: number, newFlipX?: boolean) => void;
+  onConfirmMove?: (
+    buildingId: string,
+    newCol: number,
+    newRow: number,
+    newFlipX?: boolean,
+  ) => void;
   onCancelMove?: () => void;
   onToggleFlip?: () => void;
   calibration?: IslandCalibration;
   showDebugGrid?: boolean;
   shieldActive?: boolean;
   combatFxTrigger?: CombatFxTrigger | null;
-  onImpactBuilding?: (buildingId: string, col: number, row: number, blocked: boolean) => void;
+  onImpactBuilding?: (
+    buildingId: string,
+    col: number,
+    row: number,
+    blocked: boolean,
+  ) => void;
   corePositions?: CoreBuildingPositions;
 }
 
@@ -142,6 +178,17 @@ const BASE_TILE_H = 32;
 
 // Shared In-Memory Image Cache for instant 60fps sprite rendering
 const imageCache = new Map<string, HTMLImageElement>();
+
+function getCanvasDpr(): number {
+  if (typeof window === 'undefined') return 1;
+  const coarsePointer =
+    window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  const narrowScreen = window.innerWidth <= 820;
+  return Math.min(
+    window.devicePixelRatio || 1,
+    coarsePointer || narrowScreen ? 1.5 : 2,
+  );
+}
 
 function getLoadedImage(src: string): HTMLImageElement | null {
   if (typeof window === 'undefined') return null;
@@ -164,12 +211,16 @@ export function getCalibrationGeometry(
   panY: number,
   calib: IslandCalibration,
   shakeX = 0,
-  shakeY = 0
+  shakeY = 0,
 ) {
   const scaleFactor = Math.min(1.0, Math.max(0.55, width / 950));
   const targetPlateauW = GRID * BASE_TILE_W * scaleFactor;
-  const plateauSourceW = Math.abs(calib.plateauCorners.right.x - calib.plateauCorners.left.x);
-  const plateauSourceH = Math.abs(calib.plateauCorners.bottom.y - calib.plateauCorners.top.y);
+  const plateauSourceW = Math.abs(
+    calib.plateauCorners.right.x - calib.plateauCorners.left.x,
+  );
+  const plateauSourceH = Math.abs(
+    calib.plateauCorners.bottom.y - calib.plateauCorners.top.y,
+  );
   const renderScale = targetPlateauW / plateauSourceW;
 
   const plateauCenterSourceX =
@@ -239,6 +290,11 @@ export default function CastleIsoCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rectRef = useRef({ width: 800, height: 600 });
+  const isCanvasVisibleRef = useRef(true);
+  const isPageVisibleRef = useRef(
+    typeof document === 'undefined' || document.visibilityState === 'visible',
+  );
+  const prefersReducedMotionRef = useRef(false);
 
   // Camera pan stored in ref to prevent 60-120Hz React re-renders while dragging
   const panRef = useRef({ x: 0, y: 0 });
@@ -251,18 +307,46 @@ export default function CastleIsoCanvas({
 
   // Animation Engine Refs (State Machine & Particle Systems)
   const activeBurstsRef = useRef<
-    Map<string, { startTime: number; duration: number; text: string; particlesSpawned: boolean }>
+    Map<
+      string,
+      {
+        startTime: number;
+        duration: number;
+        text: string;
+        particlesSpawned: boolean;
+      }
+    >
   >(new Map());
   const burstParticlesRef = useRef<
-    { x: number; y: number; vx: number; vy: number; size: number; alpha: number; maxLife: number; life: number; color: string }[]
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      alpha: number;
+      maxLife: number;
+      life: number;
+      color: string;
+    }[]
   >([]);
   const smokeParticlesRef = useRef<
-    { x: number; y: number; vx: number; vy: number; size: number; alpha: number; maxLife: number; life: number }[]
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      alpha: number;
+      maxLife: number;
+      life: number;
+    }[]
   >([]);
   const lastSmokeSpawnRef = useRef<number>(0);
 
   // Combat FX & Shield State Refs
   const cannonballsRef = useRef<Cannonball[]>([]);
+  const cannonVolleyRef = useRef<PendingCannonLaunch[]>([]);
   const explosionsRef = useRef<ExplosionBurst[]>([]);
   const shieldStateRef = useRef<ShieldDomeState>({
     active: !!shieldActive,
@@ -273,7 +357,11 @@ export default function CastleIsoCanvas({
     shards: [],
     pulsePhase: 0,
   });
-  const combatShakeRef = useRef<{ x: number; y: number; mag: number }>({ x: 0, y: 0, mag: 0 });
+  const combatShakeRef = useRef<{ x: number; y: number; mag: number }>({
+    x: 0,
+    y: 0,
+    mag: 0,
+  });
   const lastFrameTimeRef = useRef<number>(performance.now());
   const damageFlashingBuildingsRef = useRef<Map<string, number>>(new Map());
   const prevShieldActiveRef = useRef<boolean | undefined>(shieldActive);
@@ -289,73 +377,151 @@ export default function CastleIsoCanvas({
         shieldStateRef.current.activationProgress = 0;
       } else if (shieldStateRef.current.active) {
         const { width, height } = rectRef.current;
-        const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
-        const { renderScale, tileH, plateauCenter } = getCalibrationGeometry(
+        const calib =
+          propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
+        const { scaleFactor, plateauCenter } = getCalibrationGeometry(
           width,
           height,
           panRef.current.x,
           panRef.current.y,
-          calib
+          calib,
         );
-        const radiusX = GRID * BASE_TILE_W * renderScale * 0.58;
-        const radiusY = radiusX * 0.62;
-        const domeCenter = { x: plateauCenter.x, y: plateauCenter.y + tileH * 0.35 };
+        const targetPlateauW = GRID * BASE_TILE_W * scaleFactor;
+        const radiusX = targetPlateauW * 0.62;
+        const radiusY = targetPlateauW * 0.52;
+        const domeCenter = {
+          x: plateauCenter.x,
+          y: plateauCenter.y + targetPlateauW * 0.1,
+        };
 
         shieldStateRef.current.active = false;
         shieldStateRef.current.status = 'shattering';
         shieldStateRef.current.shatterProgress = 0;
-        shieldStateRef.current.shards = createShieldShatterShards(domeCenter.x, domeCenter.y, radiusX, radiusY, 32);
+        shieldStateRef.current.shards = createShieldShatterShards(
+          domeCenter.x,
+          domeCenter.y,
+          radiusX,
+          radiusY,
+          32,
+        );
       }
     }
   }, [shieldActive]);
 
   // Handle combatFxTrigger events (cannon bombardment, shield toggle, shield hit test, shatter)
   useEffect(() => {
-    if (!combatFxTrigger || combatFxTrigger.id === prevCombatFxTriggerIdRef.current) return;
+    if (
+      !combatFxTrigger ||
+      combatFxTrigger.id === prevCombatFxTriggerIdRef.current
+    )
+      return;
     prevCombatFxTriggerIdRef.current = combatFxTrigger.id;
 
     const { width, height } = rectRef.current;
     const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
-    const { renderScale, drawOrigin, tileH, plateauCenter } = getCalibrationGeometry(
-      width,
-      height,
-      panRef.current.x,
-      panRef.current.y,
-      calib
-    );
+    const { scaleFactor, renderScale, drawOrigin, plateauCenter } =
+      getCalibrationGeometry(
+        width,
+        height,
+        panRef.current.x,
+        panRef.current.y,
+        calib,
+      );
 
-    const radiusX = GRID * BASE_TILE_W * renderScale * 0.58;
-    const radiusY = radiusX * 0.62;
-    const domeCenter = { x: plateauCenter.x, y: plateauCenter.y + tileH * 0.35 };
+    const targetPlateauW = GRID * BASE_TILE_W * scaleFactor;
+    const radiusX = targetPlateauW * 0.62;
+    const radiusY = targetPlateauW * 0.52;
+    const domeCenter = {
+      x: plateauCenter.x,
+      y: plateauCenter.y + targetPlateauW * 0.1,
+    };
 
-    if (combatFxTrigger.type === 'cannon') {
+    if (
+      combatFxTrigger.type === 'cannon' ||
+      combatFxTrigger.type === 'shield_hit'
+    ) {
+      if (combatFxTrigger.type === 'shield_hit') {
+        shieldStateRef.current.active = true;
+        if (
+          shieldStateRef.current.status === 'inactive' ||
+          shieldStateRef.current.status === 'shattering'
+        ) {
+          shieldStateRef.current.status = 'active';
+          shieldStateRef.current.activationProgress = 1;
+        }
+      }
+
       let targetPt: { x: number; y: number };
       if (combatFxTrigger.targetBuildingId) {
-        const b = allBuildingsRef.current.find((item) => item.id === combatFxTrigger.targetBuildingId);
+        const b = allBuildingsRef.current.find(
+          (item) => item.id === combatFxTrigger.targetBuildingId,
+        );
         if (b) {
-          const c = footprintCornersCalibrated(b.col, b.row, b.w, b.h, calib, renderScale, drawOrigin);
+          const c = footprintCornersCalibrated(
+            b.col,
+            b.row,
+            b.w,
+            b.h,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
           targetPt = { x: c.center.x, y: c.center.y };
         } else {
-          targetPt = gridToScreenCalibrated(5.5, 5.5, calib, renderScale, drawOrigin);
+          targetPt = gridToScreenCalibrated(
+            5.5,
+            5.5,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
         }
-      } else if (combatFxTrigger.targetCol !== undefined && combatFxTrigger.targetRow !== undefined) {
+      } else if (
+        combatFxTrigger.targetCol !== undefined &&
+        combatFxTrigger.targetRow !== undefined
+      ) {
         targetPt = gridToScreenCalibrated(
           combatFxTrigger.targetCol + 0.5,
           combatFxTrigger.targetRow + 0.5,
           calib,
           renderScale,
-          drawOrigin
+          drawOrigin,
         );
       } else {
-        targetPt = gridToScreenCalibrated(5.5, 5.5, calib, renderScale, drawOrigin);
+        targetPt = gridToScreenCalibrated(
+          5.5,
+          5.5,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
       }
 
-      const ball = createCannonball(targetPt.x, targetPt.y, width, height, {
-        targetCol: combatFxTrigger.targetCol,
-        targetRow: combatFxTrigger.targetRow,
-        targetBuildingId: combatFxTrigger.targetBuildingId,
+      const compactViewport = width <= 820 || window.matchMedia('(pointer: coarse)').matches;
+      const volleySize = compactViewport ? 5 : 7;
+      const volleyStart = performance.now();
+      cannonVolleyRef.current = Array.from({ length: volleySize }, (_, index) => {
+        const isFinalShot = index === volleySize - 1;
+        const spread = isFinalShot ? 0 : 22 * scaleFactor;
+        return {
+          launchAt: volleyStart + index * 110,
+          targetX: targetPt.x + (Math.random() - 0.5) * spread,
+          targetY: targetPt.y + (Math.random() - 0.5) * spread * 0.55,
+          viewWidth: width,
+          viewHeight: height,
+          options: {
+            fromSide: index % 3 === 2 ? 'top' : index % 2 === 0 ? 'left' : 'right',
+            speed: 1.35 + Math.random() * 0.2,
+            color: combatFxTrigger.type === 'shield_hit' ? '#63e6be' : index % 2 === 0 ? '#ffd43b' : '#ff6b35',
+            targetCol: combatFxTrigger.targetCol,
+            targetRow: combatFxTrigger.targetRow,
+            targetBuildingId: combatFxTrigger.targetBuildingId,
+            volleyIndex: index,
+            volleySize,
+            isFinalShot,
+          },
+        };
       });
-      cannonballsRef.current.push(ball);
     } else if (combatFxTrigger.type === 'shield_toggle') {
       const nextActive = !shieldStateRef.current.active;
       shieldStateRef.current.active = nextActive;
@@ -365,33 +531,29 @@ export default function CastleIsoCanvas({
       } else {
         shieldStateRef.current.status = 'inactive';
       }
-    } else if (combatFxTrigger.type === 'shield_hit') {
-      shieldStateRef.current.active = true;
-      if (shieldStateRef.current.status === 'inactive' || shieldStateRef.current.status === 'shattering') {
-        shieldStateRef.current.status = 'active';
-        shieldStateRef.current.activationProgress = 1;
-      }
-      const targetPt = {
-        x: domeCenter.x + (Math.random() - 0.5) * 80,
-        y: domeCenter.y - radiusY * 0.55,
-      };
-      const ball = createCannonball(targetPt.x, targetPt.y, width, height, {
-        color: '#63e6be',
-      });
-      cannonballsRef.current.push(ball);
     } else if (combatFxTrigger.type === 'shatter') {
       shieldStateRef.current.active = false;
       shieldStateRef.current.status = 'shattering';
       shieldStateRef.current.shatterProgress = 0;
-      shieldStateRef.current.shards = createShieldShatterShards(domeCenter.x, domeCenter.y, radiusX, radiusY, 36);
+      shieldStateRef.current.shards = createShieldShatterShards(
+        domeCenter.x,
+        domeCenter.y,
+        radiusX,
+        radiusY,
+        36,
+      );
     }
   }, [combatFxTrigger]);
 
   // Trigger burst animation when burstBuildingId prop changes
   useEffect(() => {
     if (!burstBuildingId) return;
-    const building = allBuildingsRef.current.find((b) => b.id === burstBuildingId);
-    const label = building ? `${building.name} Thăng Cấp!` : 'Thăng Cấp Thành Công!';
+    const building = allBuildingsRef.current.find(
+      (b) => b.id === burstBuildingId,
+    );
+    const label = building
+      ? `${building.name} Thăng Cấp!`
+      : 'Thăng Cấp Thành Công!';
     activeBurstsRef.current.set(burstBuildingId, {
       startTime: performance.now(),
       duration: 1200,
@@ -439,10 +601,12 @@ export default function CastleIsoCanvas({
         g === 'guardian-dragon'
           ? 'Thanh Long Trấn Thành'
           : g === 'guardian-qilin'
-          ? 'Kỳ Lân Hiến Thụy'
-          : 'Thạch Sư Uy Nghi',
-      hanzi: g === 'guardian-dragon' ? '龍' : g === 'guardian-qilin' ? '麟' : '獅',
-      icon: g === 'guardian-dragon' ? '🐉' : g === 'guardian-qilin' ? '🦄' : '🦁',
+            ? 'Kỳ Lân Hiến Thụy'
+            : 'Thạch Sư Uy Nghi',
+      hanzi:
+        g === 'guardian-dragon' ? '龍' : g === 'guardian-qilin' ? '麟' : '獅',
+      icon:
+        g === 'guardian-dragon' ? '🐉' : g === 'guardian-qilin' ? '🦄' : '🦁',
       col: 5,
       row: 8,
       w: 1,
@@ -472,9 +636,12 @@ export default function CastleIsoCanvas({
         level: castle.buildings.main,
         imageSrc: `/castle/buildings/main/stage-${mainStage}.webp`,
         imageScale: 1.18,
-        top: mainStage >= 4 ? '#ffd666' : mainStage >= 3 ? '#e0a94d' : '#f3cf7a',
-        left: mainStage >= 4 ? '#c92a2a' : mainStage >= 3 ? '#9b2b2b' : '#d4a94e',
-        right: mainStage >= 4 ? '#961b1b' : mainStage >= 3 ? '#781f1f' : '#b3853a',
+        top:
+          mainStage >= 4 ? '#ffd666' : mainStage >= 3 ? '#e0a94d' : '#f3cf7a',
+        left:
+          mainStage >= 4 ? '#c92a2a' : mainStage >= 3 ? '#9b2b2b' : '#d4a94e',
+        right:
+          mainStage >= 4 ? '#961b1b' : mainStage >= 3 ? '#781f1f' : '#b3853a',
         outline: '#7a1f1d',
         accent: '#f59f00',
       },
@@ -537,7 +704,11 @@ export default function CastleIsoCanvas({
     ].map((b) => {
       const custom = buildingAnimStates?.[b.id];
       if (custom) {
-        return { ...b, animState: custom.state, upgradeProgress: custom.progress };
+        return {
+          ...b,
+          animState: custom.state,
+          upgradeProgress: custom.progress,
+        };
       }
       return b;
     });
@@ -599,7 +770,11 @@ export default function CastleIsoCanvas({
   // Keyboard shortcut listener: Press 'R' / 'r' to toggle flip orientation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
       if (e.key === 'r' || e.key === 'R') {
         propsRef.current.onToggleFlip?.();
       }
@@ -628,51 +803,95 @@ export default function CastleIsoCanvas({
         w: b.w,
         h: b.h,
         cells: getEffectiveFootprint(b),
-      }))
+      })),
     );
   }, [allBuildings, getGridManager]);
 
   // Algorithm 1: Grid ↔ Screen
   const gridToScreen = useCallback(
-    (col: number, row: number, originX: number, originY: number, tileW: number, tileH: number) => {
+    (
+      col: number,
+      row: number,
+      originX: number,
+      originY: number,
+      tileW: number,
+      tileH: number,
+    ) => {
       return {
         x: originX + (col - row) * (tileW / 2),
         y: originY + (col + row) * (tileH / 2),
       };
     },
-    []
+    [],
   );
 
   const screenToGrid = useCallback(
-    (x: number, y: number, originX: number, originY: number, tileW: number, tileH: number) => {
+    (
+      x: number,
+      y: number,
+      originX: number,
+      originY: number,
+      tileW: number,
+      tileH: number,
+    ) => {
       const dx = x - originX;
       const dy = y - originY;
       const colf = (dx / (tileW / 2) + dy / (tileH / 2)) / 2;
       const rowf = (dy / (tileH / 2) - dx / (tileW / 2)) / 2;
       return { col: Math.floor(colf), row: Math.floor(rowf) };
     },
-    []
+    [],
   );
 
   // Algorithm 2: Footprint Corners
   const footprintCorners = useCallback(
-    (b: { col: number; row: number; w: number; h: number }, originX: number, originY: number, tileW: number, tileH: number) => {
+    (
+      b: { col: number; row: number; w: number; h: number },
+      originX: number,
+      originY: number,
+      tileW: number,
+      tileH: number,
+    ) => {
       const N = gridToScreen(b.col, b.row, originX, originY, tileW, tileH);
-      let E = gridToScreen(b.col + b.w - 1, b.row, originX, originY, tileW, tileH);
+      let E = gridToScreen(
+        b.col + b.w - 1,
+        b.row,
+        originX,
+        originY,
+        tileW,
+        tileH,
+      );
       E = { x: E.x + tileW / 2, y: E.y + tileH / 2 };
-      let S = gridToScreen(b.col + b.w - 1, b.row + b.h - 1, originX, originY, tileW, tileH);
+      let S = gridToScreen(
+        b.col + b.w - 1,
+        b.row + b.h - 1,
+        originX,
+        originY,
+        tileW,
+        tileH,
+      );
       S = { x: S.x, y: S.y + tileH };
-      let W = gridToScreen(b.col, b.row + b.h - 1, originX, originY, tileW, tileH);
+      let W = gridToScreen(
+        b.col,
+        b.row + b.h - 1,
+        originX,
+        originY,
+        tileW,
+        tileH,
+      );
       W = { x: W.x - tileW / 2, y: W.y + tileH / 2 };
       return { N, E, S, W };
     },
-    [gridToScreen]
+    [gridToScreen],
   );
 
   // Algorithm 4: Depth Sorting Key & Deterministic Tie-Breaker
-  const depthKey = useCallback((b: { col: number; row: number; w: number; h: number }) => {
-    return b.col + b.w - 1 + (b.row + b.h - 1);
-  }, []);
+  const depthKey = useCallback(
+    (b: { col: number; row: number; w: number; h: number }) => {
+      return b.col + b.w - 1 + (b.row + b.h - 1);
+    },
+    [],
+  );
 
   const compareBuildingsDepth = useCallback(
     (a: IsoBuildingData, b: IsoBuildingData) => {
@@ -685,12 +904,19 @@ export default function CastleIsoCanvas({
       if (diagA !== diagB) return diagA - diagB;
       return a.id.localeCompare(b.id);
     },
-    [depthKey]
+    [depthKey],
   );
 
   // Algorithm 5: Fallback 3D Block Silhouette for hit testing
   const silhouette = useCallback(
-    (b: IsoBuildingData, originX: number, originY: number, tileW: number, tileH: number, scaleFactor: number) => {
+    (
+      b: IsoBuildingData,
+      originX: number,
+      originY: number,
+      tileW: number,
+      tileH: number,
+      scaleFactor: number,
+    ) => {
       const c = footprintCorners(b, originX, originY, tileW, tileH);
       const h = b.height * scaleFactor;
       const Np = { x: c.N.x, y: c.N.y - h };
@@ -698,22 +924,26 @@ export default function CastleIsoCanvas({
       const Wp = { x: c.W.x, y: c.W.y - h };
       return [Np, Ep, c.E, c.S, c.W, Wp];
     },
-    [footprintCorners]
+    [footprintCorners],
   );
 
-  const pointInPolygon = useCallback((pt: { x: number; y: number }, poly: { x: number; y: number }[]) => {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const xi = poly[i].x,
-        yi = poly[i].y,
-        xj = poly[j].x,
-        yj = poly[j].y;
-      const intersect =
-        yi > pt.y !== yj > pt.y && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  }, []);
+  const pointInPolygon = useCallback(
+    (pt: { x: number; y: number }, poly: { x: number; y: number }[]) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x,
+          yi = poly[i].y,
+          xj = poly[j].x,
+          yj = poly[j].y;
+        const intersect =
+          yi > pt.y !== yj > pt.y &&
+          pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    },
+    [],
+  );
 
   // Algorithm 3: Placement Validation using GridManager singleton
   const canPlace = useCallback(
@@ -722,11 +952,14 @@ export default function CastleIsoCanvas({
       const cells = rectFootprint(w, h);
       return gm.canPlace(cells, col, row, ignoreId).ok;
     },
-    [getGridManager]
+    [getGridManager],
   );
 
   // Helper polygon draw
-  const poly = (ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
+  const poly = (
+    ctx: CanvasRenderingContext2D,
+    pts: { x: number; y: number }[],
+  ) => {
     if (!pts || pts.length === 0) return;
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
@@ -736,7 +969,15 @@ export default function CastleIsoCanvas({
 
   // Weather particles state
   const particlesRef = useRef<
-    { x: number; y: number; vx: number; vy: number; size: number; alpha: number; kind: string }[]
+    {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      alpha: number;
+      kind: string;
+    }[]
   >([]);
 
   useEffect(() => {
@@ -766,7 +1007,7 @@ export default function CastleIsoCanvas({
     const { width, height } = rectRef.current;
     if (width <= 0 || height <= 0) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = getCanvasDpr();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
@@ -781,10 +1022,48 @@ export default function CastleIsoCanvas({
     } = propsRef.current;
     const curBuildings = allBuildingsRef.current;
 
+    const isIdleEnabled = propsRef.current.enableIdleFx !== false;
+
     const calib = customCalib ?? DEFAULT_ISLAND_CALIBRATION;
 
     const now = performance.now();
-    const deltaSec = Math.min(0.08, Math.max(0.001, (now - lastFrameTimeRef.current) / 1000));
+
+    // Launch queued cultivation cannon shots without allowing more than three
+    // projectiles to coexist. This keeps the barrage dense but mobile-safe.
+    while (
+      cannonVolleyRef.current.length > 0 &&
+      cannonVolleyRef.current[0].launchAt <= now &&
+      cannonballsRef.current.length < 3
+    ) {
+      const launch = cannonVolleyRef.current.shift();
+      if (!launch) break;
+      cannonballsRef.current.push(
+        createCannonball(
+          launch.targetX,
+          launch.targetY,
+          launch.viewWidth,
+          launch.viewHeight,
+          launch.options,
+        ),
+      );
+    }
+
+    const shieldIsInCombat =
+      (shieldStateRef.current.status !== 'active' &&
+        shieldStateRef.current.status !== 'inactive') ||
+      cannonVolleyRef.current.length > 0 ||
+      cannonballsRef.current.length > 0 ||
+      explosionsRef.current.length > 0;
+    const shieldQuality = shieldIsInCombat
+      ? 'combat'
+      : isIdleEnabled
+        ? 'idle'
+        : 'static';
+
+    const deltaSec = Math.min(
+      0.08,
+      Math.max(0.001, (now - lastFrameTimeRef.current) / 1000),
+    );
     lastFrameTimeRef.current = now;
 
     // Advance shield dome state lifecycle
@@ -823,6 +1102,12 @@ export default function CastleIsoCanvas({
     combatShakeRef.current.x *= 0.84;
     combatShakeRef.current.y *= 0.84;
 
+    const approximateScale = Math.min(1, Math.max(0.55, width / 950));
+    const islandBobY =
+      isIdleEnabled && !shieldIsInCombat && !prefersReducedMotionRef.current
+        ? Math.sin(now * 0.00125) * 2.5 * approximateScale
+        : 0;
+
     const {
       scaleFactor,
       renderScale,
@@ -839,14 +1124,17 @@ export default function CastleIsoCanvas({
       panRef.current.y,
       calib,
       shakeX,
-      shakeY
+      shakeY + islandBobY,
     );
 
     // Shield dome dimensions centered around plateau center
     const targetPlateauW = GRID * BASE_TILE_W * scaleFactor;
-    const radiusX = targetPlateauW * 0.58;
-    const radiusY = targetPlateauW * 0.36;
-    const domeCenter = { x: plateauCenter.x, y: plateauCenter.y + tileH * 0.35 };
+    const radiusX = targetPlateauW * 0.62;
+    const radiusY = targetPlateauW * 0.52;
+    const domeCenter = {
+      x: plateauCenter.x,
+      y: plateauCenter.y + targetPlateauW * 0.1,
+    };
 
     // Update combat effects physics & collisions
     const fxResult = updateCombatFx(
@@ -861,10 +1149,16 @@ export default function CastleIsoCanvas({
       (impact) => {
         if (!impact.blocked) {
           if (impact.targetBuildingId) {
-            damageFlashingBuildingsRef.current.set(impact.targetBuildingId, now + 550);
+            damageFlashingBuildingsRef.current.set(
+              impact.targetBuildingId,
+              now + 550,
+            );
           } else {
             for (const b of curBuildings) {
-              if (impact.targetCol !== undefined && impact.targetRow !== undefined) {
+              if (
+                impact.targetCol !== undefined &&
+                impact.targetRow !== undefined
+              ) {
                 if (
                   impact.targetCol >= b.col &&
                   impact.targetCol < b.col + b.w &&
@@ -882,14 +1176,27 @@ export default function CastleIsoCanvas({
           impact.targetBuildingId || '',
           impact.targetCol ?? 0,
           impact.targetRow ?? 0,
-          impact.blocked
+          impact.blocked,
         );
-      }
+      },
     );
     if (fxResult.screenShake.mag > 0.4) {
       combatShakeRef.current.x = fxResult.screenShake.x;
       combatShakeRef.current.y = fxResult.screenShake.y;
     }
+
+    // Far half of the same closed ellipsoid sits behind the complete island.
+    drawShieldDome(
+      ctx,
+      shieldStateRef.current,
+      domeCenter,
+      radiusX,
+      radiusY,
+      scaleFactor,
+      now,
+      shieldQuality,
+      'back',
+    );
 
     // --- 1. Draw 12x12 Empty Island Backdrop or Procedural Cliff ---
     const islandImg =
@@ -905,9 +1212,27 @@ export default function CastleIsoCanvas({
       ctx.drawImage(islandImg, drawOrigin.x, drawOrigin.y, imgW, imgH);
     } else {
       // Fallback procedural cliff while loading
-      const islandE = gridToScreenCalibrated(GRID, 0, calib, renderScale, drawOrigin);
-      const islandS = gridToScreenCalibrated(GRID, GRID, calib, renderScale, drawOrigin);
-      const islandW = gridToScreenCalibrated(0, GRID, calib, renderScale, drawOrigin);
+      const islandE = gridToScreenCalibrated(
+        GRID,
+        0,
+        calib,
+        renderScale,
+        drawOrigin,
+      );
+      const islandS = gridToScreenCalibrated(
+        GRID,
+        GRID,
+        calib,
+        renderScale,
+        drawOrigin,
+      );
+      const islandW = gridToScreenCalibrated(
+        0,
+        GRID,
+        calib,
+        renderScale,
+        drawOrigin,
+      );
 
       const cliffDepth = 75 * scaleFactor;
       const shadowRadiusX = (GRID * tileW) / 2.2;
@@ -919,7 +1244,7 @@ export default function CastleIsoCanvas({
         shadowRadiusX * 0.15,
         islandS.x,
         shadowCenterY,
-        shadowRadiusX
+        shadowRadiusX,
       );
       underbellyGrad.addColorStop(0, 'rgba(10, 5, 5, 0.42)');
       underbellyGrad.addColorStop(0.7, 'rgba(10, 5, 5, 0.15)');
@@ -927,7 +1252,15 @@ export default function CastleIsoCanvas({
 
       ctx.fillStyle = underbellyGrad;
       ctx.beginPath();
-      ctx.ellipse(islandS.x, shadowCenterY, shadowRadiusX, shadowRadiusY, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        islandS.x,
+        shadowCenterY,
+        shadowRadiusX,
+        shadowRadiusY,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
 
       // Island rock cliff sides
@@ -955,10 +1288,34 @@ export default function CastleIsoCanvas({
 
     for (let col = 0; col < GRID; col++) {
       for (let row = 0; row < GRID; row++) {
-        const vTop = gridToScreenCalibrated(col, row, calib, renderScale, drawOrigin);
-        const vRight = gridToScreenCalibrated(col + 1, row, calib, renderScale, drawOrigin);
-        const vBottom = gridToScreenCalibrated(col + 1, row + 1, calib, renderScale, drawOrigin);
-        const vLeft = gridToScreenCalibrated(col, row + 1, calib, renderScale, drawOrigin);
+        const vTop = gridToScreenCalibrated(
+          col,
+          row,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
+        const vRight = gridToScreenCalibrated(
+          col + 1,
+          row,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
+        const vBottom = gridToScreenCalibrated(
+          col + 1,
+          row + 1,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
+        const vLeft = gridToScreenCalibrated(
+          col,
+          row + 1,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
         const pts = [vTop, vRight, vBottom, vLeft];
 
         if (!islandImg) {
@@ -980,7 +1337,13 @@ export default function CastleIsoCanvas({
 
         // Show coordinates when sGrid is active
         if (sGrid) {
-          const center = gridToScreenCalibrated(col + 0.5, row + 0.5, calib, renderScale, drawOrigin);
+          const center = gridToScreenCalibrated(
+            col + 0.5,
+            row + 0.5,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
           ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
           ctx.font = `${Math.round(8 * scaleFactor)}px monospace`;
           ctx.textAlign = 'center';
@@ -1002,14 +1365,45 @@ export default function CastleIsoCanvas({
 
       // --- PER-CELL ISOMETRIC HIGHLIGHT (GREEN = VALID, RED = COLLISION/OOB) ---
       for (const cell of preview.highlightCells) {
-        if (cell.col >= 0 && cell.row >= 0 && cell.col < GRID && cell.row < GRID) {
-          const vTop = gridToScreenCalibrated(cell.col, cell.row, calib, renderScale, drawOrigin);
-          const vRight = gridToScreenCalibrated(cell.col + 1, cell.row, calib, renderScale, drawOrigin);
-          const vBottom = gridToScreenCalibrated(cell.col + 1, cell.row + 1, calib, renderScale, drawOrigin);
-          const vLeft = gridToScreenCalibrated(cell.col, cell.row + 1, calib, renderScale, drawOrigin);
+        if (
+          cell.col >= 0 &&
+          cell.row >= 0 &&
+          cell.col < GRID &&
+          cell.row < GRID
+        ) {
+          const vTop = gridToScreenCalibrated(
+            cell.col,
+            cell.row,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
+          const vRight = gridToScreenCalibrated(
+            cell.col + 1,
+            cell.row,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
+          const vBottom = gridToScreenCalibrated(
+            cell.col + 1,
+            cell.row + 1,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
+          const vLeft = gridToScreenCalibrated(
+            cell.col,
+            cell.row + 1,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
           const pts = [vTop, vRight, vBottom, vLeft];
 
-          ctx.fillStyle = cell.valid ? 'rgba(46, 204, 113, 0.44)' : 'rgba(231, 76, 60, 0.52)';
+          ctx.fillStyle = cell.valid
+            ? 'rgba(46, 204, 113, 0.44)'
+            : 'rgba(231, 76, 60, 0.52)';
           poly(ctx, pts);
           ctx.fill();
 
@@ -1022,7 +1416,13 @@ export default function CastleIsoCanvas({
       // Footprint true perimeter outline (handles L-shape, T-shape, rect)
       const outlinePts = getFootprintOutline(targetCells);
       const outlineScreen = outlinePts.map((p) =>
-        gridToScreenCalibrated(col + p.x, row + p.y, calib, renderScale, drawOrigin)
+        gridToScreenCalibrated(
+          col + p.x,
+          row + p.y,
+          calib,
+          renderScale,
+          drawOrigin,
+        ),
       );
       ctx.strokeStyle = preview.valid ? '#2ecc71' : '#e74c3c';
       ctx.lineWidth = 2.5;
@@ -1032,13 +1432,29 @@ export default function CastleIsoCanvas({
       ctx.setLineDash([]);
 
       // Ghost preview of the building image or icon using unified sprite bounds
-      const ghostImg = activeTarget.imageSrc ? getLoadedImage(activeTarget.imageSrc) : null;
+      const ghostImg = activeTarget.imageSrc
+        ? getLoadedImage(activeTarget.imageSrc)
+        : null;
       if (ghostImg) {
         ctx.globalAlpha = 0.72;
-        const fpCorners = footprintCornersCalibrated(col, row, activeTarget.w, activeTarget.h, calib, renderScale, drawOrigin);
+        const fpCorners = footprintCornersCalibrated(
+          col,
+          row,
+          activeTarget.w,
+          activeTarget.h,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
         const floatOffsetY = mBuild ? 10 * scaleFactor : 0;
-        const anchorScreen = { x: fpCorners.center.x, y: fpCorners.S.y - floatOffsetY };
-        const visual = getVisualConfig(activeTarget.templateId, ghostImg.naturalHeight / ghostImg.naturalWidth);
+        const anchorScreen = {
+          x: fpCorners.center.x,
+          y: fpCorners.S.y - floatOffsetY,
+        };
+        const visual = getVisualConfig(
+          activeTarget.templateId,
+          ghostImg.naturalHeight / ghostImg.naturalWidth,
+        );
         const bounds = computeSpriteBounds(
           anchorScreen,
           activeTarget.w,
@@ -1049,13 +1465,19 @@ export default function CastleIsoCanvas({
           visual,
           ghostImg.naturalWidth,
           ghostImg.naturalHeight,
-          activeTarget.imageScale ?? 1
+          activeTarget.imageScale ?? 1,
         );
         ctx.save();
         ctx.translate(anchorScreen.x, anchorScreen.y);
         ctx.scale(activeTarget.flipX ? -1 : 1, 1);
         ctx.translate(-anchorScreen.x, -anchorScreen.y);
-        ctx.drawImage(ghostImg, bounds.drawX, bounds.drawY, bounds.imgW, bounds.imgH);
+        ctx.drawImage(
+          ghostImg,
+          bounds.drawX,
+          bounds.drawY,
+          bounds.imgW,
+          bounds.imgH,
+        );
         ctx.restore();
         ctx.globalAlpha = 1;
       }
@@ -1066,7 +1488,15 @@ export default function CastleIsoCanvas({
 
     // --- 5. Draw Buildings with Two-Tier Shadows & Animations ---
     sorted.forEach((b) => {
-      const c = footprintCornersCalibrated(b.col, b.row, b.w, b.h, calib, renderScale, drawOrigin);
+      const c = footprintCornersCalibrated(
+        b.col,
+        b.row,
+        b.w,
+        b.h,
+        calib,
+        renderScale,
+        drawOrigin,
+      );
       const h = b.height * scaleFactor;
       const isSelected = b.id === selId;
       const footCenterX = c.center.x;
@@ -1078,13 +1508,22 @@ export default function CastleIsoCanvas({
       const contactRadY = (b.h * tileH) / 2.4;
       ctx.fillStyle = 'rgba(10, 5, 5, 0.42)';
       ctx.beginPath();
-      ctx.ellipse(footCenterX, contactY, contactRadX, contactRadY, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        footCenterX,
+        contactY,
+        contactRadX,
+        contactRadY,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
 
       // Layer 2: Main Directional Shadow - Cast along light angle (top-left -> bottom-right)
       const dirOffsetX = 8 * scaleFactor;
       const dirOffsetY = 5 * scaleFactor;
-      const dirRadX = ((b.w * tileW) / 1.85) * (b.level && b.level >= 5 ? 1.15 : 1.0);
+      const dirRadX =
+        ((b.w * tileW) / 1.85) * (b.level && b.level >= 5 ? 1.15 : 1.0);
       const dirRadY = (b.h * tileH) / 1.95;
       const dirCenterX = footCenterX + dirOffsetX;
       const dirCenterY = contactY + dirOffsetY;
@@ -1094,7 +1533,7 @@ export default function CastleIsoCanvas({
         dirRadX * 0.15,
         dirCenterX,
         dirCenterY,
-        dirRadX
+        dirRadX,
       );
       bGrad.addColorStop(0, 'rgba(12, 6, 6, 0.34)');
       bGrad.addColorStop(0.65, 'rgba(12, 6, 6, 0.12)');
@@ -1127,7 +1566,14 @@ export default function CastleIsoCanvas({
             for (let k = 0; k < 32; k++) {
               const angle = Math.random() * Math.PI * 2;
               const speed = Math.random() * 4.5 + 2.5;
-              const colors = ['#ffd700', '#fff3bf', '#ffec99', '#ffffff', '#69db7c', '#ffa94d'];
+              const colors = [
+                '#ffd700',
+                '#fff3bf',
+                '#ffec99',
+                '#ffffff',
+                '#69db7c',
+                '#ffa94d',
+              ];
               burstParticlesRef.current.push({
                 x: footCenterX,
                 y: c.S.y - h * 0.6,
@@ -1144,7 +1590,8 @@ export default function CastleIsoCanvas({
         } else if (burstElapsed < 650) {
           // Phase 4 (250-650ms): Overshoot spring scale (0.8 -> 1.08 -> 1.0)
           const t = (burstElapsed - 250) / 400;
-          const overshoot = 1 + 1.8 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
+          const overshoot =
+            1 + 1.8 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
           spriteScale = 0.8 + 0.2 * overshoot;
         } else if (burstElapsed < burst.duration) {
           spriteScale = 1.0;
@@ -1161,7 +1608,10 @@ export default function CastleIsoCanvas({
 
       if (spriteImg) {
         // Unified Sprite Bounds calculation with bottom-center anchor & Screen Envelope containment
-        const visual = getVisualConfig(b.templateId || b.id, spriteImg.naturalHeight / spriteImg.naturalWidth);
+        const visual = getVisualConfig(
+          b.templateId || b.id,
+          spriteImg.naturalHeight / spriteImg.naturalWidth,
+        );
         const anchorScreen = { x: footCenterX, y: c.S.y };
         const bounds = computeSpriteBounds(
           anchorScreen,
@@ -1173,22 +1623,35 @@ export default function CastleIsoCanvas({
           visual,
           spriteImg.naturalWidth,
           spriteImg.naturalHeight,
-          b.imageScale ?? 1
+          b.imageScale ?? 1,
         );
 
         // --- SECTION 2.4: HIGH-LEVEL CELESTIAL AURA ---
         if ((b.id === 'main' && mainStage >= 4) || (b.level && b.level >= 7)) {
           const auraAlpha = 0.22 + 0.12 * Math.sin(now * 0.003);
           const auraGrad = ctx.createRadialGradient(
-            footCenterX, bounds.drawY + bounds.imgH * 0.35, 10,
-            footCenterX, bounds.drawY + bounds.imgH * 0.35, bounds.imgW * 0.65
+            footCenterX,
+            bounds.drawY + bounds.imgH * 0.35,
+            10,
+            footCenterX,
+            bounds.drawY + bounds.imgH * 0.35,
+            bounds.imgW * 0.65,
           );
           auraGrad.addColorStop(0, `rgba(255, 215, 80, ${auraAlpha})`);
-          auraGrad.addColorStop(0.65, `rgba(255, 180, 50, ${auraAlpha * 0.35})`);
+          auraGrad.addColorStop(
+            0.65,
+            `rgba(255, 180, 50, ${auraAlpha * 0.35})`,
+          );
           auraGrad.addColorStop(1, 'rgba(255, 215, 80, 0)');
           ctx.fillStyle = auraGrad;
           ctx.beginPath();
-          ctx.arc(footCenterX, bounds.drawY + bounds.imgH * 0.35, bounds.imgW * 0.65, 0, Math.PI * 2);
+          ctx.arc(
+            footCenterX,
+            bounds.drawY + bounds.imgH * 0.35,
+            bounds.imgW * 0.65,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
 
@@ -1198,9 +1661,11 @@ export default function CastleIsoCanvas({
         ctx.scale(spriteScale * (b.flipX ? -1 : 1), spriteScale);
         ctx.translate(-anchorScreen.x, -anchorScreen.y);
 
-        const isDamageFlashing = (damageFlashingBuildingsRef.current.get(b.id) ?? 0) > now;
+        const isDamageFlashing =
+          (damageFlashingBuildingsRef.current.get(b.id) ?? 0) > now;
         if (isDamageFlashing) {
-          ctx.filter = 'drop-shadow(0 0 16px #ff3b30) brightness(1.7) sepia(0.6) saturate(3)';
+          ctx.filter =
+            'drop-shadow(0 0 16px #ff3b30) brightness(1.7) sepia(0.6) saturate(3)';
         } else if (isFlashing) {
           ctx.filter = 'brightness(3.2) contrast(1.4)';
         } else if (isSelected) {
@@ -1208,7 +1673,13 @@ export default function CastleIsoCanvas({
           ctx.shadowBlur = 18;
         }
 
-        ctx.drawImage(spriteImg, bounds.drawX, bounds.drawY, bounds.imgW, bounds.imgH);
+        ctx.drawImage(
+          spriteImg,
+          bounds.drawX,
+          bounds.drawY,
+          bounds.imgW,
+          bounds.imgH,
+        );
         ctx.restore();
 
         if (isDamageFlashing) {
@@ -1216,7 +1687,15 @@ export default function CastleIsoCanvas({
           ctx.globalAlpha = 0.38;
           ctx.fillStyle = '#ff4d4f';
           ctx.beginPath();
-          ctx.ellipse(footCenterX, bounds.drawY + bounds.imgH * 0.5, bounds.imgW * 0.48, bounds.imgH * 0.48, 0, 0, Math.PI * 2);
+          ctx.ellipse(
+            footCenterX,
+            bounds.drawY + bounds.imgH * 0.5,
+            bounds.imgW * 0.48,
+            bounds.imgH * 0.48,
+            0,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
           ctx.restore();
         }
@@ -1256,7 +1735,10 @@ export default function CastleIsoCanvas({
           const barH = 8 * scaleFactor;
           const barX = footCenterX - barW / 2;
           const barY = hammerY + 18 * scaleFactor;
-          const pct = Math.min(1, Math.max(0, b.upgradeProgress ?? ((now % 5000) / 5000)));
+          const pct = Math.min(
+            1,
+            Math.max(0, b.upgradeProgress ?? (now % 5000) / 5000),
+          );
           const remainingSec = Math.max(0, Math.ceil((1 - pct) * 10));
 
           ctx.fillStyle = 'rgba(15, 8, 6, 0.92)';
@@ -1272,7 +1754,13 @@ export default function CastleIsoCanvas({
           pGrad.addColorStop(1, '#94d82d');
           ctx.fillStyle = pGrad;
           ctx.beginPath();
-          ctx.roundRect(barX + 1, barY + 1, Math.max(2, (barW - 2) * pct), barH - 2, 3);
+          ctx.roundRect(
+            barX + 1,
+            barY + 1,
+            Math.max(2, (barW - 2) * pct),
+            barH - 2,
+            3,
+          );
           ctx.fill();
 
           ctx.font = `bold ${Math.round(9 * scaleFactor)}px monospace`;
@@ -1281,7 +1769,11 @@ export default function CastleIsoCanvas({
           ctx.fillStyle = '#fff3bf';
           ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
           ctx.shadowBlur = 4;
-          ctx.fillText(`🔨 ${Math.round(pct * 100)}% (${remainingSec}s)`, footCenterX, barY - 3 * scaleFactor);
+          ctx.fillText(
+            `🔨 ${Math.round(pct * 100)}% (${remainingSec}s)`,
+            footCenterX,
+            barY - 3 * scaleFactor,
+          );
           ctx.shadowBlur = 0;
           ctx.restore();
         }
@@ -1289,7 +1781,8 @@ export default function CastleIsoCanvas({
         // --- SECTION 1.3: FLOATING LEVEL-UP BURST TEXT ---
         if (burst && burstElapsed > 180) {
           const textProgress = (burstElapsed - 180) / (burst.duration - 180);
-          const textY = bounds.drawY - 12 * scaleFactor - textProgress * 45 * scaleFactor;
+          const textY =
+            bounds.drawY - 12 * scaleFactor - textProgress * 45 * scaleFactor;
           const textAlpha = Math.max(0, 1 - textProgress);
           ctx.save();
           ctx.font = `bold ${Math.round(13 * scaleFactor)}px "Songti SC", "SimSun", serif`;
@@ -1307,8 +1800,13 @@ export default function CastleIsoCanvas({
         const Sp = { x: c.S.x, y: c.S.y - h };
         const Wp = { x: c.W.x, y: c.W.y - h };
 
-        const isDamageFlashing = (damageFlashingBuildingsRef.current.get(b.id) ?? 0) > now;
-        ctx.strokeStyle = isDamageFlashing ? '#ff4d4f' : isSelected ? '#ffd43b' : b.outline;
+        const isDamageFlashing =
+          (damageFlashingBuildingsRef.current.get(b.id) ?? 0) > now;
+        ctx.strokeStyle = isDamageFlashing
+          ? '#ff4d4f'
+          : isSelected
+            ? '#ffd43b'
+            : b.outline;
         ctx.lineWidth = isDamageFlashing ? 3 : isSelected ? 2.5 : 1.4;
 
         // Left Wall
@@ -1377,21 +1875,38 @@ export default function CastleIsoCanvas({
       drawDebugGrid(ctx, calib, renderScale, drawOrigin);
     }
 
-    // --- 5.8 Draw 2.5D Defense Shield Dome (Wrapping Island & Buildings) ---
-    drawShieldDome(ctx, shieldStateRef.current, domeCenter, radiusX, radiusY, scaleFactor, now);
+    // --- 5.8 Near half completes the shield around cliffs and buildings. ---
+    drawShieldDome(
+      ctx,
+      shieldStateRef.current,
+      domeCenter,
+      radiusX,
+      radiusY,
+      scaleFactor,
+      now,
+      shieldQuality,
+      'front',
+    );
 
     // --- 6. Idle Rooftop Smoke Particles (Section 1.1) ---
-    const isIdleEnabled = propsRef.current.enableIdleFx !== false;
     if (isIdleEnabled) {
       if (now - lastSmokeSpawnRef.current > 280) {
         lastSmokeSpawnRef.current = now;
         for (const b of curBuildings) {
-          const c = footprintCornersCalibrated(b.col, b.row, b.w, b.h, calib, renderScale, drawOrigin);
+          const c = footprintCornersCalibrated(
+            b.col,
+            b.row,
+            b.w,
+            b.h,
+            calib,
+            renderScale,
+            drawOrigin,
+          );
           const footCenterX = c.center.x;
 
           // Rooftop smoke for core buildings
           if (b.id === 'main' || b.id === 'library' || b.id === 'listening') {
-            const roofPeakY = c.S.y - (b.height * scaleFactor * 1.32);
+            const roofPeakY = c.S.y - b.height * scaleFactor * 1.32;
             if (smokeParticlesRef.current.length < 35) {
               smokeParticlesRef.current.push({
                 x: footCenterX + (Math.random() - 0.5) * 10 * scaleFactor,
@@ -1466,7 +1981,13 @@ export default function CastleIsoCanvas({
         ctx.fillStyle = p.color;
         ctx.globalAlpha = alpha;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * (1 - progress * 0.5) * scaleFactor, 0, Math.PI * 2);
+        ctx.arc(
+          p.x,
+          p.y,
+          p.size * (1 - progress * 0.5) * scaleFactor,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       }
       ctx.restore();
@@ -1496,7 +2017,15 @@ export default function CastleIsoCanvas({
           // Petals
           ctx.fillStyle = '#ff8787';
           ctx.beginPath();
-          ctx.ellipse(p.x, p.y, p.size, p.size * 0.5, p.x * 0.05, 0, Math.PI * 2);
+          ctx.ellipse(
+            p.x,
+            p.y,
+            p.size,
+            p.size * 0.5,
+            p.x * 0.05,
+            0,
+            Math.PI * 2,
+          );
           ctx.fill();
         }
       }
@@ -1504,23 +2033,39 @@ export default function CastleIsoCanvas({
     }
 
     // --- 9. Draw Ballistic Cannonballs and Explosions (Top Combat Layer) ---
-    drawCombatEffects(ctx, cannonballsRef.current, explosionsRef.current, scaleFactor);
+    drawCombatEffects(
+      ctx,
+      cannonballsRef.current,
+      explosionsRef.current,
+      scaleFactor,
+    );
   }, [compareBuildingsDepth, getGridManager]);
 
   // Single Persistent Animation Loop (Decoupled from React State)
   useEffect(() => {
     let animId: number;
+    let lastDrawAt = 0;
 
     const handleResize = () => {
       const container = containerRef.current;
       const canvas = canvasRef.current;
       if (!container || !canvas) return;
       const rect = container.getBoundingClientRect();
-      const w = rect.width > 0 ? rect.width : (typeof window !== 'undefined' ? window.innerWidth : 800);
-      const h = rect.height > 0 ? rect.height : (typeof window !== 'undefined' ? window.innerHeight : 600);
+      const w =
+        rect.width > 0
+          ? rect.width
+          : typeof window !== 'undefined'
+            ? window.innerWidth
+            : 800;
+      const h =
+        rect.height > 0
+          ? rect.height
+          : typeof window !== 'undefined'
+            ? window.innerHeight
+            : 600;
       rectRef.current = { width: w, height: h };
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = getCanvasDpr();
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
@@ -1530,17 +2075,66 @@ export default function CastleIsoCanvas({
     handleResize();
     window.addEventListener('resize', handleResize);
 
-    const loop = () => {
+    const reducedMotionQuery = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    );
+    const syncReducedMotion = () => {
+      prefersReducedMotionRef.current = reducedMotionQuery.matches;
+    };
+    syncReducedMotion();
+    reducedMotionQuery.addEventListener?.('change', syncReducedMotion);
+
+    const handleVisibility = () => {
+      isPageVisibleRef.current = document.visibilityState === 'visible';
+      lastFrameTimeRef.current = performance.now();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isCanvasVisibleRef.current = entry?.isIntersecting ?? true;
+        lastFrameTimeRef.current = performance.now();
+      },
+      { rootMargin: '100px', threshold: 0.01 },
+    );
+    if (containerRef.current) observer.observe(containerRef.current);
+
+    const loop = (timestamp: number) => {
+      animId = requestAnimationFrame(loop);
+      if (!isPageVisibleRef.current || !isCanvasVisibleRef.current) return;
+
+      const shieldState = shieldStateRef.current;
+      const hasCombatFx =
+        cannonVolleyRef.current.length > 0 ||
+        cannonballsRef.current.length > 0 ||
+        explosionsRef.current.length > 0 ||
+        shieldState.ripples.length > 0 ||
+        shieldState.shards.length > 0 ||
+        shieldState.status === 'activating' ||
+        shieldState.status === 'hit_ripple' ||
+        shieldState.status === 'shattering' ||
+        activeBurstsRef.current.size > 0 ||
+        isDraggingRef.current;
+      const targetFps = hasCombatFx
+        ? 60
+        : prefersReducedMotionRef.current
+          ? 12
+          : 30;
+      if (timestamp - lastDrawAt < 1000 / targetFps) return;
+      lastDrawAt = timestamp;
+
       if (rectRef.current.width <= 0 || rectRef.current.height <= 0) {
         handleResize();
       }
       drawFrame();
-      animId = requestAnimationFrame(loop);
     };
     animId = requestAnimationFrame(loop);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      reducedMotionQuery.removeEventListener?.('change', syncReducedMotion);
+      observer.disconnect();
       cancelAnimationFrame(animId);
     };
   }, [drawFrame]);
@@ -1568,7 +2162,7 @@ export default function CastleIsoCanvas({
         rect.height,
         panRef.current.x,
         panRef.current.y,
-        calib
+        calib,
       );
 
       const g = screenToGridCalibrated(x, y, calib, renderScale, drawOrigin);
@@ -1580,8 +2174,12 @@ export default function CastleIsoCanvas({
     }
 
     if (!isDraggingRef.current) return;
-    const dx = Math.abs(e.clientX - (dragStartRef.current.x + panRef.current.x));
-    const dy = Math.abs(e.clientY - (dragStartRef.current.y + panRef.current.y));
+    const dx = Math.abs(
+      e.clientX - (dragStartRef.current.x + panRef.current.x),
+    );
+    const dy = Math.abs(
+      e.clientY - (dragStartRef.current.y + panRef.current.y),
+    );
     if (dx > 4 || dy > 4) hasDraggedRef.current = true;
 
     // Directly update pan coordinates - zero React component re-renders!
@@ -1605,13 +2203,14 @@ export default function CastleIsoCanvas({
     const y = e.clientY - rect.top;
 
     const calib = propsRef.current.calibration ?? DEFAULT_ISLAND_CALIBRATION;
-    const { renderScale, drawOrigin, scaleFactor, tileW, tileH } = getCalibrationGeometry(
-      rect.width,
-      rect.height,
-      panRef.current.x,
-      panRef.current.y,
-      calib
-    );
+    const { renderScale, drawOrigin, scaleFactor, tileW, tileH } =
+      getCalibrationGeometry(
+        rect.width,
+        rect.height,
+        panRef.current.x,
+        panRef.current.y,
+        calib,
+      );
 
     const {
       pendingBuilding: pBuild,
@@ -1640,7 +2239,10 @@ export default function CastleIsoCanvas({
         } else if (check.reason === 'buffer_violation') {
           toastCb('Cần đặt cách công trình khác ít nhất 1 ô trống!', 'bad');
         } else {
-          toastCb(`Vị trí (${g.col}, ${g.row}) đã có công trình khác chiếm dụng!`, 'bad');
+          toastCb(
+            `Vị trí (${g.col}, ${g.row}) đã có công trình khác chiếm dụng!`,
+            'bad',
+          );
         }
       }
       return;
@@ -1684,7 +2286,10 @@ export default function CastleIsoCanvas({
         } else if (check.reason === 'buffer_violation') {
           toastCb('Cần đặt cách công trình khác ít nhất 1 ô trống!', 'bad');
         } else {
-          toastCb(`Vị trí (${g.col}, ${g.row}) đã bị chiếm hoặc không đủ diện tích!`, 'bad');
+          toastCb(
+            `Vị trí (${g.col}, ${g.row}) đã bị chiếm hoặc không đủ diện tích!`,
+            'bad',
+          );
         }
       }
       return;
@@ -1701,7 +2306,13 @@ export default function CastleIsoCanvas({
       const targetCells = getEffectiveFootprint(b);
       const outlinePts = getFootprintOutline(targetCells);
       const groundPoly = outlinePts.map((p) =>
-        gridToScreenCalibrated(b.col + p.x, b.row + p.y, calib, renderScale, drawOrigin)
+        gridToScreenCalibrated(
+          b.col + p.x,
+          b.row + p.y,
+          calib,
+          renderScale,
+          drawOrigin,
+        ),
       );
       if (pointInPolygon({ x, y }, groundPoly)) {
         hit = b;
@@ -1710,13 +2321,23 @@ export default function CastleIsoCanvas({
 
       // Test 2: Visual sprite bounding box (or fallback 3D block silhouette)
       if (b.imageSrc) {
-        const c = footprintCornersCalibrated(b.col, b.row, b.w, b.h, calib, renderScale, drawOrigin);
+        const c = footprintCornersCalibrated(
+          b.col,
+          b.row,
+          b.w,
+          b.h,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
         const footCenterX = c.center.x;
         const anchorScreen = { x: footCenterX, y: c.S.y };
         const visual = getVisualConfig(b.templateId || b.id);
         const spriteImg = getLoadedImage(b.imageSrc);
         const natW = spriteImg?.naturalWidth ?? 100;
-        const natH = spriteImg?.naturalHeight ?? (visual.aspect ? 100 * visual.aspect : 100);
+        const natH =
+          spriteImg?.naturalHeight ??
+          (visual.aspect ? 100 * visual.aspect : 100);
         const bounds = computeSpriteBounds(
           anchorScreen,
           b.w,
@@ -1727,7 +2348,7 @@ export default function CastleIsoCanvas({
           visual,
           natW,
           natH,
-          b.imageScale ?? 1
+          b.imageScale ?? 1,
         );
         if (
           x >= bounds.drawX &&
@@ -1739,7 +2360,15 @@ export default function CastleIsoCanvas({
           break;
         }
       } else {
-        const c = footprintCornersCalibrated(b.col, b.row, b.w, b.h, calib, renderScale, drawOrigin);
+        const c = footprintCornersCalibrated(
+          b.col,
+          b.row,
+          b.w,
+          b.h,
+          calib,
+          renderScale,
+          drawOrigin,
+        );
         const h = b.height * scaleFactor;
         const Np = { x: c.N.x, y: c.N.y - h };
         const Ep = { x: c.E.x, y: c.E.y - h };
@@ -1787,7 +2416,7 @@ export default function CastleIsoCanvas({
           display: 'block',
           width: '100%',
           height: '100%',
-          cursor: (pendingBuilding || movingBuilding) ? 'crosshair' : 'grab',
+          cursor: pendingBuilding || movingBuilding ? 'crosshair' : 'grab',
           pointerEvents: 'none',
         }}
       />

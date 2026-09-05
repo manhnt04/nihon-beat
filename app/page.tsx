@@ -4410,13 +4410,16 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
         {/* Modal: Building Construction Workshop (Xưởng Xây Dựng Công Trình) */}
         {castleBuildCatalogOpen && (
           <div className="castle-modal-backdrop" onClick={() => setCastleBuildCatalogOpen(false)}>
-            <div className="castle-modal-dialog castle-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="castle-modal-dialog castle-modal-wide architecture-workshop-dialog" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close-btn" onClick={() => setCastleBuildCatalogOpen(false)}>×</button>
-              <section className="castle-build-panel">
+              <section className="castle-build-panel architecture-workshop">
                 <header>
-                  <div>
-                    <span>建筑工坊 · XƯỞNG KIẾN TRÚC</span>
-                    <h2>Xưởng Xây Dựng Công Trình</h2>
+                  <div className="workshop-heading">
+                    <i>筑</i>
+                    <div>
+                      <span>建筑工坊 · XƯỞNG KIẾN TRÚC</span>
+                      <h2>Kiến tạo Tiên Đảo</h2>
+                    </div>
                   </div>
                   <div className="build-user-res">
                     <span>🪵 <b>{castle.wood.toLocaleString('vi-VN')}</b></span>
@@ -4425,15 +4428,15 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                   </div>
                 </header>
                 <p className="build-panel-sub">
-                  Chọn công trình kiến trúc cổ phong từ thư viện hình ảnh thực tế để lắp đặt lên Tiên Đảo và gia tăng điểm Phồn Vinh!
+                  Chọn kiến trúc, xem kích thước và đặt trực tiếp lên vị trí còn trống trong thành.
                 </p>
                 <div className="build-catalog-tabs">
                   {[
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'palace', label: 'Điện Các' },
-                    { id: 'study', label: 'Học Thuật' },
-                    { id: 'defense', label: 'Phòng Thủ' },
-                    { id: 'nature', label: 'Tiểu Cảnh' },
+                    { id: 'all', label: '全 · Tất cả' },
+                    { id: 'palace', label: '殿 · Điện Các' },
+                    { id: 'study', label: '书 · Học Thuật' },
+                    { id: 'defense', label: '盾 · Phòng Thủ' },
+                    { id: 'nature', label: '景 · Tiểu Cảnh' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -4451,8 +4454,9 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                       castle.wood >= item.cost.wood &&
                       castle.ink >= item.cost.ink &&
                       (progression?.coins ?? 0) >= item.cost.coin;
+                    const ownedCount = extraBuildings.filter((building) => building.templateId === item.templateId).length;
                     return (
-                      <article key={item.templateId} className="build-catalog-card">
+                      <article key={item.templateId} className={`build-catalog-card ${canAfford ? 'can-build' : 'locked'}`}>
                         <div className="build-card-preview">
                           {item.imageSrc ? (
                             <img src={item.imageSrc} alt={item.name} />
@@ -4460,6 +4464,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                             <b style={{ fontSize: '42px' }}>{item.icon}</b>
                           )}
                           <span className="build-card-footprint">{item.w}×{item.h} ô</span>
+                          <span className="build-card-owned">Đã xây {ownedCount}</span>
                         </div>
                         <div className="build-card-body">
                           <div className="build-card-header">
@@ -4483,7 +4488,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
                               showCastleToast(`Đã chọn [${item.name}] · Chạm vào ô đất trống trên đảo để dựng nhà!`, 'ok');
                             }}
                           >
-                            {canAfford ? 'Mua & Lắp Đặt' : 'Chưa đủ tài nguyên'}
+                            {canAfford ? 'CHỌN VỊ TRÍ XÂY' : 'CHƯA ĐỦ TÀI NGUYÊN'}
                           </button>
                         </div>
                       </article>

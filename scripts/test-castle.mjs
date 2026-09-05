@@ -935,13 +935,12 @@ assert(p1.x === tgtPt.x && p1.y === tgtPt.y, 'Đạn đạo Parabol: Tiếp đ�
 assert(p1.angle > 0, 'Đạn đạo Parabol: Góc tiếp tuyến tại t=1.0 chúc xuống đất tự nhiên (dy > 0).');
 
 // 2. Kiểm thử Vòm Khiên 2.5D Ellipse & Ray-Dome Collision
-function testIsInsideShieldDome(x, y, center, radiusX, radiusY, bottomAllowanceRatio = 0.12) {
+function testIsInsideShieldDome(x, y, center, radiusX, radiusY) {
   if (radiusX <= 0 || radiusY <= 0) return false;
   const dx = (x - center.x) / radiusX;
   const dy = (y - center.y) / radiusY;
   const distSq = dx * dx + dy * dy;
-  const maxAllowedY = center.y + radiusY * bottomAllowanceRatio;
-  return distSq <= 1.0 && y <= maxAllowedY;
+  return distSq <= 1.0;
 }
 
 const domeCenter = { x: 500, y: 350 };
@@ -952,6 +951,12 @@ const radiusY = 220;
 assert(
   testIsInsideShieldDome(500, 300, domeCenter, radiusX, radiusY) === true,
   'Vòm Khiên 2.5D: Điểm bên trong vòm (500, 300) được nhận diện nằm TRONG khiên.'
+);
+
+// Điểm ở phần đá/rễ lơ lửng bên dưới cũng phải được bảo vệ
+assert(
+  testIsInsideShieldDome(500, 500, domeCenter, radiusX, radiusY) === true,
+  'Cầu Khiên 2.5D: Phần đáy đảo lơ lửng (500, 500) nằm TRONG khiên khép kín.'
 );
 
 // Điểm bên ngoài khiên (trên cao ngoài vòm)
