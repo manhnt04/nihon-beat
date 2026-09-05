@@ -12,6 +12,7 @@ import CastleIsoCanvas, {
 } from './components/CastleIsoCanvas';
 import CastleHomeWidget from './components/castle/CastleHomeWidget';
 import PlayerAvatar from './components/PlayerAvatar';
+import SemanticSeoFooter from './components/SemanticSeoFooter';
 import {
   FootprintCell,
   rectFootprint,
@@ -6004,11 +6005,11 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <span className="eyebrow">
                 <Sparkles /> HỌC TIẾNG TRUNG QUA ÂM NHẠC
               </span>
-              <h1>
+              <h2 className="hero-punchline">
                 Bắt đúng nhịp.
                 <br />
                 <em>Nhớ trọn Hán tự.</em>
-              </h1>
+              </h2>
               <p>
                 Mỗi nhịp bấm là một chữ Hán mới. Chinh phục từ HSK 1 đến HSK 6
                 qua giai điệu, pinyin và phản xạ thật tự nhiên.
@@ -6126,6 +6127,7 @@ export default function Home({ initialScreen }: { initialScreen?: Screen } = {})
               <b>{progression?.jade ?? 0}</b>Mảnh Ngọc 玉片
             </button>
           </section>
+          <SemanticSeoFooter />
         </div>
       )}
       {screen === 'songs' && (

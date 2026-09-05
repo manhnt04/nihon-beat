@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import './audition.css';
+import { generateFaqSchema } from '@/lib/seo-data';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -137,6 +138,7 @@ const jsonLd = {
       },
       sameAs: ['https://github.com/manhnt04/nihon-beat'],
     },
+    generateFaqSchema(),
   ],
 };
 
